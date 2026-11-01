@@ -30,6 +30,6 @@
 
 - 项目与实验的重型验证优先使用云端免费资源；使用具体云服务前告知用途、权限并取得许可。真实模型密钥不进入 CI。
 - Luanti 路线使用服务端实体而非玩家客户端，是否接受这一形态仍待决定；环境选型和 LLM 社会行为尚无结论。
-- 原型与实验分支已推送远端并设置了上游追踪（`proto/world-genesis`、`experiment/minecraft-societies`）。早先的远端 `prototype/review-*` 审查分支已删除，其改动均已在 `proto/world-genesis` 中。真实配置、存档、依赖目录和实验运行时不在分支提交中。`.tmp/branch-migration/working-copy/` 是可恢复的本地临时备份，不是永久归档。
+- 原型与实验分支已推送远端并设置了上游追踪（`proto/world-genesis`、`experiment/minecraft-societies`）。早先的远端 `prototype/review-*` 审查分支已删除，其改动均已在 `proto/world-genesis` 中。真实配置、存档、依赖目录和实验运行时不在分支提交中；本地迁移备份已在整理后清理，恢复以远端分支为准。
 - 原型依赖 `three` 未入库；在新工作区运行 `node prototypes/verify.mjs` 前，需在 `prototypes/` 下 `npm install`（可从本地 npm 缓存离线完成）。
 - 本地模型配置只有一个入口：根目录 `.env`（或 `WISPIVA_ENV_FILE` 指定的文件），由 `prototypes/model/config.mjs` 用 `parseEnv` 读取 `WISPIVA_LLM_BASE_URL`、`WISPIVA_LLM_MODEL`、`WISPIVA_LLM_API_KEY`。v1 引擎的 JSON 配置文件支持已随代码删除，`.gitignore` 中相关的 `/config.json` 规则一并移除；`.data/` 仍整体忽略。
