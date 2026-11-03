@@ -71,4 +71,4 @@
 
 ## 发布账本 manifest 版本（Actions 41153022456）
 
-提交 `857843c` 的产品验证在加载持久世界时失败。发布账本写出的 `wispiva-world-manifest` 是 version 2，当时的 Luanti `init.lua` 只接受 version 1，错误为 `invalid product genesis manifest`。运行时现已接受 version 1 和带 32 位小写十六进制 `operation_id` 的 version 2。本机假模型加载已通过 version 2 投影、一次决策和正常 checkpoint；该修复尚未重新提交云端 Actions。跨存储原子提交和 `UNKNOWN` 阶段自动修复仍然没有。
+提交 `857843c` 的产品验证在加载持久世界时失败。发布账本写出的 `wispiva-world-manifest` 是 version 2，当时的 Luanti `init.lua` 只接受 version 1，错误为 `invalid product genesis manifest`。运行时现已接受 version 1 和带 32 位小写十六进制 `operation_id` 的 version 2。本机假模型加载已通过 version 2 投影、一次决策和正常 checkpoint。提交 `4cce32b` 的 [Actions 41590168499](https://github.com/kikoiio/Wispiva/actions/runs/41590168499) 已通过持久产品世界、暂停／改速／恢复和客户端验收。跨存储原子提交和 `UNKNOWN` 阶段自动修复仍然没有。
