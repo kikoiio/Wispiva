@@ -89,6 +89,9 @@ local offline_seconds = 0
 local product_clock_bootstrap = false
 local environment_process
 local environment_last_time = 0
+local environment_change_at = 0
+local environment_rate_after = 0
+local environment_condition_logged = false
 local simulation_clock
 local time_wait_seconds, time_active_seconds, time_paused_seconds = 0, 0, 0
 local function world_time()
@@ -222,6 +225,17 @@ local agents = {}
 local history = long_term_memory.new()
 local event_log = world_events.new()
 if WORLD_PRODUCT then
+	local function integer_setting(name, default, low, high)
+		local value = tonumber(cfg(name, tostring(default)))
+		assert(value and value == math.floor(value) and value >= low and value <= high,
+			"invalid " .. name)
+		return value
+	end
+	local environment_capacity = integer_setting("society_environment_capacity", 16, 1, 2147483647)
+	local environment_amount = integer_setting("society_environment_amount", 2, 0, environment_capacity)
+	local environment_rate = integer_setting("society_environment_rate", 1, -2147483647, 2147483647)
+	environment_change_at = integer_setting("society_environment_rate_change_at", 0, 0, 2147483647)
+	environment_rate_after = integer_setting("society_environment_rate_after", 0, -2147483647, 2147483647)
 	local raw = storage:get_string("environment_state")
 	if raw ~= "" then
 		local decoded = minetest.parse_json(raw)
@@ -231,7 +245,7 @@ if WORLD_PRODUCT then
 		environment_last_time = loaded:export().time
 	else
 		environment_process = environment_module.new({id="world-resource", resource="society:resource",
-			capacity=16, amount=2, rate=1, time=0})
+			capacity=environment_capacity, amount=environment_amount, rate=environment_rate, time=0})
 	end
 	local components = product_state:components()
 	if components.actors > 0 or components.inventory > 0 or components.events > 0 or components.memory > 0 then
@@ -343,6 +357,11 @@ ev = function(fmt, ...)
 	local started = PROFILE and minetest.get_us_time()
 	minetest.log("action", "SOCIETY " .. string.format(fmt, ...))
 	if started then profile.log = profile.log + minetest.get_us_time()-started end
+end
+if WORLD_PRODUCT and RESTORE and simulation_clock then
+	local clock = simulation_clock:export()
+	ev("ev=resume logical=%d offline_seconds=%d rate=%g",
+		clock.logical_time, offline_seconds, clock.rate)
 end
 
 local function fp(v)
@@ -1542,7 +1561,8 @@ local function advance_product_environment()
 	if not WORLD_PRODUCT or not environment_process then return true end
 	local now = math.floor(world_time() or 0)
 	if now <= environment_last_time then return true end
-	local ok, events = pcall(environment_process.advance, environment_process, now)
+	local ok, events = pcall(environment_process.advance_across, environment_process, now,
+		environment_change_at, environment_rate_after)
 	if not ok then
 		fail("environment", "advance=%s", tostring(events):gsub("%s+", "_"))
 		return false
@@ -1571,8 +1591,15 @@ local function advance_product_environment()
 				end
 			end
 		end
-		ev("ev=environment kind=%s resource=%s before=%d after=%d event=%s",
-			item.kind, item.resource, item.before, item.after, event.id)
+		ev("ev=environment kind=%s resource=%s before=%d after=%d rate=%d event=%s",
+			item.kind, item.resource, item.before, item.after, item.rate, event.id)
+	end
+	local settled = environment_process:export()
+	if environment_change_at > 0 and not environment_condition_logged
+			and settled.time >= environment_change_at and settled.rate == environment_rate_after then
+		ev("ev=environment-condition at=%d rate=%d amount=%d",
+			environment_change_at, settled.rate, settled.amount)
+		environment_condition_logged = true
 	end
 	environment_last_time = now
 	return true

@@ -103,4 +103,18 @@ local empty = environment.new({id = "empty", resource = "wood", capacity = 0,
   amount = 0, rate = 1, time = 0})
 assert(#empty:advance(10) == 0)
 
+-- A jump past a condition boundary settles the old rate, then the new one.
+local crossed = environment.new({id = "grove", resource = "wood", capacity = 16,
+  amount = 4, rate = 2, time = 0})
+local split = crossed:advance_across(10, 2, 0)
+assert(#split == 1 and split[1].before == 4 and split[1].after == 8 and split[1].rate == 2)
+assert(crossed:export().amount == 8 and crossed:export().rate == 0 and crossed:export().time == 10)
+assert(#crossed:advance_across(12, 2, 0) == 0 and crossed:export().amount == 8)
+local held = environment.new({id = "grove", resource = "wood", capacity = 16,
+  amount = 4, rate = 2, time = 0})
+assert(#held:advance_across(1, 2, 0) == 1 and held:export().rate == 2 and held:export().amount == 6)
+local plain = environment.new({id = "grove", resource = "wood", capacity = 16,
+  amount = 2, rate = 1, time = 0})
+assert(plain:advance_across(3, 0, 0)[1].after == 5)
+
 print("environment tests passed")

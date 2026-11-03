@@ -18,6 +18,11 @@ DECISIONS=10
 INTERVAL=2
 REFLECTION_EVERY=3
 TIME_RATE=24
+ENV_AMOUNT=""
+ENV_RATE=""
+ENV_CAPACITY=""
+ENV_CHANGE_AT=""
+ENV_RATE_AFTER=""
 FAULT_STAGE=""
 PORT=30078
 FIXTURE=0
@@ -35,6 +40,11 @@ while [[ $# -gt 0 ]]; do
     --interval) INTERVAL="$2"; shift 2 ;;
     --reflection-every) REFLECTION_EVERY="$2"; shift 2 ;;
     --speed) TIME_RATE="$2"; shift 2 ;;
+    --environment-amount) ENV_AMOUNT="$2"; shift 2 ;;
+    --environment-rate) ENV_RATE="$2"; shift 2 ;;
+    --environment-capacity) ENV_CAPACITY="$2"; shift 2 ;;
+    --environment-change-at) ENV_CHANGE_AT="$2"; shift 2 ;;
+    --environment-rate-after) ENV_RATE_AFTER="$2"; shift 2 ;;
     --fault-stage) FAULT_STAGE="$2"; shift 2 ;;
     --port) PORT="$2"; shift 2 ;;
     --fake-model) FIXTURE=1; shift ;;
@@ -119,6 +129,17 @@ society_time_rate = $TIME_RATE
 society_control_dir = $WORLD/private/control
 society_fault_stage = $FAULT_STAGE
 EOF
+nonneg() { [[ "$1" =~ ^[0-9]+$ ]]; }
+signed() { [[ "$1" =~ ^-?[0-9]+$ ]]; }
+if [[ -n "$ENV_AMOUNT" ]]; then nonneg "$ENV_AMOUNT" || { echo "run_product.sh: invalid environment amount" >&2; exit 2; }; echo "society_environment_amount = $ENV_AMOUNT" >> "$conf"; fi
+if [[ -n "$ENV_RATE" ]]; then signed "$ENV_RATE" || { echo "run_product.sh: invalid environment rate" >&2; exit 2; }; echo "society_environment_rate = $ENV_RATE" >> "$conf"; fi
+if [[ -n "$ENV_CAPACITY" ]]; then nonneg "$ENV_CAPACITY" || { echo "run_product.sh: invalid environment capacity" >&2; exit 2; }; echo "society_environment_capacity = $ENV_CAPACITY" >> "$conf"; fi
+if [[ -n "$ENV_CHANGE_AT" ]]; then nonneg "$ENV_CHANGE_AT" || { echo "run_product.sh: invalid environment change time" >&2; exit 2; }; echo "society_environment_rate_change_at = $ENV_CHANGE_AT" >> "$conf"; fi
+if [[ -n "$ENV_RATE_AFTER" ]]; then signed "$ENV_RATE_AFTER" || { echo "run_product.sh: invalid environment rate after" >&2; exit 2; }; echo "society_environment_rate_after = $ENV_RATE_AFTER" >> "$conf"; fi
+if [[ -n "$ENV_CHANGE_AT" && "$ENV_CHANGE_AT" != 0 && -z "$ENV_RATE_AFTER" ]]; then
+  echo "run_product.sh: environment change requires --environment-rate-after" >&2
+  exit 2
+fi
 chmod 600 "$conf"
 
 if [[ "$VISUAL_FIXTURE" -eq 1 ]]; then

@@ -5,6 +5,9 @@
 -- exact threshold-crossing times; unchanged amounts produce no event.
 -- set_conditions(time, {rate = n}) settles the OLD rate through time before
 -- installing the new one. Call at the actual change boundary, never backdate.
+-- advance_across(time, change_at, new_rate) does that split when one jump
+-- passes change_at. change_at 0 means there is no boundary. A restored
+-- process whose time is already at or past the boundary only advances.
 -- export()/load() copy JSON-safe snapshots including time and event sequence.
 -- id must uniquely name this process within the host's event journal; retain
 -- it across restores and use a new id for an independently created process.
@@ -77,6 +80,19 @@ local function build(initial)
     local results = self:advance(time)
     state.rate = rate
     return results
+  end
+
+  function process:advance_across(time, change_at, new_rate)
+    integer(time, state.time, MAX)
+    change_at = integer(change_at, 0, MAX)
+    if change_at == 0 or change_at <= state.time or change_at > time then
+      return self:advance(time)
+    end
+    new_rate = integer(new_rate, -MAX, MAX)
+    local settled = self:set_conditions(change_at, {rate = new_rate})
+    local later = self:advance(time)
+    for index = 1, #later do settled[#settled + 1] = later[index] end
+    return settled
   end
 
   return process

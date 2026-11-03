@@ -121,6 +121,16 @@ Wispiva 是一个独立产品：用户用自然语言或素材描述想要的世
 
 提交 `59a3e4d` 的 [Actions 41594198130](https://github.com/kikoiio/Wispiva/actions/runs/41594198130) 通过这次验收。当时仓库变量 `LLM_MODEL` 为 `GLM-5.3-Flash`，`LLM_BASE_URL` 指向 SCNet 的 Anthropic Messages 端点。Alice、Bob、Cora 各 6 次决策，共 18 次请求和 18 次响应。19 次尝试里有 1 次 `transport_error`，世界随后完成。含标记的发言送达 Bob 2 次，Bob 之后的请求里有来源为 `agent_message` 的传闻。Cora 的 6 次请求都没有该标记，邻居列表里也没有 Alice 或 Bob。输入 token 37747，输出 token 14482。checkpoint 已提交，公开摘要的失败码为空。更早的 [Actions 41592566511](https://github.com/kikoiio/Wispiva/actions/runs/41592566511) 在发出 provider 请求前以 `invalid_config` 结束，原因是 workflow 仍引用已经清空的旧配置名；那次没有模型动作。本轮关闭了反思，只覆盖这一条受控短场景。行动后果、环境条件变化、重启对照、真人三维观看、稳定社会和千级模型容量仍未由此证明。
 
+第 2 到第 4 条的当前验收是 `validation/longitudinal.py`，结果以分支 `validation/luanti-product-model-longitudinal-20261103` 的 Actions 为准。三条都从已确认的已知草稿启动，反思关闭，公开摘要只保留计数和失败码。
+
+行动与真实后果：Alice 从院子 `(-2, 1, -2)` 出发，东侧一格 `(-1, 1, -2)` 有一个 `society:resource`。目标要求第一次采集该点，第二次再采集同一点并失败。审计要求事件账本里这一格有一次成功采集，原因是 `world-verified`，以及一次失败采集，原因是 `resource mismatch`；Alice 的经历记下这两次结果；成功采集数减去成功放置数等于库存里的 `society:resource`；最后一条资源守恒核对为真。
+
+环境持续与条件变化：过程从存量 4、速率 2、容量 16 开始。逻辑时间越过 2 时，先按旧速率结算到该时刻，再把速率改为 0，结算后存量为 8。种子里的 `stock-prediction-4` 只留在未知中，不能进入当前事实。至少一次模型请求的观察时间不早于这个边界。日志要有 `ev=environment-condition at=2 rate=0 amount=8`。
+
+重启与离开：单独一个世界先完成一轮无客户端的模型决策并提交 checkpoint，等待数秒墙钟后再 `--resume`。恢复日志记下离线秒数，逻辑时间停在 checkpoint，不把离线秒数乘速率加进时钟。第一轮的事件 `operation_id` 和记忆 id 都还在，决策计数继续增加。日志里没有玩家加入。这检查引擎在没有客户端时能跑完，并在退出后从冻结点恢复。用户断开正在观看的客户端，仍由第 5 条真人观看评价。
+
+第 5 条由用户执行 `engine/luanti/run_product.sh --serve` 后，用 `engine/luanti/view_product.sh` 进入场景评价。误解或转述不在这三条例的范围内。
+
 ## 里程碑之后
 
 - 完善情境反思、长期矛盾信念和检索质量；比较同预算记忆策略，记录真实输出与独立评分。
