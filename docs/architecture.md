@@ -1,13 +1,13 @@
 # 当前架构：Wispiva 产品分支
 
-核对日期：2026-10-30。本分支的产品目标与 [Wispiva 项目意图](intent.md)相同，采用 Luanti 作为 Minecraft-like 世界基底，独立发展且不合并到 `main`。本文只描述本 worktree 的现状；[目标设计](design/2026-10-27-target-architecture.md)和[实施计划](PLAN.md)不是已实现能力。产品代码直接位于根目录模块，Luanti 适配层位于 `engine/luanti/`；历史验证属于此适配层的证据，不限定本分支的产品目标。目录职责见[仓库布局](repository-layout.md)。
+核对日期：2026-11-03。本分支的产品目标与 [Wispiva 项目意图](intent.md)相同，采用 Luanti 作为 Minecraft-like 世界基底，独立发展且不合并到 `main`。本文只描述本 worktree 的现状；[目标设计](design/2026-10-27-target-architecture.md)和[实施计划](PLAN.md)不是已实现能力。产品代码直接位于根目录模块，Luanti 适配层位于 `engine/luanti/`；历史验证属于此适配层的证据，不限定本分支的产品目标。目录职责见[仓库布局](repository-layout.md)。
 
 ## 现有组件与数据流
 
 | 组件 | 位置 | 当前能力和限制 |
 | --- | --- | --- |
 | Luanti 运行时 | [runtime/bootstrap.sh](../engine/luanti/runtime/bootstrap.sh) | 从系统软件源下载并解包引擎和 Minetest Game 到项目内 `.runtime/`，记录哈希；没有锁定未来软件包版本。 |
-| 实体与规则调度 | [engine/luanti/mod/society/init.lua](../engine/luanti/mod/society/init.lua)、[policy.lua](../engine/luanti/mod/society/policy.lua)、[cognition/navigation.lua](../cognition/navigation.lua) | 服务端实体、有限 BFS 移动、标记、接触与分帧决策；产品世界启动时读取持久起源 manifest，按空间投影生成地点、连接和角色起点，provider 请求只发送当前角色的 `wispiva.model-input` envelope。已将经确认草稿的公开标题和描述作为 `genesis.public` fact 注入每个角色的 envelope，原始 intent、私有 goal 和其他角色记忆不通过该记录共享。导航会在每次移动前回读地面、身体空间、墙体和地图节点变化；仍不实现普通生存游戏的碰撞、跳跃或第一人称视觉。 |
+| 实体与规则调度 | [engine/luanti/mod/society/init.lua](../engine/luanti/mod/society/init.lua)、[policy.lua](../engine/luanti/mod/society/policy.lua)、[cognition/navigation.lua](../cognition/navigation.lua) | 服务端实体、有限 BFS 移动、标记、接触与分帧决策；产品世界启动时读取持久起源 manifest（version 1，或带 32 位 operation id 的 version 2），按空间投影生成地点、连接和角色起点，provider 请求只发送当前角色的 `wispiva.model-input` envelope。已将经确认草稿的公开标题和描述作为 `genesis.public` fact 注入每个角色的 envelope，原始 intent、私有 goal 和其他角色记忆不通过该记录共享。导航会在每次移动前回读地面、身体空间、墙体和地图节点变化；仍不实现普通生存游戏的碰撞、跳跃或第一人称视觉。 |
 | 观察与动作 | [cognition/](../cognition/README.md) | 球形范围观察、空间索引、节点缓存、资源采集与放置、资源回读；无视线遮挡，不是第一人称视觉。资源操作限于实验节点。 |
 | 私有记忆与世界事件 | [cognition/memory.lua](../cognition/memory.lua)、[long_term_memory.lua](../cognition/long_term_memory.lua)、[world_events.lua](../cognition/world_events.lua) | 每角色有短期记忆、长期 L0/L1/L2 记录、消息 inbox 和上次动作反馈；产品模型输入明确分为事实、本人经历、传闻和未知，均带来源与 audience。实际行动先进入按运行命名空间和操作键幂等的 `world-event:N` 账本，正常停服 checkpoint 保存事件、记忆、消息与角色状态。真实 provider 的独立 L2 校验已在 Actions 41010708756 通过；当前代码新增主循环定期触发、仅本人持久 L1 来源写回，以及独立 belief 槽位选择最新主题版本，集成云端验收已由 Actions 41025066379 通过；崩溃窗口和地图原子提交仍未完成。 |
 | 模型桥接 | [model/](../model/README.md) | Lua 将模型输入 envelope 和兼容上下文提交到私有文件队列，Python worker 在 provider 调用前校验世界、角色、知识分类、来源和 audience，并只发送 envelope；兼容上下文只留在本地做动作结果校验。并非千人模型调度器。夹具和真实模型分开记录。 |

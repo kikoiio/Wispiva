@@ -39,9 +39,7 @@ if WORLD_PRODUCT then
 	local raw = file:read(131073); file:close()
 	assert(#raw <= 131072, "product genesis manifest too large")
 	genesis_manifest = minetest.parse_json(raw)
-	assert(type(genesis_manifest) == "table" and genesis_manifest.format == "wispiva-world-manifest"
-		and genesis_manifest.version == 1 and type(genesis_manifest.world_id) == "string"
-		and type(genesis_manifest.origin_event_id) == "string", "invalid product genesis manifest")
+	assert(world_projection.accept_binding(genesis_manifest), "invalid product genesis manifest")
 end
 local COUNT = WORLD_PRODUCT and #genesis_manifest.actors or tonumber(cfg("society_count", "5"))
 local INTERVAL = tonumber(cfg("society_decide_interval", "2.0"))

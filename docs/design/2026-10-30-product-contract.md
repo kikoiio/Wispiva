@@ -12,4 +12,6 @@
 
 创建器把契约写入私有世界目录，同时把它嵌入 `wispiva-origin.json`，并在 `creation.json` 中记录引用。Luanti 产品启动器在获得 `WorldSession` 锁之后校验世界身份、契约、manifest 和 creation record；校验失败时不启动服务器。契约文件和 manifest 使用私有权限，不能作为公开空间投影。
 
+`wispiva-origin.json` 使用 `wispiva-world-manifest`。没有发布 operation 时为 version 1，且不能带 `operation_id`。`create_world` 的发布账本写入 version 2，包含 32 位小写十六进制 `operation_id` 和私有 `origin_draft`。Luanti 运行时两种版本都接受；空间投影只读取公开地点、连接、角色和物件，不读取草稿或原始意图。version 2 的启动门禁还会从私有草稿重编译公开投影，并只读核对起源数据库。
+
 当前提交只证明身份和启动对账。后续提交必须在同一契约上推进组件版本，并在未知或不一致时冻结世界；跨 SQLite、Luanti map database、mod storage 和文件的共同事务仍需单独设计和验证。

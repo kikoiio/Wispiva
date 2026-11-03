@@ -50,6 +50,19 @@ local function find(plan,key)
   error('missing operation: ' .. key)
 end
 
+test('publication manifest version 2 keeps the version 1 spatial plan', function()
+  local current = fixture()
+  local published = copy(current)
+  published.version = 2
+  published.operation_id = string.rep('ab', 16)
+  published.origin_draft = {title = 'private draft'}
+  published.intent = 'private intent'
+  assert(projection.accept_binding(published))
+  assert(equal(projection.plan(current), projection.plan(published)))
+  local adapter,_,writes = fake(published)
+  assert(projection.apply(published, adapter).writes > 0 and #writes > 0)
+end)
+
 test('room, outdoor ground, roof, doorway and L-shaped connection', function()
   local plan = projection.plan(fixture())
   assert(find(plan,'node:0,0,1').value.name == 'default:wood')
@@ -219,7 +232,11 @@ end)
 
 test('invalid versions, identity and non-finite/fractional/large coordinates', function()
   local mutations = {
+    function(d) d.version=3 end,
     function(d) d.version=2 end,
+    function(d) d.version=2; d.operation_id=string.rep('A', 32) end,
+    function(d) d.version=2; d.operation_id=string.rep('a', 31) end,
+    function(d) d.operation_id=string.rep('a', 32) end,
     function(d) d.format='genesis-disposable-preview' end,
     function(d) d.world_id='not-a-world-id' end,
     function(d) d.origin_event_id='' end,

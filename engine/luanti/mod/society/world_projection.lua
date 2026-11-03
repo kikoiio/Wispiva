@@ -1,8 +1,10 @@
 -- Pure bounded spatial projection used by the product init.lua and its
 -- read-before-write origin projection. It is still not a general map adapter.
 -- Input is the caller-authenticated genesis.world_create persistent manifest:
--- {format='wispiva-world-manifest', version=1, world_id, origin_event_id,
--- public={places, semantic_connections, actors, objects?}}. Places/actors use genesis.compiler's
+-- {format='wispiva-world-manifest', version=1 or 2, world_id, origin_event_id,
+-- public={places, semantic_connections, actors, objects?}}. Version 2 is the
+-- publication ledger hand-off and also carries operation_id; private fields
+-- such as origin_draft are ignored here. Places/actors use genesis.compiler's
 -- public fields (anchor, space; actor_id, ordinal, place_id, position). Objects
 -- are {id, place_id, position, node}; supported interactive nodes are listed below.
 -- Private goals/memories are never copied. The caller must verify this manifest
@@ -67,9 +69,22 @@ local function copy(v)
   return out
 end
 
+function M.accept_binding(manifest)
+  if type(manifest) ~= 'table' or manifest.format ~= 'wispiva-world-manifest' then return false end
+  if manifest.version == 1 then
+    if manifest.operation_id ~= nil then return false end
+  elseif manifest.version == 2 then
+    local operation_id = manifest.operation_id
+    if type(operation_id) ~= 'string' or #operation_id ~= 32
+      or operation_id:match('^[0-9a-f]+$') == nil then return false end
+  else
+    return false
+  end
+  return uuid(manifest.world_id) and id(manifest.origin_event_id) and true or false
+end
+
 function M.plan(manifest)
-  check(type(manifest) == 'table' and manifest.format == 'wispiva-world-manifest' and manifest.version == 1
-    and uuid(manifest.world_id) and id(manifest.origin_event_id), 'invalid origin binding')
+  check(M.accept_binding(manifest), 'invalid origin binding')
   local view = manifest.public
   check(type(view) == 'table', 'public spatial view required')
   local objects = view.objects

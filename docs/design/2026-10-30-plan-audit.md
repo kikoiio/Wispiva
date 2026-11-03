@@ -46,3 +46,29 @@
 [Actions 41113101332](https://github.com/kikoiio/Wispiva/actions/runs/41113101332) 的四角色长场景完成 91/96 次决策，产生 32 条消息事件和 2 次资源转移；末次模型响应在三次重试后失败，未提交 checkpoint，recovery marker 保留。不得手动清除 marker 后继续。
 
 `launch.py --recover-committed-checkpoint` 现在只处理完整 checkpoint 提交后 launcher 未清理 marker 的窄窗口，并在 Luanti server 运行时拒绝执行。它无法恢复部分推进的场景；需继续设计并验证跨地图、库存、事件、记忆、环境时钟的对账或回滚策略。新增恢复用例第一次因夹具先写世界数据后建身份而失败（[Actions 41115517669](https://github.com/kikoiio/Wispiva/actions/runs/41115517669)）；夹具顺序已修正，云端复跑 [41116220558](https://github.com/kikoiio/Wispiva/actions/runs/41116220558) 已通过。
+
+## 公开邻居观察与自由社会复验
+
+产品输入增加不含角色私密字段的公开邻居姓名、位置和距离投影，并限制为 16 名最近邻。产品回归 [Actions 41136799811](https://github.com/kikoiio/Wispiva/actions/runs/41136799811) 全绿。自由社会真实模型 [Actions 41136848017](https://github.com/kikoiio/Wispiva/actions/runs/41136848017) attempt 1 在 68/96 决策时因无效响应终止，marker 保留且未写 checkpoint；attempt 2 重建世界并完成 96/96、checkpoint 和关闭，96/96 请求看到邻居，计 288 次邻居观察、30 次 say/message、4 次资源转移、0 次 meeting。并发 4 负载回放 24/24 成功、实测 1.173 次/秒，故障窗口探针通过。该轮有界重试期间计数 5 次 invalid_action、4 次 invalid_response、4 次 provider_failed。对白与转移也在 41099553897 完成场景中出现，但样本仍只有两轮且未见正式会议；稳定关系、制度和长期演化仍未验证。
+
+## 最新产品和自由社会复验
+
+产品提交 [`ffbfafc`](https://github.com/kikoiio/Wispiva/commit/ffbfafc224dcaa55585f4fc3337924e166d130fd) 的 [Actions 41123428488](https://github.com/kikoiio/Wispiva/actions/runs/41123428488) 全绿。它在云端验证了已确认 Draft 到持久 Luanti 世界发布、起源布局和角色记忆投影、确定性角色循环、正常重启记忆恢复、暂停／改速／恢复及客户端验收；截图 artifact 为 [13010651422](https://github.com/kikoiio/Wispiva/actions/runs/41123428488/artifacts/13010651422)。这不是用户确认真实草稿或真人评价三维体验。
+
+当前产品树上的真实模型复验 [Actions 41120418601](https://github.com/kikoiio/Wispiva/actions/runs/41120418601) 全绿。四角色各 24 次预算完成 96 次决策和 checkpoint；advance 14、build 22、gather 27、inspect 8、wander 25，message、resource transfer、meeting 均为 0。尝试阶段含 1 次 `invalid_action`、3 次 `invalid_response` 和 2 次 `provider_failed`，但有界运行最终完成。新版产品树复跑 [Actions 41124293328](https://github.com/kikoiio/Wispiva/actions/runs/41124293328) 也全绿：三角色主循环 24 请求／6 次反思、恢复后 36 请求／9 次反思；四角色 96 次场景以 build 41、gather 42、inspect 10、advance 1、wander 2 完成，互动事件仍为 0。该轮有 3 次 `invalid_action`、4 次 `invalid_response`、1 次 `provider_failed`，重试后完成。两轮都没有自由社会互动，不能宣称社会涌现。
+
+为增加协调提示而开展的 [Actions 41126749089](https://github.com/kikoiio/Wispiva/actions/runs/41126749089) attempt 1 在 84/96 决策后遇到 `model-response` 终止，未提交 checkpoint；部分运行发生 4 次资源转移，say 与 meeting 均为 0。同一提交 attempt 2 完成 96/96 和 checkpoint，但资源转移、say、meeting 全为 0。提示改动尚无稳定互动效果证据；下一步应将无引导基线与有明确互动机会的压力情境分开评估。
+
+新增审计显示该提示变体的上一轮所有模型请求都没有邻居可见性。因此 Genesis 共享社区生成提示已改为默认将居民置于同一公共起点，除非用户要求分开。新版真实模型 [Actions 41132741084](https://github.com/kikoiio/Wispiva/actions/runs/41132741084) attempt 1 在 12/12 个请求中观测到邻居、总计 36 次邻居观察，但第 12 次决策因 `model-response` 失败而中止。Attempt 2 的四角色长场景完成 96/96 决策、checkpoint 和关闭；96/96 请求均能看见邻居，总计 288 次邻居观察，行为为 give／资源转移 1、say 0、meeting 0。之后并发 4 的 24 次真实模型回放为 22/24 有效动作，2 次 `invalid_action`，约 1.19 请求／秒，未通过当前严格的 24/24 负载门槛。场景可达性已修复；模型互动和调用质量仍未达到计划目标。
+
+## 六组记忆／互动配对（Actions 41144262599）
+
+真实模型六组配对各有 24 次决策，记忆关闭与开启均完成 144/144 动作请求、终止失败 0；say/message 82 对 84，逐组差值方向各半、中位差 0；build 5 对 10，meeting 18 对 18。场景明确要求向邻居说明计划并预设相遇，因此这些 message／meeting 计数不代表自发互动。试验没有显示记忆对交流频率的稳定影响。逐组和错误计数见[产品证据页](../../evidence/luanti/product-model-2026-10-30/README.md#记忆开关与社会互动配对6-组2026-10-30)。
+
+## 扩展检索记忆评估（8 个新 seeds）
+
+[Actions 41149546110](https://github.com/kikoiio/Wispiva/actions/runs/41149546110) 完成 4-seed、48 请求评估，retrieval 正确 22/24、FIFO 1/24，retrieval 证据选择 24/24。第二批 [Actions 41150339826](https://github.com/kikoiio/Wispiva/actions/runs/41150339826) 的六类任务仍完整运行 48 请求并保存 artifact，但由于 FIFO 条件有一次 `invalid_action`，工作流严格失败；retrieval 为 20/24、目标证据选择 24/24。两批共 8 seeds／96 请求：retrieval 42/48、FIFO 1/48；retrieval 证据选择 48/48，中文短线索 2/8、明确提取 8/8。无 provider 错误，token 审计完整。失败反映单次 action schema 可靠性，不是检索未选到目标记忆。准确计数见产品[记忆证据页](../../evidence/luanti/product-model-2026-10-30/README.md)。该合成任务仍不证明长时记忆、角色关系或自然语言语义检索质量。
+
+## 发布账本 manifest 版本（Actions 41153022456）
+
+提交 `857843c` 的产品验证在加载持久世界时失败。发布账本写出的 `wispiva-world-manifest` 是 version 2，当时的 Luanti `init.lua` 只接受 version 1，错误为 `invalid product genesis manifest`。运行时现已接受 version 1 和带 32 位小写十六进制 `operation_id` 的 version 2。本机假模型加载已通过 version 2 投影、一次决策和正常 checkpoint；该修复尚未重新提交云端 Actions。跨存储原子提交和 `UNKNOWN` 阶段自动修复仍然没有。
