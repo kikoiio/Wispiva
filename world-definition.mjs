@@ -451,7 +451,7 @@ export function createGeneratedFixture() {
       schemaVersion: 1, profile: 'world', id: 'mist-observatory', title: '雾海星图站', style: { palette: 'wetland-sage', voxelUnit: 0.42, seed: 83 },
       regions: [
         { id: 'water', kind: 'water', center: [0, 0], size: [200, 200], elevation: -0.43 },
-        { id: 'island', kind: 'island', center: [0, 0], radius: 11, elevation: 0.8, irregularity: 0.04 },
+        { id: 'island', kind: 'island', center: [0, 0], radius: 12, elevation: 0.8, irregularity: 0.04 },
       ],
       objects: [
         { id: 'archive-building', kind: 'house', name: '星图库', transform: { position: [0, 0, -8], rotation: 0 }, bounds: { width: 5, depth: 4, wallHeight: 3, floor: 0.8 }, roof: { kind: 'gable', rise: 1.3, overhang: 0.4 }, entrance: { wall: 'front', width: 1.5, height: 2.3 } },
