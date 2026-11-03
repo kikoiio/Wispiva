@@ -463,7 +463,7 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
     const canvas = renderer.domElement;
     Object.assign(canvas.style, { width: '100%', height: '100%', display: 'block', touchAction: 'none', cursor: 'grab' });
     canvas.setAttribute('role', 'img'); shell.stage.replaceChildren(canvas);
-    let bounds, yaw = 0.62, pitch = 0.58, zoom = 0.78, pointer = null;
+    let bounds, yaw = 0.62, pitch = 0.58, zoom = 0.64, pointer = null;
     const setCamera = () => {
       if (!bounds) return;
       // Frame the content box tightly: the span already includes its own air,
@@ -614,7 +614,7 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
     const end = e => { if (!pointer || e.pointerId !== pointer.id) return; const id = pointer.id; pointer = null; if (canvas.hasPointerCapture?.(id)) canvas.releasePointerCapture(id); canvas.style.cursor = 'grab'; };
     for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) listen(canvas, event, end);
     listen(canvas, 'wheel', e => { e.preventDefault(); zoom = clamp(zoom * Math.exp(clamp(e.deltaY, -200, 200) * 0.0015), 0.45, 2.2); setCamera(); draw(); }, { passive: false });
-    listen(shell.reset, 'click', () => { yaw = 0.62; pitch = 0.58; zoom = 0.78; setCamera(); draw(); });
+    listen(shell.reset, 'click', () => { yaw = 0.62; pitch = 0.58; zoom = 0.64; setCamera(); draw(); });
     listen(document, 'visibilitychange', draw);
     listen(canvas, 'webglcontextlost', e => { e.preventDefault(); if (disposed) return; disposed = true; release(); fallback = makeFallback(shell, lastState); });
     update(initialState); resize();
