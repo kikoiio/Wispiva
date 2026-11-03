@@ -53,7 +53,7 @@ jobs:
           lua5.1 engine/luanti/mod/society/test_genesis_context.lua
           python3 -B -m unittest discover -s model -t . -p 'test_*.py' -v
           python3 -B -m unittest -v engine/luanti/test_control.py
-          python3 -B -m unittest -v validation/test_model_load.py validation/test_product_memory_audit.py
+          python3 -B -m unittest -v validation/test_model_load.py validation/test_product_memory_audit.py validation/test_knowledge_boundary.py
           python3 -B -m unittest -v engine/luanti/test_snapshot.py
           python3 -B -m unittest -v engine/luanti/test_recovery_journal.py engine/luanti/test_world_identity.py engine/luanti/test_world_lock.py engine/luanti/test_world_session.py engine/luanti/test_launch.py
           python3 -B -m unittest discover -s validation/luanti/scale -t . -p 'test_*.py' -v
@@ -280,7 +280,7 @@ jobs:
           engine/luanti/view_acceptance.sh --world "$GITHUB_WORKSPACE/.ci-product/world" --seconds 60 \
             --screenshot "$GITHUB_WORKSPACE/view-acceptance.png"
       - name: Run real model product world with private memory audit
-        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' }}
+        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
           XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
           XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
@@ -402,7 +402,7 @@ jobs:
           print(json.dumps(summary, indent=2))
           PY
       - name: Verify live reflection writeback and resume
-        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' }}
+        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
           XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
           XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
@@ -415,7 +415,7 @@ jobs:
           engine/luanti/run_product.sh --world "$root/world" --resume --decisions 4 --interval 1 --seconds 900 --reflection-every 3 --audit-model
           python3 -B -m validation.product_memory_audit --world "$root/world" --before "$root/before-resume.json" --output "$root/memory-resumed.json"
       - name: Run user-intent free society product world
-        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') }}
+        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
           XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
           XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
@@ -514,7 +514,7 @@ jobs:
           PY
           if [ "$social_exit" -ne 0 ]; then exit "$social_exit"; fi
       - name: Replay bounded real-model load
-        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') }}
+        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
           XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
           XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
@@ -593,12 +593,12 @@ jobs:
           PY
           fi
       - name: Probe product checkpoint failure windows
-        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' }}
+        if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         run: |
           set -euo pipefail
           python3 -B validation/product_faults.py --source .ci-product-model/world --output .ci-product-model/fault-probes
       - name: Upload real model product evidence
-        if: ${{ always() && startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' }}
+        if: ${{ always() && startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         uses: actions/upload-artifact@v4
         with:
           name: wispiva-product-model-evidence
@@ -620,6 +620,52 @@ jobs:
           path: |
             .ci-free-social/evidence-summary.json
             .ci-free-social/model-load/concurrency-*/summary.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 14
+      - name: Run private-telling knowledge boundary
+        if: ${{ github.ref_name == 'validation/luanti-product-model-knowledge-20261103' }}
+        env:
+          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
+          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
+          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -B - <<'PY'
+          import json
+          from pathlib import Path
+          from genesis.store import DraftStore
+          from genesis.world_create import create_world
+          from validation.knowledge_boundary import SCENARIO
+          root = Path('.ci-knowledge').absolute()
+          root.mkdir(mode=0o700)
+          store = DraftStore(root / 'drafts.sqlite', create=True)
+          try:
+              record = store.create(SCENARIO)
+              store.confirm(record['id'], record['revision'], root / 'origin.sqlite')
+              result = create_world(store, record['id'], record['revision'], root / 'world')
+              (root / 'creation-result.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf-8')
+          finally:
+              store.close()
+          PY
+          for _ in $(seq 1 30); do
+            if ! pgrep -f 'luantiserver' >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          ! pgrep -f 'luantiserver' >/dev/null 2>&1
+          set +e
+          engine/luanti/run_product.sh --world "$GITHUB_WORKSPACE/.ci-knowledge/world" \
+            --decisions 6 --interval 1 --seconds 1200 --reflection-every 0 --audit-model --model-workers 1
+          run_exit=$?
+          set -e
+          python3 -B -m validation.knowledge_boundary --world "$GITHUB_WORKSPACE/.ci-knowledge/world" \
+            --output "$GITHUB_WORKSPACE/.ci-knowledge/evidence-summary.json" --run-exit "$run_exit"
+      - name: Upload private-telling evidence summary
+        if: ${{ always() && github.ref_name == 'validation/luanti-product-model-knowledge-20261103' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: wispiva-knowledge-boundary-summary
+          path: .ci-knowledge/evidence-summary.json
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 14
