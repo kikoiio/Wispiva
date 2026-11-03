@@ -9,4 +9,4 @@
 | 研究 | 综合材料；文件名前缀为研究日期 | 2026-10-28 | [世界模型](research/2026-10-28-world-models.md)、[记忆](research/2026-10-28-memory.md)、[3D 生成](research/2026-10-28-3d-generation.md)、[Minecraft 社会](research/2026-10-28-minecraft-agent-societies.md)、[Mineflayer / Voyager](research/2026-10-28-mineflayer-voyager.md) |
 | 原始素材 | 故事原文，导入模拟尚未实现 | 见计划 | [《红发会》](source-texts/sherlock-holmes/the-red-headed-league.txt) |
 | 原型 | 分支快照；不整体合并主线 | 2026-10-28 | `proto/world-genesis`，`prototypes/README.md` |
-| 独立实验 | 现行实验线在 `wispiva/world-product`；Minecraft 社会实验分支已删除，M0 记录仍可查 | 2026-11-01 | `wispiva/world-product`，归档 tag `archive/experiment/cloud-run-20261028-1` 的 `experiments/minecraft-societies/README.md` |
+| 独立实验 | 现行实验线在 `wispiva/world-product`；Minecraft 社会实验分支已删除，M0 记录仍可查 | 2026-11-03 | `wispiva/world-product` 的 `evidence/luanti/agent/m0-2026-10-27.md`；原始实验说明在提交 `7e33189` 的 `experiments/minecraft-societies/README.md` |
