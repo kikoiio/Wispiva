@@ -42,10 +42,10 @@
 
 ## 检查
 
-`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。浏览器画面和当前模型的真实行为需要分别验证，不能从离线测试推断。
+`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。提交 `3c0f129` 的 [Actions run 41686136190](https://github.com/kikoiio/Wispiva/actions/runs/41686136190) 已通过离线检查和三段合成浏览器流程，截图经人工检查；这只证明该固定样本可渲染，不代表真实模型输出稳定。
 
 `npm run benchmark:voxel` 用 756 和 5,000 方块的确定性样本输出上下文字节数、快照文件大小、重载后的方块数，以及样本写入、上下文生成和重载的总耗时；它不单独测磁盘读取延迟，不测浏览器／GPU 渲染，也不替代真实场景验收。
 
-`npm run soak:simulation` 和 `.github/workflows/prototype-soak.yml` 使用合成世界做 1–14 个模拟日的进程重启测试，按天记录 RSS、存档大小、历史长度、cgroup 与临时目录空间，只上传指标文件；该云端工作流已准备但尚未运行，不代表真实场景或长期墙钟运行通过。
+`npm run soak:simulation` 和 `.github/workflows/prototype-soak.yml` 使用合成世界做 1–14 个模拟日的进程重启测试，按天记录 RSS、存档大小、历史长度、cgroup 与临时目录空间，只上传指标文件。[Actions run 41683058142](https://github.com/kikoiio/Wispiva/actions/runs/41683058142) 完成了 7 日运行：最终历史 10,081 条、归档 22,480,522 字节、最大 RSS 478,092 KiB。该数据只描述合成场景，不代表真实世界或长期墙钟运行。
 
 本分支只维护主原型；Luanti 社会实验位于独立分支，不是原型运行依赖。
