@@ -1,0 +1,36 @@
+name: Prototype simulation soak
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: Simulated days to advance (1–14)
+        required: false
+        default: '7'
+        type: string
+  push:
+    branches: ['prototype/soak-*']
+permissions:
+  contents: read
+jobs:
+  soak:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp/soak-tmp
+      WISPIVA_SOAK_DAYS: ${{ inputs.days || '7' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare task-local temporary storage
+        run: mkdir -p "$TMPDIR"
+      - name: Run isolated simulation and restart soak
+        run: node scripts/soak-simulation.mjs
+      - name: Upload synthetic soak metrics only
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prototype-simulation-soak
+          path: .tmp/prototype/soak/run-*/metrics.json
+          retention-days: 7
