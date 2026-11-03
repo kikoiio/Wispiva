@@ -282,9 +282,9 @@ jobs:
       - name: Run real model product world with private memory audit
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           python3 -B - <<'PY'
@@ -404,9 +404,9 @@ jobs:
       - name: Verify live reflection writeback and resume
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           root="$GITHUB_WORKSPACE/.ci-product-model"
@@ -417,9 +417,9 @@ jobs:
       - name: Run user-intent free society product world
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           python3 -B - <<'PY'
@@ -516,9 +516,9 @@ jobs:
       - name: Replay bounded real-model load
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           audit_dir=.ci-product-model/world/private/model-audit
@@ -626,9 +626,9 @@ jobs:
       - name: Run private-telling knowledge boundary
         if: ${{ github.ref_name == 'validation/luanti-product-model-knowledge-20261103' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           python3 -B - <<'PY'
@@ -735,9 +735,9 @@ jobs:
       - name: Controlled memory tasks and bounded concurrency probes
         if: ${{ startsWith(github.ref_name, 'validation/luanti-memory-') && !startsWith(github.ref_name, 'validation/luanti-memory-audit-') && github.ref_name != 'validation/luanti-memory-selector-20261030' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p memory-results
           python3 -B model/memory_eval.py --output memory-results/tasks.json
@@ -745,9 +745,9 @@ jobs:
       - name: Memory evidence selection diagnostic
         if: ${{ github.ref_name == 'validation/luanti-memory-selector-20261030' }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p memory-results
           python3 -B model/memory_eval.py --output memory-results/tasks.json
@@ -760,17 +760,17 @@ jobs:
       - name: Model-driven agent loop
         if: ${{ startsWith(github.ref_name, 'validation/luanti-model-') }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           engine/luanti/run.sh --label ci-model --agents 3 --decisions 2 --interval 1 --seconds 600 --model
       - name: Generate three world drafts with the configured model
         if: ${{ startsWith(github.ref_name, 'validation/luanti-genesis-') }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p genesis-results
           python3 -B - <<'PY'
@@ -821,9 +821,9 @@ jobs:
       - name: Create and run the Chinese free-settlement intent in Luanti
         if: ${{ startsWith(github.ref_name, 'validation/luanti-genesis-cjk-') }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
           python3 -B - <<'PY'
@@ -1024,9 +1024,9 @@ jobs:
       - name: Explore interactions with and without memory
         if: ${{ startsWith(github.ref_name, 'validation/luanti-model-') }}
         env:
-          XUNFEI_OPENAI_RESPONSE_URL: ${{ vars.XUNFEI_OPENAI_RESPONSE_URL }}
-          XUNFEI_MODEL: ${{ vars.XUNFEI_MODEL }}
-          XUNFEI_API_KEY: ${{ secrets.XUNFEI_LLM_API_KEY }}
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           exp=engine/luanti
           "$exp/run.sh" --label ci-base --agents 3 --decisions 8 --interval 1 --set society_spacing=2 --set society_seed_resources=true --set society_cognition=true

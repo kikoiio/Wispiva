@@ -260,6 +260,121 @@ class AdapterTests(unittest.TestCase):
                 adapter.Config(url, 'm', 'secret').endpoint()
         self.assertIsNone(adapter._NoRedirect().redirect_request(None, None, 302, '', {}, 'https://other.invalid'))
 
+    def test_llm_env_selects_anthropic_messages_without_exposing_the_key(self):
+        env = {'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic',
+               'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key',
+               'XUNFEI_BASE_URL': '', 'WISPIVA_LLM_BASE_URL': ''}
+        config = adapter.Config.from_env(env)
+        self.assertEqual(config.protocol, 'anthropic')
+        self.assertEqual(config.socket_timeout, 80.0)
+        self.assertEqual(config.endpoint(), 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
+        self.assertNotIn('secret-key', repr(config))
+        complete = adapter.Config.from_env({
+            'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic/v1/messages/',
+            'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
+        self.assertEqual(complete.endpoint(), 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
+        preferred = adapter.Config.from_env({
+            **env, 'XUNFEI_BASE_URL': 'https://api.example/v1/responses',
+            'XUNFEI_MODEL': 'm', 'XUNFEI_API_KEY': 'k'})
+        self.assertEqual(preferred.protocol, 'responses')
+        self.assertEqual(preferred.endpoint(), 'https://api.example/v1/responses')
+        self.assertEqual(preferred.model, 'm')
+        missing = adapter.Config.from_env({
+            'LLM_BASE_URL': env['LLM_BASE_URL'], 'LLM_MODEL': 'm', 'LLM_API_KEY': ''})
+        with self.assertRaisesRegex(adapter.ModelError, '^invalid_config$'):
+            missing.endpoint()
+
+    def test_anthropic_message_ignores_thinking_and_one_fence(self):
+        config = adapter.Config.from_env({
+            'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic',
+            'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
+        captured = {}
+
+        def transport(_config, body):
+            captured['body'] = json.loads(body)
+            return json.dumps({
+                'type': 'message',
+                'content': [
+                    {'type': 'thinking', 'thinking': 'secret-key cedar-token-7f3a'},
+                    {'type': 'redacted_thinking', 'data': 'secret-key'},
+                    {'type': 'text', 'text': '```json\n{"kind":"inspect"}\n```'},
+                ],
+                'usage': {'input_tokens': 20, 'output_tokens': 8, 'thinking': 'secret-key'},
+            }).encode()
+
+        result = adapter.decide(config, CTX, transport=transport)
+        body = captured['body']
+        self.assertEqual(set(body), {'model', 'max_tokens', 'system', 'messages'})
+        self.assertEqual(body['model'], 'GLM-5.3-Flash')
+        self.assertEqual(body['max_tokens'], 4096)
+        self.assertEqual(body['system'], adapter.PROMPT)
+        self.assertEqual(body['messages'], [{
+            'role': 'user',
+            'content': json.dumps(CTX, ensure_ascii=True, sort_keys=True, separators=(',', ':')),
+        }])
+        self.assertNotIn('secret-key', json.dumps(body))
+        self.assertEqual(result['action'], {'kind': 'inspect', 'why': 'model'})
+        self.assertEqual(result['output_text'], '{"kind":"inspect"}')
+        self.assertEqual(result['audit']['usage'], {'input_tokens': 20, 'output_tokens': 8})
+        self.assertNotIn('secret-key', repr(result))
+        self.assertNotIn('cedar-token', result['output_text'])
+        leaked = json.dumps({'type': 'error', 'error': 'secret-key'}).encode()
+        with self.assertRaisesRegex(adapter.ModelError, '^invalid_response$') as caught:
+            adapter._parse_anthropic(leaked)
+        self.assertNotIn('secret-key', str(caught.exception))
+
+    def test_anthropic_transport_accepts_json_charset_only(self):
+        from email.message import EmailMessage
+        config = adapter.Config('https://api.scnet.cn/api/llm/anthropic', 'GLM-5.3-Flash',
+                                'secret-key', socket_timeout=80, protocol='anthropic')
+        payload = json.dumps({
+            'type': 'message',
+            'content': [{'type': 'text', 'text': '{"kind":"inspect"}'}],
+            'usage': {'input_tokens': 3, 'output_tokens': 2},
+        }).encode()
+
+        class Response:
+            def __init__(self, content_type, data):
+                self.headers = EmailMessage()
+                self.headers['Content-Type'] = content_type
+                self._data = data
+            def read(self, _n):
+                return self._data
+            def __enter__(self):
+                return self
+            def __exit__(self, *_args):
+                return False
+
+        seen = {}
+
+        def open_request(req, timeout=None):
+            seen['url'] = req.full_url
+            seen['timeout'] = timeout
+            seen['accept'] = req.get_header('Accept')
+            seen['version'] = req.get_header('Anthropic-version')
+            seen['auth'] = req.get_header('Authorization')
+            return Response('application/json; charset=utf-8', payload)
+
+        with mock.patch('urllib.request.build_opener') as build:
+            build.return_value.open.side_effect = open_request
+            result = adapter.decide(config, CTX)
+        self.assertEqual(seen['url'], 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
+        self.assertEqual(seen['timeout'], 80)
+        self.assertEqual(seen['accept'], 'application/json')
+        self.assertEqual(seen['version'], '2023-06-01')
+        self.assertTrue(seen['auth'].startswith('Bearer '))
+        self.assertEqual(result['action']['kind'], 'inspect')
+        self.assertNotIn('secret-key', repr(result))
+
+        def open_bad(_req, timeout=None):
+            return Response('text/event-stream', b'secret-key')
+
+        with mock.patch('urllib.request.build_opener') as build:
+            build.return_value.open.side_effect = open_bad
+            with self.assertRaisesRegex(adapter.ModelError, '^invalid_content_type$') as caught:
+                adapter.decide(config, CTX)
+        self.assertNotIn('secret-key', str(caught.exception))
+
     def test_no_exception_leak_and_async(self):
         def broken(*_):
             raise RuntimeError('secret-key')

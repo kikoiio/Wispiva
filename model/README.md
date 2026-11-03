@@ -1,10 +1,10 @@
 # 模型桥接
 
-已接入 Luanti 的异步闭环：`observe → wispiva.model-input → 私有文件队列 → Python worker → provider 前 envelope 校验 → Responses SSE → 校验动作 → 引擎执行 → 反馈`。引擎不在 tick 内等待网络。运行器为每次实验创建新的 0700 spool，停止时回收 worker 及其请求子进程；新运行不重放旧响应。
+已接入 Luanti 的异步闭环：`observe → wispiva.model-input → 私有文件队列 → Python worker → provider 前 envelope 校验 → Responses SSE 或 Anthropic Messages → 校验动作 → 引擎执行 → 反馈`。引擎不在 tick 内等待网络。运行器为每次实验创建新的 0700 spool，停止时回收 worker 及其请求子进程；新运行不重放旧响应。
 
 ## 配置与运行
 
-Actions 使用 repository variables `XUNFEI_OPENAI_RESPONSE_URL`、`XUNFEI_MODEL` 和 secret `XUNFEI_LLM_API_KEY`，后者映射为进程变量 `XUNFEI_API_KEY`。本轮使用 `spark-x2.6`。不读取 `.env`，不把凭据写入请求或日志。也支持项目的 `WISPIVA_LLM_BASE_URL/MODEL/API_KEY`；同一配置项优先 XUNFEI。
+Actions 使用 repository variables `LLM_BASE_URL`、`LLM_MODEL` 和 secret `LLM_API_KEY`。当前 `LLM_BASE_URL` 为 `https://api.scnet.cn/api/llm/anthropic`，模型为 `GLM-5.3-Flash`；路径含 `/anthropic` 时请求发往该地址下的 `/v1/messages`。不读取 `.env`，不把凭据或 thinking 文本写入审计。仍兼容 `XUNFEI_OPENAI_RESPONSE_URL`、`XUNFEI_*` 和 `WISPIVA_LLM_*`；同一配置项按这个顺序取值。
 
 ```sh
 engine/luanti/run.sh --label model-trial --agents 3 --decisions 8 --interval 1 --seconds 600 --model
@@ -30,7 +30,7 @@ Luanti 产品主循环还把确认草稿的公开标题和描述作为一条 `ge
 
 本切片的低资源定向测试：`python3 -B -m unittest model.test_origin_context -v`，使用内存序列化和假 transport，无引擎、网络或真实模型调用。
 
-`adapter.py` 仅使用标准库；HTTPS 地址由受信任配置固定，拒绝 URL 凭据、查询参数和重定向。兼容流式 Responses SSE，请求／响应／文本均有限长。`text.format=json_object`，单次输出最多 256 token，关闭 reasoning。完成事件、错误、拒绝、无效 JSON 与不合法动作均有明确失败码；不自动改成规则策略。
+`adapter.py` 仅使用标准库；HTTPS 地址由受信任配置固定，拒绝 URL 凭据、查询参数和重定向。Responses 路径兼容流式 SSE，`text.format=json_object`，单次输出最多 256 token，关闭 reasoning。路径含 `/anthropic` 时改用非流式 Messages JSON：`max_tokens` 为 4096，套接字超时 80 秒，请求带 `anthropic-version: 2023-06-01`；只拼接 `type=text` 块，忽略 thinking，并去掉一层 Markdown 围栏。完成事件、错误、拒绝、无效 JSON 与不合法动作均有明确失败码；不自动改成规则策略。
 
 模型输出投影到白名单字段：`inspect/mark/advance`、带 `target` 的 `approach`、带 `point` 的 `wander/gather/build`、带 `target/text` 的 `say`。忽略多余字段，坐标和 ID 允许数学上为整数的 JSON 数字，拒绝布尔、非有限和小数值。未知字段不能改变端点、节点名或审计来源。邻居目标必须来自观察，坐标必须在边界内；执行前再次按当前世界验证。`why` 由代码固定为 `model`。
 

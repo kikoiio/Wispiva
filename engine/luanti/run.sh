@@ -325,7 +325,7 @@ PY
       echo "执行模式: deterministic-fixture (not a model)"
     elif [[ "$MODEL" -eq 1 ]]; then
       echo "执行模式: real-model"
-      echo "模型: ${XUNFEI_MODEL:-${WISPIVA_LLM_MODEL:-not-configured}}"
+      echo "模型: ${XUNFEI_MODEL:-${WISPIVA_LLM_MODEL:-${LLM_MODEL:-not-configured}}}"
     else
       echo "执行模式: rule-policy"
     fi

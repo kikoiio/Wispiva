@@ -106,7 +106,9 @@ class SpoolTests(unittest.TestCase):
                 stop.unlink(missing_ok=True)
 
     def test_worker_process_without_credentials(self):
-        env = {k: v for k, v in os.environ.items() if not (k.startswith('XUNFEI_') or k.startswith('WISPIVA_LLM_'))}
+        hidden = {'LLM_BASE_URL', 'LLM_MODEL', 'LLM_API_KEY'}
+        env = {k: v for k, v in os.environ.items()
+               if not (k.startswith('XUNFEI_') or k.startswith('WISPIVA_LLM_') or k in hidden)}
         env['PYTHONDONTWRITEBYTECODE'] = '1'
         process = subprocess.Popen([sys.executable, '-B', str(Path(worker.__file__)), str(self.root), '--poll-interval', '0.01'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:

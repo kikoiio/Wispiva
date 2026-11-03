@@ -1,4 +1,4 @@
-"""Bounded, fail-closed Responses adapter; no game state is changed here."""
+"""Bounded, fail-closed provider adapter; no game state is changed here."""
 from __future__ import annotations
 
 import asyncio
@@ -89,18 +89,27 @@ class Config:
     api_key: str = field(repr=False)
     socket_timeout: float = 30.0
     endpoint_is_complete: bool = False
+    protocol: str = 'responses'
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> 'Config':
         env = os.environ if env is None else env
-        # Accept the project names and explicit XUNFEI aliases; do not load .env files.
+        # XUNFEI, then WISPIVA_LLM, then the Actions LLM names. Do not load .env files.
         def get(suffix: str) -> str:
-            return env.get('XUNFEI_' + suffix) or env.get('WISPIVA_LLM_' + suffix) or ''
-        response_url = env.get('XUNFEI_OPENAI_RESPONSE_URL')
-        return cls(response_url or get('BASE_URL'), get('MODEL'), get('API_KEY'),
-                   endpoint_is_complete=bool(response_url))
+            return (env.get('XUNFEI_' + suffix) or env.get('WISPIVA_LLM_' + suffix)
+                    or env.get('LLM_' + suffix) or '')
+        response_url = env.get('XUNFEI_OPENAI_RESPONSE_URL') or ''
+        base_url = response_url or get('BASE_URL')
+        protocol = 'anthropic' if _anthropic_base(base_url) else 'responses'
+        # Stay inside the product spool's 90s attempt deadline so a slow call
+        # returns transport_error instead of being killed mid-request.
+        timeout = 80.0 if protocol == 'anthropic' else 30.0
+        return cls(base_url, get('MODEL'), get('API_KEY'), socket_timeout=timeout,
+                   endpoint_is_complete=bool(response_url), protocol=protocol)
 
     def endpoint(self) -> str:
+        if self.protocol not in ('responses', 'anthropic'):
+            raise ModelError('invalid_config')
         try:
             p = urllib.parse.urlsplit(self.base_url)
             if (p.scheme != 'https' or not p.hostname or p.username or p.password
@@ -111,10 +120,22 @@ class Config:
             _ = p.port
         except (ValueError, TypeError):
             raise ModelError('invalid_config') from None
-        path = p.path if self.endpoint_is_complete else p.path.rstrip('/')
-        if not self.endpoint_is_complete and not path.endswith('/responses'):
-            path += '/responses'
+        if self.protocol == 'anthropic':
+            path = p.path.rstrip('/')
+            if not path.endswith('/v1/messages'):
+                path += '/v1/messages'
+        else:
+            path = p.path if self.endpoint_is_complete else p.path.rstrip('/')
+            if not self.endpoint_is_complete and not path.endswith('/responses'):
+                path += '/responses'
         return urllib.parse.urlunsplit((p.scheme, p.netloc, path, '', ''))
+
+
+def _anthropic_base(url: str) -> bool:
+    try:
+        return '/anthropic' in urllib.parse.urlsplit(url).path
+    except ValueError:
+        return False
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -123,13 +144,23 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _transport(config: Config, body: bytes) -> bytes:
-    req = urllib.request.Request(config.endpoint(), data=body, method='POST', headers={
-        'Authorization': 'Bearer ' + config.api_key,
-        'Content-Type': 'application/json', 'Accept': 'text/event-stream',
-    })
+    if config.protocol == 'anthropic':
+        headers = {
+            'Authorization': 'Bearer ' + config.api_key,
+            'Content-Type': 'application/json', 'Accept': 'application/json',
+            'anthropic-version': '2023-06-01',
+        }
+        expected_type = 'application/json'
+    else:
+        headers = {
+            'Authorization': 'Bearer ' + config.api_key,
+            'Content-Type': 'application/json', 'Accept': 'text/event-stream',
+        }
+        expected_type = 'text/event-stream'
+    req = urllib.request.Request(config.endpoint(), data=body, method='POST', headers=headers)
     try:
         with urllib.request.build_opener(_NoRedirect()).open(req, timeout=config.socket_timeout) as response:
-            if response.headers.get_content_type() != 'text/event-stream':
+            if response.headers.get_content_type() != expected_type:
                 raise ModelError('invalid_content_type')
             data = response.read(MAX_STREAM + 1)
             if len(data) > MAX_STREAM:
@@ -182,13 +213,58 @@ def _parse_stream(data: bytes) -> tuple[str, dict]:
                            if part.get('type') == 'output_text')
         if not text or len(text) > MAX_TEXT:
             raise ModelError('invalid_response')
-        usage = completed.get('usage') or {}
-        token_fields = ('input_tokens', 'output_tokens', 'total_tokens')
-        safe_usage = {k: usage[k] for k in token_fields
-                      if type(usage.get(k)) is int and 0 <= usage[k] <= 10**9}
-        if any(k in usage and k not in safe_usage for k in token_fields):
-            safe_usage['invalid'] = True
-        return text, safe_usage
+        return text, _safe_usage(completed.get('usage') or {})
+    except ModelError:
+        raise
+    except (ValueError, TypeError, KeyError, AttributeError, UnicodeError):
+        raise ModelError('invalid_response') from None
+
+
+def _safe_usage(usage: Any) -> dict:
+    token_fields = ('input_tokens', 'output_tokens', 'total_tokens')
+    safe_usage = {k: usage[k] for k in token_fields
+                  if type(usage.get(k)) is int and 0 <= usage[k] <= 10**9}
+    if any(k in usage and k not in safe_usage for k in token_fields):
+        safe_usage['invalid'] = True
+    return safe_usage
+
+
+def _strip_one_fence(text: str) -> str:
+    stripped = text.strip()
+    if not stripped.startswith('```') or not stripped.endswith('```'):
+        return text
+    newline = stripped.find('\n')
+    if newline < 0:
+        return text
+    return stripped[newline + 1:stripped.rfind('```')].strip()
+
+
+def _parse_anthropic(data: bytes) -> tuple[str, dict]:
+    if len(data) > MAX_STREAM:
+        raise ModelError('response_too_large')
+    try:
+        event = json.loads(data.decode('utf-8'))
+        if not isinstance(event, dict) or event.get('type') != 'message':
+            raise ModelError('invalid_response')
+        content = event.get('content')
+        if not isinstance(content, list):
+            raise ModelError('invalid_response')
+        parts = []
+        for block in content:
+            if not isinstance(block, dict):
+                raise ModelError('invalid_response')
+            if block.get('type') != 'text':
+                continue
+            text = block.get('text')
+            if not isinstance(text, str):
+                raise ModelError('invalid_response')
+            parts.append(text)
+            if sum(map(len, parts)) > MAX_TEXT:
+                raise ModelError('output_too_large')
+        text = _strip_one_fence(''.join(parts))
+        if not text or len(text) > MAX_TEXT:
+            raise ModelError('invalid_response')
+        return text, _safe_usage(event.get('usage') or {})
     except ModelError:
         raise
     except (ValueError, TypeError, KeyError, AttributeError, UnicodeError):
@@ -298,12 +374,16 @@ def decide(config: Config, context: Mapping[str, Any], *, transport: Callable[[C
             validate_product_envelope(context['model_input'])
         data = json.dumps(_provider_context(context), ensure_ascii=True, sort_keys=True,
                           separators=(',', ':'), allow_nan=False)
-        body = json.dumps({'model': config.model, 'stream': True,
-                           'text': {'format': {'type': 'json_object'}},
-                           'reasoning': {'effort': 'none'}, 'max_output_tokens': 256,
-                           'input': [{'role': 'system', 'content': PROMPT},
-                                     {'role': 'user', 'content': data}]},
-                          ensure_ascii=True, separators=(',', ':')).encode()
+        if config.protocol == 'anthropic':
+            payload = {'model': config.model, 'max_tokens': 4096, 'system': PROMPT,
+                       'messages': [{'role': 'user', 'content': data}]}
+        else:
+            payload = {'model': config.model, 'stream': True,
+                       'text': {'format': {'type': 'json_object'}},
+                       'reasoning': {'effort': 'none'}, 'max_output_tokens': 256,
+                       'input': [{'role': 'system', 'content': PROMPT},
+                                 {'role': 'user', 'content': data}]}
+        body = json.dumps(payload, ensure_ascii=True, separators=(',', ':')).encode()
     except EnvelopeError:
         raise ModelError('invalid_context') from None
     except (ValueError, TypeError, OverflowError):
@@ -313,7 +393,8 @@ def decide(config: Config, context: Mapping[str, Any], *, transport: Callable[[C
     started = time.monotonic()
     try:
         result = transport(config, body)
-        text, usage = _parse_stream(result)
+        text, usage = (_parse_anthropic(result) if config.protocol == 'anthropic'
+                       else _parse_stream(result))
         try:
             action = _validate_action(text, context)
         except ModelError as error:
