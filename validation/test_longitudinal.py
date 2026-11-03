@@ -93,7 +93,8 @@ class LongitudinalTests(unittest.TestCase):
             (world / "mod_storage").mkdir(parents=True)
             audit.mkdir(parents=True)
             (world / "mod_storage" / "society").write_text(json.dumps(storage(
-                [], [], {}, 2, {"amount": SETTLED_AMOUNT, "rate": 0, "time": 6})), encoding="utf-8")
+                [], [], {}, 2, {"amount": float(SETTLED_AMOUNT), "rate": 0.0, "time": 107.0})),
+                encoding="utf-8")
             envelope = {"request": {"observed_at": CHANGE_AT},
                         "knowledge": {"facts": [{"text": "I can currently observe society:resource nearby."}],
                                       "unknowns": [{"text": f"stay {PREDICTION}"}]}}
@@ -140,11 +141,12 @@ class LongitudinalTests(unittest.TestCase):
             first_events = [event(1, "inspect", True, "observed", operation="decision-1")]
             first_records = [experience("I inspect succeeded: observed", "memory-1")]
             (before / "society").write_text(json.dumps(storage(
-                first_events, first_records, {}, 2, {"amount": 3, "rate": 1, "time": 5})), encoding="utf-8")
+                first_events, first_records, {}, 2.0, {"amount": 3.0, "rate": 1.0, "time": 5.0})),
+                encoding="utf-8")
             (world / "mod_storage" / "society").write_text(json.dumps(storage(
                 first_events + [event(2, "inspect", True, "observed", operation="decision-2")],
                 first_records + [experience("I inspect succeeded: observed", "memory-2")],
-                {}, 4, {"amount": 3, "rate": 1, "time": 7})), encoding="utf-8")
+                {}, 4.0, {"amount": 3.0, "rate": 1.0, "time": 7.0})), encoding="utf-8")
             before_log = "SOCIETY ev=model-action origin=model\nSOCIETY done result=ok\nSOCIETY environment-checkpoint time=5\n"
             log = "\n".join([
                 "SOCIETY ev=resume logical=5 offline_seconds=3 rate=24",

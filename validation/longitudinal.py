@@ -109,6 +109,15 @@ def _load_json_text(value):
     return json.loads(value) if isinstance(value, str) else value
 
 
+def _whole(value):
+    """Luanti writes whole counts as JSON floats. Reject anything else."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    if value != int(value):
+        return None
+    return int(value)
+
+
 def _events(checkpoint: dict) -> list:
     journal = checkpoint.get("world_events") or {}
     events = journal.get("events") or []
@@ -278,10 +287,12 @@ def audit_environment(world: Path, log_text: str, run_exit: int = 0) -> dict:
     try:
         stored = load_storage(world / "mod_storage" / "society")
         environment = stored["environment"]
-        amount, rate, logical = environment["amount"], environment["rate"], environment["time"]
+        amount = _whole(environment["amount"])
+        rate = _whole(environment["rate"])
+        logical = _whole(environment["time"])
     except (OSError, json.JSONDecodeError, KeyError, TypeError):
         failures.append("missing_checkpoint")
-    if amount != SETTLED_AMOUNT or rate != 0 or not isinstance(logical, int) or logical < CHANGE_AT:
+    if amount != SETTLED_AMOUNT or rate != 0 or logical is None or logical < CHANGE_AT:
         failures.append("condition_not_applied")
     if f"ev=environment-condition at={CHANGE_AT} rate=0 amount={SETTLED_AMOUNT}" not in log_text:
         failures.append("condition_not_logged")
@@ -367,10 +378,9 @@ def audit_resume(world: Path, before: Path, log_text: str, before_log: str, run_
             failures.append("memory_dropped")
         first = _actor(before_store["checkpoint"])
         second = _actor(after_store["checkpoint"])
-        decisions_before = None if first is None else first.get("decisions")
-        decisions_after = None if second is None else second.get("decisions")
-        if (not isinstance(decisions_before, int) or not isinstance(decisions_after, int)
-                or decisions_after <= decisions_before):
+        decisions_before = None if first is None else _whole(first.get("decisions"))
+        decisions_after = None if second is None else _whole(second.get("decisions"))
+        if decisions_before is None or decisions_after is None or decisions_after <= decisions_before:
             failures.append("decisions_reset")
     counts = _model_counts(world / "private" / "model-audit")
     return {"scenario": "restart_resume", "run_exit": run_exit,
