@@ -1,6 +1,6 @@
 # Wispiva 工作计划
 
-更新日期：2026-11-01。
+更新日期：2026-11-03。
 
 ## 当前状态
 
@@ -9,7 +9,7 @@
 - 产品文案使用“创建世界”描述从文本建立世界的过程。
 - 产品目标见[项目意图](intent.md)；[当前架构](architecture.md)描述现有证据和分支边界，[目标架构](design/2026-10-27-target-architecture.md)仍是方案。
 - 创建世界和模拟原型位于 `proto/world-genesis`，工作区为 `/home/neo/Projects/Wispiva-prototype`；主线不直接运行该原型，也不整体合并一次性原型分支。入口支持可选文本素材、讨论摘要和起点确认，素材作为参考资料而非指令；真实模型体验尚未验收。[合成数据浏览器验收](https://github.com/kikoiio/Wispiva/actions/runs/40664414490)通过，截图位于原型工作区 `.tmp/entry-flow/screenshots-final/`。
-- Luanti 世界产品实验线位于 `wispiva/world-product`，工作区为 `/home/neo/Projects/Wispiva-experiment`；它有独立代码、依赖、检查与证据，不接入主项目运行时。早先的 `experiment/minecraft-societies` 分支已不存在，其历史提交只在 `archive/experiment/cloud-run-*` 归档 tag 中保留。
+- Luanti 世界产品实验线位于 `wispiva/world-product`，工作区为 `/home/neo/Projects/Wispiva-experiment`；它有独立代码、依赖、检查与证据，不接入主项目运行时。早先的 `experiment/minecraft-societies` 分支已不存在，该目录不在分支尖。原始快照提交 `7e33189` 仍在 `wispiva/world-product` 的历史上，实验说明为 `experiments/minecraft-societies/README.md`。M0 记录在同分支的 `evidence/luanti/agent/m0-2026-10-27.md`。
 - 《红发会》英文[原文](source-texts/sherlock-holmes/the-red-headed-league.txt)已保存；故事导入和完整小说模拟尚未实现。文本摘自 [Project Gutenberg](https://www.gutenberg.org/cache/epub/1661/pg1661.txt)，其标注该英文版本在美国属于公有领域；其他地区及中文译本的权利需另行核实。
 
 ## 已验证的范围
@@ -30,6 +30,6 @@
 
 - 项目与实验的重型验证优先使用云端免费资源；使用具体云服务前告知用途、权限并取得许可。真实模型密钥不进入 CI。
 - Luanti 路线使用服务端实体而非玩家客户端，是否接受这一形态仍待决定；环境选型和 LLM 社会行为尚无结论。
-- 分支拓扑收敛为三个，本地与远端一致：`main`、`proto/world-genesis`、`wispiva/world-product`。2026-11-01 清理删除了 42 个远端分支和 5 个本地分支；其中 21 个分支 tip 上共 71 个提交不属于任何保留分支，已用 annotated tag `archive/<原分支名>` 归档，其余分支的提交已被 `main` 或两个保留分支包含。本地独有的 `backup/world-product-local-d926101` 也已删除，其引入的文件已在 `wispiva/world-product` 中，仅提交对象以 `archive/backup-world-product-local-d926101` 保留。真实配置、存档、依赖目录和实验运行时不在分支提交中；恢复以远端归档 tag 为准。
+- 分支拓扑收敛为三个，本地与远端一致：`main`、`proto/world-genesis`、`wispiva/world-product`。2026-11-01 清理删除了 42 个远端分支和 5 个本地分支；当时 21 个分支 tip 上共 71 个提交不属于任何保留分支，曾用 annotated tag `archive/<原分支名>` 暂存，其余分支的提交已被 `main` 或两个保留分支包含。2026-11-03 删除了全部 22 个 `archive/*` tag，包括 `archive/backup-world-product-local-d926101`。只存在于这些 tag 上的提交不再有引用。该备份引入的文件已在 `wispiva/world-product` 中。真实配置、存档、依赖目录和实验运行时不在分支提交中。
 - 原型依赖 `three` 未入库；在新工作区运行 `node prototypes/verify.mjs` 前，需在 `prototypes/` 下 `npm install`（可从本地 npm 缓存离线完成）。
 - 本地模型配置只有一个入口：根目录 `.env`（或 `WISPIVA_ENV_FILE` 指定的文件），由 `prototypes/model/config.mjs` 用 `parseEnv` 读取 `WISPIVA_LLM_BASE_URL`、`WISPIVA_LLM_MODEL`、`WISPIVA_LLM_API_KEY`。v1 引擎的 JSON 配置文件支持已随代码删除，`.gitignore` 中相关的 `/config.json` 规则一并移除；`.data/` 仍整体忽略。
