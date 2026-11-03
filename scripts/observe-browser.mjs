@@ -66,10 +66,12 @@ try {
   await page.locator('#world-accept').click();
   await page.locator('#world-experience').waitFor({ state: 'visible' });
   const initialWorld = experience.state().world;
-  const initialActor = initialWorld.actors[0];
-  const initialPlace = initialWorld.places.find(place => place.id === initialActor.location);
+  const expectedActorSummary = initialWorld.actors.map(actor => {
+    const place = initialWorld.places.find(candidate => candidate.id === actor.location);
+    return `${actor.name}：${place?.name ?? '地点未匹配'}`;
+  }).join('；');
   await page.waitForFunction(() => document.querySelector('#actor-location-summary').textContent.includes('地点级'));
-  assert.equal(await page.locator('#actor-location-summary').innerText(), `人物地点（地点级）：${initialActor.name}：${initialPlace?.name ?? '地点未匹配'}`);
+  assert.equal(await page.locator('#actor-location-summary').innerText(), `人物地点（地点级）：${expectedActorSummary}`);
   await page.waitForFunction(() => !document.querySelector('#actor-step').disabled);
   assert.equal(experience.state().worldMinute, 0); checks.push('only confirmation establishes a paused origin');
   await page.locator('#actor-step').click();
