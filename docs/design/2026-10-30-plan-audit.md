@@ -78,3 +78,9 @@
 第一条纵向场景的当前验收是 `validation/knowledge_boundary.py`：Alice 只把一个私有标记告诉同在院子里的 Bob，Cora 从远处山脊出发，感知和 6 次移动都到不了他们。公开摘要不包含对白原文。[Actions 41592566511](https://github.com/kikoiio/Wispiva/actions/runs/41592566511) 在 provider 请求前以 `invalid_config` 失败，因为 workflow 仍读取已经清空的旧配置名。适配器随后接受路径含 `/anthropic` 的 `LLM_BASE_URL`，并以 Messages JSON 调用；workflow 改为注入 `LLM_BASE_URL`、`LLM_MODEL` 和 `LLM_API_KEY`。
 
 提交 `59a3e4d` 的 [Actions 41594198130](https://github.com/kikoiio/Wispiva/actions/runs/41594198130) 通过。当时 `LLM_MODEL` 为 `GLM-5.3-Flash`。三人各 6 次决策，18 次请求全部有响应；19 次尝试中有 1 次 `transport_error`。含标记的发言送达 Bob 2 次，Bob 的后续请求带有 `agent_message` 来源的传闻。Cora 的标记请求数为 0，观察到的邻居为空。输入 token 37747，输出 token 14482。世界完成并提交 checkpoint，失败码为空。反思在该运行中关闭。这一次通过不证明误解或转述、稳定社会、真人三维观看、跨存储事务或千级模型容量。
+
+## 行动后果、环境结算与重启（Actions 41606793098）
+
+第 2 到第 4 条的验收是 `validation/longitudinal.py`。公开摘要只有计数和失败码。[Actions 41605610701](https://github.com/kikoiio/Wispiva/actions/runs/41605610701) 因把 Luanti 的整数值 JSON 浮点判成类型错误而失败；世界计数本身已经符合条件。验收改为接受整数值浮点后，提交 `b5cb073` 的 [Actions 41606793098](https://github.com/kikoiio/Wispiva/actions/runs/41606793098) 通过。模型为 `GLM-5.3-Flash`。12 次请求、12 次尝试，错误数为 0。
+
+行动后果 4 次请求，输入 7426、输出 1718：同一格成功采集和 `resource mismatch` 失败都在，库存为 1。环境条件 4 次请求，输入 6500、输出 751：逻辑时间 109，存量 8，速率 0，旧预测仍是未知。重启合计 4 次请求，输入 6471、输出 321：离线 6 秒，逻辑时间停在 9，决策从 2 到 4，无玩家加入。同一提交的产品回归 [Actions 41606801741](https://github.com/kikoiio/Wispiva/actions/runs/41606801741) 已通过。真人三维观看、误解或转述、稳定社会和千级模型容量仍未由此证明。

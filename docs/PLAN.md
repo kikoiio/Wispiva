@@ -131,6 +131,12 @@ Wispiva 是一个独立产品：用户用自然语言或素材描述想要的世
 
 第 5 条由用户执行 `engine/luanti/run_product.sh --serve` 后，用 `engine/luanti/view_product.sh` 进入场景评价。误解或转述不在这三条例的范围内。
 
+提交 `b5cb073` 的 [Actions 41606793098](https://github.com/kikoiio/Wispiva/actions/runs/41606793098) 通过第 2 到第 4 条。当时 `LLM_MODEL` 为 `GLM-5.3-Flash`。三个世界各完成 checkpoint，公开摘要的失败码都为空，12 次请求和 12 次尝试都没有错误。
+
+行动后果：4 次请求，输入 token 7426，输出 token 1718。同一格先出现 `world-verified` 的成功采集，再出现 `resource mismatch` 的失败采集，库存为 1。环境条件：4 次请求，输入 token 6500，输出 token 751。结算后存量 8、速率 0、逻辑时间 109，`stock-prediction-4` 仍只在未知中，并有观察时间不早于边界的请求。重启：两次运行合计 4 次请求，输入 token 6471，输出 token 321。离线 6 秒，恢复时逻辑时间停在 9，决策从 2 增到 4，没有玩家加入。
+
+更早的 [Actions 41605610701](https://github.com/kikoiio/Wispiva/actions/runs/41605610701) 在同一类场景里把 Luanti 写出的整数 `8.0`、`2.0` 判成类型错误。那次公开摘要里的世界计数已经符合上面的条件，随后的验收修正才进入这次通过的运行。同一提交的产品回归 [Actions 41606801741](https://github.com/kikoiio/Wispiva/actions/runs/41606801741) 已通过。这三条例不证明误解或转述、稳定社会、真人三维观看或千级模型容量。
+
 ## 里程碑之后
 
 - 完善情境反思、长期矛盾信念和检索质量；比较同预算记忆策略，记录真实输出与独立评分。
