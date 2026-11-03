@@ -119,6 +119,8 @@ Wispiva 是一个独立产品：用户用自然语言或素材描述想要的世
 
 不同知情的当前验收是 `validation/knowledge_boundary.py`。Alice 与 Bob 从院子出发，Cora 在无路径相连的远处山脊；两人即使各走 6 次、每次 2 格，切比雪夫距离仍大于默认感知半径。Alice 的私有种子里有一个不会被猜中的标记，目标要求她只对 Bob 说出。审计核对每人模型输入里的种子、目标、标记出现位置和来源，以及日志中的送达哈希。标记只能留在 Alice 自己的种子或她说出之后 Bob 的 `agent_message` 记录里。Cora 的输入不能出现该标记，也不能把 Alice 或 Bob 当作邻居。公开摘要只保留计数和失败码，不复制对话原文。结果以分支 `validation/luanti-product-model-knowledge-20261103` 的 Actions 为准。
 
+提交 `59a3e4d` 的 [Actions 41594198130](https://github.com/kikoiio/Wispiva/actions/runs/41594198130) 通过这次验收。当时仓库变量 `LLM_MODEL` 为 `GLM-5.3-Flash`，`LLM_BASE_URL` 指向 SCNet 的 Anthropic Messages 端点。Alice、Bob、Cora 各 6 次决策，共 18 次请求和 18 次响应。19 次尝试里有 1 次 `transport_error`，世界随后完成。含标记的发言送达 Bob 2 次，Bob 之后的请求里有来源为 `agent_message` 的传闻。Cora 的 6 次请求都没有该标记，邻居列表里也没有 Alice 或 Bob。输入 token 37747，输出 token 14482。checkpoint 已提交，公开摘要的失败码为空。更早的 [Actions 41592566511](https://github.com/kikoiio/Wispiva/actions/runs/41592566511) 在发出 provider 请求前以 `invalid_config` 结束，原因是 workflow 仍引用已经清空的旧配置名；那次没有模型动作。本轮关闭了反思，只覆盖这一条受控短场景。行动后果、环境条件变化、重启对照、真人三维观看、稳定社会和千级模型容量仍未由此证明。
+
 ## 里程碑之后
 
 - 完善情境反思、长期矛盾信念和检索质量；比较同预算记忆策略，记录真实输出与独立评分。

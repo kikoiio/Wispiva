@@ -17,7 +17,7 @@
 | 产品运行与三维观察 | 持续服务、观察者出生点及 Luanti 客户端进入路径 | 2026-10-29 | [当前架构](architecture.md) |
 | 受控世界接入边界 | `launch.py` 在 Luanti 进程生命周期内持有 `WorldSession`；地图、事件、库存和记忆共同提交尚未完成 | 2026-10-29 | [启动器](../engine/luanti/launch.py)、[世界会话](../engine/luanti/world_session.py)、[世界身份](../engine/luanti/world_identity.py)、[世界锁](../engine/luanti/world_lock.py) |
 | 版本化产品创建契约 | 世界身份、起源事件、草稿 revision、组件版本和 Luanti 启动前对账；运行时接受 manifest v1 与带 operation id 的 v2 | 2026-11-03 | [产品创建契约](design/2026-10-30-product-contract.md) |
-| 工作计划 | 提交 `4cce32b` 的 Actions 41590168499 通过持久产品世界、暂停恢复和客户端验收；manifest v2 可加载。稳定互动、真人验收和千级 LLM 仍待验 | 2026-11-03 | [工作计划](PLAN.md) |
+| 工作计划 | 提交 `59a3e4d` 的 Actions 41594198130 通过受控私下告知：Bob 收到带来源的标记，Cora 未见标记也未见两人，checkpoint 完成。稳定互动、真人验收和千级 LLM 仍待验 | 2026-11-03 | [工作计划](PLAN.md) |
 | 规则／认知实体容量证据 | 20–10k 阶梯全员存活；10k 引擎 RSS 1.22–1.49 GiB；LLM 队列只做模拟，不代表真实模型容量 | 2026-10-30 | [容量阶梯证据](../evidence/luanti/agent/capacity-2026-10-30.md) |
 | 研究 | 方法、容量与记忆研究；自由社会出现交流与物品转移但仍不稳定；提示改进后 36 次记忆对照中短线索 1/3、明确提取 3/3，需更多 seeds 和长期质量评估 | 2026-10-30 | [世界模型](research/2026-10-28-world-models.md)、[记忆](research/2026-10-28-memory.md)、[3D 生成](research/2026-10-28-3d-generation.md)、[Minecraft 社会](research/2026-10-28-minecraft-agent-societies.md)、[Mineflayer / Voyager](research/2026-10-28-mineflayer-voyager.md)、[记忆证据](../evidence/luanti/genesis/2026-10-30-cjk-free-society/README.md)、[自由社会证据](../evidence/luanti/product-model-2026-10-30/README.md) |
 | 公开 CI 数据边界 | 原始私有记忆 artifact 已清理；后续上传按汇总文件 allowlist | 2026-10-30 | [产品模型和隐私复核](../evidence/luanti/product-model-2026-10-30/README.md)、[Actions 上传 allowlist](../.github/workflows/wispiva-validation.yml) |

@@ -72,3 +72,9 @@
 ## 发布账本 manifest 版本（Actions 41153022456）
 
 提交 `857843c` 的产品验证在加载持久世界时失败。发布账本写出的 `wispiva-world-manifest` 是 version 2，当时的 Luanti `init.lua` 只接受 version 1，错误为 `invalid product genesis manifest`。运行时现已接受 version 1 和带 32 位小写十六进制 `operation_id` 的 version 2。本机假模型加载已通过 version 2 投影、一次决策和正常 checkpoint。提交 `4cce32b` 的 [Actions 41590168499](https://github.com/kikoiio/Wispiva/actions/runs/41590168499) 已通过持久产品世界、暂停／改速／恢复和客户端验收。跨存储原子提交和 `UNKNOWN` 阶段自动修复仍然没有。
+
+## 不同知情（Actions 41594198130）
+
+第一条纵向场景的当前验收是 `validation/knowledge_boundary.py`：Alice 只把一个私有标记告诉同在院子里的 Bob，Cora 从远处山脊出发，感知和 6 次移动都到不了他们。公开摘要不包含对白原文。[Actions 41592566511](https://github.com/kikoiio/Wispiva/actions/runs/41592566511) 在 provider 请求前以 `invalid_config` 失败，因为 workflow 仍读取已经清空的旧配置名。适配器随后接受路径含 `/anthropic` 的 `LLM_BASE_URL`，并以 Messages JSON 调用；workflow 改为注入 `LLM_BASE_URL`、`LLM_MODEL` 和 `LLM_API_KEY`。
+
+提交 `59a3e4d` 的 [Actions 41594198130](https://github.com/kikoiio/Wispiva/actions/runs/41594198130) 通过。当时 `LLM_MODEL` 为 `GLM-5.3-Flash`。三人各 6 次决策，18 次请求全部有响应；19 次尝试中有 1 次 `transport_error`。含标记的发言送达 Bob 2 次，Bob 的后续请求带有 `agent_message` 来源的传闻。Cora 的标记请求数为 0，观察到的邻居为空。输入 token 37747，输出 token 14482。世界完成并提交 checkpoint，失败码为空。反思在该运行中关闭。这一次通过不证明误解或转述、稳定社会、真人三维观看、跨存储事务或千级模型容量。
