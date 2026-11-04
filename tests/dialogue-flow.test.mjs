@@ -326,10 +326,21 @@ test('generation assembles three small model steps using only their actual recor
 test('an incomplete stage stops subsequent calls and publishes no partial world', async t => {
   const f = fixture(t, input => recordReply(input.step === 'places' ? [...stageRecords.places, { type: 'complete' }] : [{ type: 'complete' }]));
   const result = await f.experience.worldStep({ description: '海边灯室。' });
-  assert.equal(result.ok, false); assert.match(result.message, /人物/);
+  assert.equal(result.ok, false); assert.equal(result.reason, 'invalid-stage'); assert.match(result.message, /人物/);
+  assert.deepEqual(result.diagnostics, [{ path: 'people', code: 'stage-contract', message: '这一片起点需要1至4位人物。' }]);
   assert.equal(f.requests.length, 2); assert.equal(result.state.creation.draft, null);
   assert.equal(result.state.world, null); assert.equal(result.state.model.pending, false);
   assert.equal(f.reload().state().creation.draft, null);
+});
+
+test('malformed staged output keeps a parse error separate from a stage contract error', async t => {
+  const f = fixture(t, input => input.step === 'places'
+    ? Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: '{"type":"world"' }] }] })
+    : recordReply([{ type: 'complete' }]));
+  const result = await f.experience.worldStep({ description: '海边灯室。' });
+  assert.equal(result.ok, false); assert.equal(result.reason, 'invalid-json');
+  assert.equal(result.diagnostics[0].path, 'places'); assert.equal(result.diagnostics[0].code, 'parse');
+  assert.equal(f.requests.length, 1); assert.equal(result.state.creation.draft, null);
 });
 
 test('final reference validation invalidates the responsible checkpoint so explicit recovery can repair it', async t => {

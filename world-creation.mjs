@@ -610,8 +610,15 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
         else if (!r.ok) result = { ok: false, reason: r.audit.error?.code ?? 'request-failed', message: `${stage.label.replace('正在', '')}未完成，请继续讨论或重新生成。` };
         else if (epoch !== startEpoch) result = { ok: false, reason: 'stale-basis', message: '创建基准已变化，旧草稿未保留。' };
         else {
+          let parsed;
           try {
-            const parsed = parseGenesisOutput(r.content, { partial: true });
+            parsed = parseGenesisOutput(r.content, { partial: true });
+          } catch (error) {
+            result = { ok: false, reason: 'invalid-json', message: error.message,
+              diagnostics: [{ path: stage.id, code: 'parse', message: error.message }] };
+            failed = true; break;
+          }
+          try {
             adjustments.push(...parsed.adjustments);
             // Older model responses and regression fixtures may supply a complete
             // definition. It still passes the same full validation below.
@@ -620,7 +627,10 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
             generation.records = clone(records); generation.adjustments = [...adjustments]; generation.completedStages.push(stage.id);
             persist();
             continue;
-          } catch (error) { result = { ok: false, reason: 'invalid-json', message: error.message, diagnostics: [{ path: stage.id, message: error.message }] }; }
+          } catch (error) {
+            result = { ok: false, reason: 'invalid-stage', message: error.message,
+              diagnostics: [{ path: stage.id, code: 'stage-contract', message: error.message }] };
+          }
         }
         failed = true; break; // One attempt per step; never retry silently.
       }
