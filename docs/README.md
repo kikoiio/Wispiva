@@ -17,11 +17,11 @@
 | 产品运行与三维观察 | 持续服务、观察者出生点及 Luanti 客户端进入路径 | 2026-10-29 | [当前架构](architecture.md) |
 | 受控世界接入边界 | `launch.py` 在 Luanti 进程生命周期内持有 `WorldSession`；地图、事件、库存和记忆共同提交尚未完成 | 2026-10-29 | [启动器](../engine/luanti/launch.py)、[世界会话](../engine/luanti/world_session.py)、[世界身份](../engine/luanti/world_identity.py)、[世界锁](../engine/luanti/world_lock.py) |
 | 版本化产品创建契约 | 世界身份、起源事件、草稿 revision、组件版本和 Luanti 启动前对账；运行时接受 manifest v1 与带 operation id 的 v2 | 2026-11-03 | [产品创建契约](design/2026-10-30-product-contract.md) |
-| 工作计划 | 提交 `b5cb073` 的 Actions 41606793098 通过行动后果、环境条件结算和重启冻结。私下告知仍只覆盖精确标记。真人三维观看、稳定社会和千级 LLM 仍待验 | 2026-11-03 | [工作计划](PLAN.md) |
+| 工作计划 | 完成标准是《红发会》。2026-11-03 本机无界面续跑每人一次决定：4 次请求、4 次尝试、0 次失败，检查点版本 2。留下一条消息、一次通用资源采集和两次靠近目的地。观看世界里 Spaulding 已走到当铺地窖，Holmes 与 Wilson 已出门往同一方向走。48 次请求、47 次完成、0 次失败。窗口关闭后世界停止。另开的世界 `ff40a499` 用了不同建材，观察者与角色同高。156 次请求、155 次完成、4 次传输失败后都成功。窗口关闭后世界停止。完成测试尚未通过。Actions 41606793098 已通过行动后果、环境条件结算和重启冻结 | 2026-11-03 | [工作计划](PLAN.md) |
 | 规则／认知实体容量证据 | 20–10k 阶梯全员存活；10k 引擎 RSS 1.22–1.49 GiB；LLM 队列只做模拟，不代表真实模型容量 | 2026-10-30 | [容量阶梯证据](../evidence/luanti/agent/capacity-2026-10-30.md) |
 | 研究 | 方法、容量与记忆研究；自由社会出现交流与物品转移但仍不稳定；提示改进后 36 次记忆对照中短线索 1/3、明确提取 3/3，需更多 seeds 和长期质量评估 | 2026-10-30 | [世界模型](research/2026-10-28-world-models.md)、[记忆](research/2026-10-28-memory.md)、[3D 生成](research/2026-10-28-3d-generation.md)、[Minecraft 社会](research/2026-10-28-minecraft-agent-societies.md)、[Mineflayer / Voyager](research/2026-10-28-mineflayer-voyager.md)、[记忆证据](../evidence/luanti/genesis/2026-10-30-cjk-free-society/README.md)、[自由社会证据](../evidence/luanti/product-model-2026-10-30/README.md) |
 | 公开 CI 数据边界 | 原始私有记忆 artifact 已清理；后续上传按汇总文件 allowlist | 2026-10-30 | [产品模型和隐私复核](../evidence/luanti/product-model-2026-10-30/README.md)、[Actions 上传 allowlist](../.github/workflows/wispiva-validation.yml) |
-| 原始素材 | 故事原文，导入模拟尚未实现 | 2026-10-28 | [《红发会》](source-texts/sherlock-holmes/the-red-headed-league.txt) |
+| 原始素材 | 《红发会》是本分支的完成目标。选定时刻的设定稿已能发布。2026-11-03 完成每人一次的自主续跑；室内地点有东侧门口，角色能看到公开地点坐标。四个地点已分别使用书架、砖、圆石和石砖。完成测试尚未通过 | 2026-11-03 | [《红发会》](source-texts/sherlock-holmes/the-red-headed-league.txt)、[设定稿](../validation/red_headed_league/moment.json) |
 | 创建世界原型 | 另一分支快照；可供参考，本 worktree 尚未接入 | 2026-10-28 | `proto/world-genesis`，`prototypes/README.md` |
 | 运行时验证与历史证据 | Luanti 适配层的验证工具、历史计划和量测 | 2026-10-29 | [运行时说明](../validation/luanti/README.md)、[验证记录](../validation/luanti/PLAN.md) |
 | 产品目录迁移验证 | 根目录迁移后的引擎、恢复及预览检查 | 2026-10-29 | [Actions 原始证据](../evidence/luanti/product-root-2026-10-29/README.md) |

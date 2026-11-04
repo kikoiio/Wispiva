@@ -4,7 +4,7 @@
 
 ## 配置与运行
 
-Actions 使用 repository variables `LLM_BASE_URL`、`LLM_MODEL` 和 secret `LLM_API_KEY`。当前 `LLM_BASE_URL` 为 `https://api.scnet.cn/api/llm/anthropic`，模型为 `GLM-5.3-Flash`；路径含 `/anthropic` 时请求发往该地址下的 `/v1/messages`。不读取 `.env`，不把凭据或 thinking 文本写入审计。仍兼容 `XUNFEI_OPENAI_RESPONSE_URL`、`XUNFEI_*` 和 `WISPIVA_LLM_*`；同一配置项按这个顺序取值。
+进入世界后，模型服务页面直接开在游戏窗口里。关闭后输入 `/providers` 可以再打开。页面右上角可以选择中文或 English，缺省是中文。选择写在用户配置目录的 `wispiva/language`，不进世界存档，也不和密钥放在一起。场景里的文字马上更换；暂停菜单和背包跟随这次选择，在下次打开窗口时更换。每家有名称、接口地址、模型和密钥，其中一家标成当前使用。文件在用户配置目录的 `wispiva/providers.json`，目录 `0700`、文件 `0600`，不进世界存档、git 或审计，密钥也不出现在页面回填里。有选中的一家时，下一轮决策和 `create-draft --live` 用它。没有这份文件，或没有选中任何一家时，使用环境变量 `LLM_BASE_URL`、`MODEL_NAME`、`LLM_API_KEY`。不限决策次数的开放观看在这三项都没有、也还没有选中服务时，不发出模型请求，窗口保持打开。Actions 注入的就是这三个名字。不读取 `.env`，也不读取名为 `MODEL` 的变量，那个名字在 `engine/luanti/run.sh` 里是 0/1 开关。当前 Actions 的 `LLM_BASE_URL` 为 `https://api.scnet.cn/api/llm/anthropic`，`MODEL_NAME` 为 `GLM-5.3-Flash`；路径含 `/anthropic` 时请求发往该地址下的 `/v1/messages`。
 
 ```sh
 engine/luanti/run.sh --label model-trial --agents 3 --decisions 8 --interval 1 --seconds 600 --model
@@ -34,7 +34,7 @@ Luanti 产品主循环还把确认草稿的公开标题和描述作为一条 `ge
 
 模型输出投影到白名单字段：`inspect/mark/advance`、带 `target` 的 `approach`、带 `point` 的 `wander/gather/build`、带 `target/text` 的 `say`。忽略多余字段，坐标和 ID 允许数学上为整数的 JSON 数字，拒绝布尔、非有限和小数值。未知字段不能改变端点、节点名或审计来源。邻居目标必须来自观察，坐标必须在边界内；执行前再次按当前世界验证。`why` 由代码固定为 `model`。
 
-`spool_worker.py` 默认以 1 个 worker 顺序处理请求，也可用 `--workers 1..256` 设置有界并行度；产品入口通过 `run_product.sh --model-workers N` 配置，实验入口使用 `run.sh --model-workers N`。线程池各自启动隔离 bridge 子进程；worker 通过原子 rename 争抢请求、原子发布响应，同一请求至多由一个 worker 处理。worker 日志记录配置值和本轮观测到的 `peak_active`。停止时不再领取新请求，并等待／中止在途 provider 调用按请求超时和 STOP 协议结束。`invalid_action`、`invalid_response`、`transport_error`、`provider_failed` 和 HTTP 429 `rate_limited` 最多尝试 3 次，重试间隔为 1／2 秒，每次都审计；重试有界，仍失败时停止当前世界并报告固定错误。Lua 的队列总截止时间为 `角色数 × 135 + 30` 秒，并在接受已存在的响应前检查。有界 worker 池提供并发上限，不实现供应商全局配额、公平优先级、跨世界预算或 token 成本控制。
+`spool_worker.py` 默认以 1 个 worker 顺序处理请求，也可用 `--workers 1..256` 设置有界并行度；产品入口通过 `run_product.sh --model-workers N` 配置，实验入口使用 `run.sh --model-workers N`。线程池各自启动隔离 bridge 子进程；worker 通过原子 rename 争抢请求、原子发布响应，同一请求至多由一个 worker 处理。worker 日志记录配置值和本轮观测到的 `peak_active`。停止时不再领取新请求，并等待／中止在途 provider 调用按请求超时和 STOP 协议结束。`invalid_action`、`invalid_response`、`transport_error`、`provider_failed` 和 HTTP 429 `rate_limited` 最多尝试 3 次，重试间隔为 1／2 秒，每次都审计；重试有界。仍失败时，有决策上限的运行停止当前世界并报告固定错误；不限次数的开放观看只记录错误，8 秒后再试，窗口保持打开。Lua 的队列总截止时间为 `角色数 × 135 + 30` 秒，并在接受已存在的响应前检查。有界 worker 池提供并发上限，不实现供应商全局配额、公平优先级、跨世界预算或 token 成本控制。
 
 审计记录请求 ID、角色、动作、origin、耗时、可用 token、重试与固定错误码，不记录密钥或原始 provider 文本。适配器返回上下文与提示 SHA-256；原始合成消息只在显式 `society_log_messages=true` 时记录。本轮实验的世界、角色和消息均为合成数据。
 

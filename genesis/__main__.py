@@ -70,8 +70,8 @@ def main():
                     raise GenesisError('choose_exactly_one', ['one of --response or --live is required'])
                 if args.live:
                     from .model_adapter import responses_model
-                    from model.adapter import Config
-                    model = responses_model(Config.from_env())
+                    from model.providers import load_config
+                    model = responses_model(load_config())
                 else:
                     response = Path(args.response).read_text(encoding='utf-8')
                     model = lambda system, user: response

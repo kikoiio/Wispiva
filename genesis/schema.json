@@ -178,6 +178,53 @@
                 ],
                 "minItems": 2,
                 "maxItems": 2
+              },
+              "floor": {
+                "enum": [
+                  "default:wood",
+                  "default:bookshelf",
+                  "default:glass",
+                  "default:stonebrick",
+                  "default:stone",
+                  "default:cobble",
+                  "default:brick"
+                ]
+              },
+              "wall": {
+                "enum": [
+                  "default:wood",
+                  "default:bookshelf",
+                  "default:glass",
+                  "default:stonebrick",
+                  "default:stone",
+                  "default:cobble",
+                  "default:brick"
+                ]
+              },
+              "ceiling": {
+                "enum": [
+                  "default:wood",
+                  "default:bookshelf",
+                  "default:glass",
+                  "default:stonebrick",
+                  "default:stone",
+                  "default:cobble",
+                  "default:brick"
+                ]
+              },
+              "apron": {
+                "enum": [
+                  "default:wood",
+                  "default:bookshelf",
+                  "default:glass",
+                  "default:stonebrick",
+                  "default:stone",
+                  "default:cobble",
+                  "default:brick"
+                ]
+              },
+              "windows": {
+                "type": "boolean"
               }
             },
             "required": [

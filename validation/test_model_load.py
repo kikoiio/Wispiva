@@ -298,9 +298,9 @@ class ModelLoadTests(unittest.TestCase):
             seen.append(value['model_input']['request']['decision_id'])
             return {'action': {'kind': 'inspect'}, 'audit': {}}
 
-        with mock.patch.object(adapter.Config, 'from_env', return_value=CONFIG) as from_env:
+        with mock.patch.object(model_load, 'load_config', return_value=CONFIG) as load_config:
             first = model_load.run(self.audit, self.output, calls=1, runner=runner)
-        from_env.assert_called_once_with()
+        load_config.assert_called_once_with()
         model_load.run(self.audit, self.root / 'second-output', calls=1, config=CONFIG, runner=runner)
         self.assertEqual(first['token_totals'], dict.fromkeys(model_load.TOKEN_FIELDS))
         self.assertFalse(first['token_totals_complete'])

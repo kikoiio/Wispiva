@@ -196,6 +196,12 @@ def _install_runtime(stage: Path, manifest_path: Path) -> None:
         if source.name.startswith("test_") or source.name == "test.lua":
             continue
         shutil.copyfile(source, world / "worldmods" / "society" / source.name)
+    textures = MOD / "textures"
+    if textures.is_dir():
+        target = world / "worldmods" / "society" / "textures"
+        target.mkdir(parents=True, exist_ok=True)
+        for source in textures.glob("*.png"):
+            shutil.copyfile(source, target / source.name)
     _write_private(private / "wispiva-origin.json", json.loads(manifest_path.read_text(encoding="utf-8")))
     (world / "world.mt").write_text(
         "gameid = minetest_game\nbackend = sqlite3\nload_mod_society = true\n",
@@ -207,7 +213,7 @@ def _install_runtime(stage: Path, manifest_path: Path) -> None:
         "enable_damage = false\n"
         "creative_mode = true\n"
         "max_forceloaded_blocks = -1\n"
-        "static_spawnpoint = (0,2,-20)\n"
+        "static_spawnpoint = (0,1,-20)\n"
         "society_world_product = true\n"
         "society_genesis_manifest = %s\n"
         "society_visual = true\n"

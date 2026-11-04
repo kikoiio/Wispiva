@@ -69,6 +69,7 @@ test('room, outdoor ground, roof, doorway and L-shaped connection', function()
   assert(find(plan,'node:0,4,0').value.name == 'default:wood')
   assert(find(plan,'node:-3,1,0').value.name == 'default:wood')
   assert(find(plan,'node:3,1,0').value == false) -- Door in east wall.
+  assert(find(plan,'node:3,2,0').value == false) -- Head clearance through the door.
   assert(find(plan,'node:7,0,0').value.name == 'default:stone')
   assert(find(plan,'node:10,0,2').value.name == 'default:stone')
   assert(find(plan,'node:12,0,6').value.name == 'default:dirt_with_grass')
@@ -311,6 +312,63 @@ test('current persistent manifest without object extension is supported', functi
   assert(projection.apply(doc,adapter).writes == 0)
   local actor=find(projection.plan(doc),'actor:alice').value
   assert(actor.goal == nil and actor.memory_seeds == nil)
+end)
+
+test('east doors open feet and head without joining separate rooms', function()
+  local doc = fixture()
+  doc.public.places = {
+    {id='baker', space='indoor', anchor={x=0, y=1, z=0}},
+    {id='pawnshop', space='indoor', anchor={x=16, y=1, z=0}},
+    {id='cellar', space='indoor', anchor={x=16, y=1, z=8}},
+    {id='bank', space='indoor', anchor={x=24, y=1, z=0}},
+  }
+  doc.public.semantic_connections = {{from='pawnshop', to='cellar'}}
+  doc.public.actors = {}
+  doc.public.objects = {}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:3,1,0').value == false)
+  assert(find(plan,'node:3,2,0').value == false)
+  assert(find(plan,'node:3,3,0').value.name == 'default:wood')
+  assert(find(plan,'node:-3,1,0').value.name == 'default:wood')
+  assert(find(plan,'node:13,1,0').value.name == 'default:wood')
+  assert(find(plan,'node:21,1,0').value.name == 'default:wood')
+  assert(find(plan,'node:21,2,0').value.name == 'default:wood')
+  assert(find(plan,'node:24,1,3').value.name == 'default:wood')
+end)
+
+test('optional materials replace wood and keep the doorway open', function()
+  local doc = fixture()
+  doc.public.places = {
+    {id='study', space='indoor', anchor={x=0, y=1, z=0},
+      floor='default:wood', wall='default:bookshelf', ceiling='default:wood',
+      windows=true, apron='default:cobble'},
+    {id='hall', space='indoor', anchor={x=16, y=1, z=0},
+      floor='default:stonebrick', wall='default:stonebrick', ceiling='default:stone',
+      windows=false},
+  }
+  doc.public.semantic_connections = {}
+  doc.public.actors = {}
+  doc.public.objects = {}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:0,0,0').value.name == 'default:wood')
+  assert(find(plan,'node:-3,1,0').value.name == 'default:bookshelf')
+  assert(find(plan,'node:-3,2,1').value.name == 'default:glass')
+  assert(find(plan,'node:-3,2,-3').value.name == 'default:bookshelf')
+  assert(find(plan,'node:3,1,0').value == false)
+  assert(find(plan,'node:3,2,0').value == false)
+  assert(find(plan,'node:3,3,0').value.name == 'default:bookshelf')
+  assert(find(plan,'node:0,4,0').value.name == 'default:wood')
+  assert(find(plan,'node:4,0,0').value.name == 'default:cobble')
+  assert(find(plan,'node:16,0,0').value.name == 'default:stonebrick')
+  assert(find(plan,'node:13,1,0').value.name == 'default:stonebrick')
+  assert(find(plan,'node:19,1,0').value == false)
+  assert(find(plan,'node:19,2,1').value.name == 'default:stonebrick')
+end)
+
+test('unknown building material is rejected', function()
+  local doc = fixture()
+  doc.public.places[1].wall = 'default:obsidian'
+  fails(function() projection.plan(doc) end, 'unsupported material')
 end)
 
 print('world_projection: ' .. count .. ' tests passed')

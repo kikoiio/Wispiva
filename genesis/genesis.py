@@ -95,9 +95,21 @@ def validate(draft):
     layout = draft['layout']
     if obj(layout, ('places', 'connections'), '$.layout'):
         seen = set(); cells = set()
+        build_nodes = {
+            'default:wood', 'default:bookshelf', 'default:glass', 'default:stonebrick',
+            'default:stone', 'default:cobble', 'default:brick',
+        }
         for i, item in enumerate(array(layout['places'], '$.layout.places', 1, 16)):
             p = f'$.layout.places[{i}]'
-            if not obj(item, ('placeId', 'space', 'grid'), p): continue
+            required = {'placeId', 'space', 'grid'}
+            optional = {'floor', 'wall', 'ceiling', 'apron', 'windows'}
+            if not isinstance(item, dict) or not required <= set(item) or not set(item) <= required | optional:
+                error(p, 'fields'); continue
+            for field in ('floor', 'wall', 'ceiling', 'apron'):
+                if field in item and item[field] not in build_nodes:
+                    error(p + '.' + field, 'material')
+            if 'windows' in item and type(item['windows']) is not bool:
+                error(p + '.windows', 'enum')
             place = item['placeId']
             if not isinstance(place, str) or place not in ids['places']: error(p+'.placeId', 'reference')
             elif place in seen: error(p+'.placeId', 'duplicate')

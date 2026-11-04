@@ -15,6 +15,11 @@ local spatial = dofile(minetest.get_modpath("society") .. "/spatial.lua")
 local node_cache = dofile(minetest.get_modpath("society") .. "/node_cache.lua")
 local scheduler = dofile(minetest.get_modpath("society") .. "/scheduler.lua")
 local navigation = dofile(minetest.get_modpath("society") .. "/navigation.lua")
+local providers_form = dofile(minetest.get_modpath("society") .. "/providers_form.lua")
+local UI_LANGUAGE = "zh"
+local function T(key)
+	return providers_form.text(UI_LANGUAGE, key)
+end
 
 local function cfg(name, default)
 	return minetest.settings:get(name) or default
@@ -61,6 +66,7 @@ local COGNITION = cfg("society_cognition", "false") == "true"
 local VISUAL = cfg("society_visual", "false") == "true"
 local MODEL = cfg("society_model", "false") == "true"
 local SEED_RESOURCES = cfg("society_seed_resources", "false") == "true"
+local SUPPRESS_RESOURCES = cfg("society_suppress_resource_nodes", "false") == "true"
 local MODEL_MEMORY = cfg("society_model_memory", "true") == "true"
 local LONG_TERM = cfg("society_long_term_memory", "false") == "true"
 local REFLECTION_EVERY = tonumber(cfg("society_reflection_every", "0"))
@@ -72,6 +78,10 @@ local VIEW_GUIDE = cfg("society_view_guide", "false") == "true"
 local VIEW_SPAWN = cfg("society_view_spawn", "false") == "true"
 local VIEW_ACCEPTANCE = cfg("society_view_acceptance", "false") == "true"
 local VIEW_GUIDE_SPEED = tonumber(cfg("society_view_guide_speed", "1.5"))
+local PROVIDER_FORM = cfg("society_provider_form", "false") == "true"
+local PROVIDER_ENV = cfg("society_provider_env", "false") == "true"
+local PROVIDER_HOME = cfg("society_providers_config_home", "")
+local PROVIDER_ROOT = cfg("society_repo_root", "")
 local EVENT_NAMESPACE = cfg("society_event_namespace", "default")
 assert(type(EVENT_NAMESPACE) == "string" and EVENT_NAMESPACE ~= "" and #EVENT_NAMESPACE <= 128,
 	"invalid society_event_namespace")
@@ -216,7 +226,7 @@ local function injected_fault(stage)
 end
 
 local view_landmarks, view_route = {}, {}
-local view_guide, view_route_index = nil, 1
+local view_guide, view_guide_place, view_route_index = nil, nil, 1
 local view_route_seen, view_players = {}, {}
 
 local summary_and_stop
@@ -408,13 +418,146 @@ local function view_send(player, message)
 	end
 end
 
+local function guide_nametag(place_name)
+	if place_name and place_name ~= "" then
+		return T("guide") .. "\n" .. string.format(T("guide_at"), place_name)
+	end
+	return T("guide") .. "\n" .. T("guide_follow")
+end
+
+-- Names stay overhead. Within 6 nodes, one left-side line shows the nearest
+-- spoken sentence and the nearest place description. One table keeps this
+-- chunk under LuaJIT's local-variable limit.
+local reader = {near = 6, hud = {}, tick = 0}
+
+function reader.viewers()
+	if not minetest.get_connected_players then return {} end
+	local players = minetest.get_connected_players()
+	return type(players) == "table" and players or {}
+end
+
+function reader.set_tag(object, text)
+	if not (object and object.set_properties) then return end
+	local entity = object.get_luaentity and object:get_luaentity()
+	if entity and entity._shown_nametag == text then return end
+	if entity then entity._shown_nametag = text end
+	object:set_properties({nametag = text})
+end
+
+function reader.agent_tag(agent)
+	local name = agent._persona or ""
+	-- Headless checks still read the spoken line from the nametag.
+	if #reader.viewers() > 0 then return name end
+	if agent._said and agent._said ~= "" then return name .. "\n" .. agent._said end
+	if agent._nametag_key then return name .. "\n" .. T(agent._nametag_key) end
+	return name
+end
+
+local function landmark_nametag(landmark)
+	local place = landmark and landmark._place_name or T("this_place")
+	if #reader.viewers() > 0 then return place end
+	local description = landmark and landmark._place_description or ""
+	if description ~= "" then return place .. "\n" .. description end
+	return place .. "\n" .. T("landmark_hint")
+end
+
+function reader.nearest(origin, entries)
+	local best, best_d
+	for _, entry in ipairs(entries) do
+		local pos = entry.pos
+		if pos then
+			local dx, dy, dz = origin.x - pos.x, origin.y - pos.y, origin.z - pos.z
+			local distance = dx * dx + dy * dy + dz * dz
+			if distance <= reader.near * reader.near and (not best_d or distance < best_d) then
+				best, best_d = entry, distance
+			end
+		end
+	end
+	return best
+end
+
+function reader.reading(player)
+	local origin = player.get_pos and player:get_pos()
+	if not origin then return "" end
+	local people, places = {}, {}
+	for _, agent in pairs(agents) do
+		if agent and agent.object and agent.object.get_pos and agent._said and agent._said ~= "" then
+			people[#people + 1] = {
+				pos = agent.object:get_pos(),
+				text = (agent._persona or "") .. "\n" .. agent._said,
+			}
+		end
+	end
+	for _, landmark in pairs(view_landmarks) do
+		local description = landmark and landmark._place_description or ""
+		if landmark and landmark.object and landmark.object.get_pos and description ~= "" then
+			places[#places + 1] = {
+				pos = landmark.object:get_pos(),
+				text = (landmark._place_name or "") .. "\n" .. description,
+			}
+		end
+	end
+	local lines = {}
+	local person = reader.nearest(origin, people)
+	local place = reader.nearest(origin, places)
+	if person then lines[#lines + 1] = person.text end
+	if place then lines[#lines + 1] = place.text end
+	return table.concat(lines, "\n\n")
+end
+
+function reader.refresh()
+	if not VISUAL then return end
+	for _, agent in pairs(agents) do
+		if agent and agent.object then
+			reader.set_tag(agent.object, reader.agent_tag(agent))
+		end
+	end
+	for _, landmark in pairs(view_landmarks) do
+		if landmark and landmark.object then
+			reader.set_tag(landmark.object, landmark_nametag(landmark))
+		end
+	end
+	for _, player in ipairs(reader.viewers()) do
+		if player.hud_add and player.get_player_name then
+			local name = player:get_player_name()
+			local text = reader.reading(player)
+			local slot = reader.hud[name]
+			if not slot then
+				reader.hud[name] = {id = player:hud_add({
+					type = "text",
+					position = {x = 0.02, y = 0.22},
+					alignment = {x = 1, y = 1},
+					offset = {x = 16, y = 0},
+					number = 0xF4F0E6,
+					style = 1,
+					text = text,
+				}), text = text}
+			elseif slot.text ~= text and player.hud_change then
+				player:hud_change(slot.id, "text", text)
+				slot.text = text
+			end
+		end
+	end
+end
+
+local view_click_at = {}
+
 local function view_interact(landmark, player, source)
-	local place = landmark and landmark._place_name or "this place"
-	local description = landmark and landmark._place_description or "A place in the world."
+	local place = landmark and landmark._place_name or T("this_place")
+	local description = landmark and landmark._place_description or T("world_place")
 	local player_name = player and player:is_player() and player:get_player_name() or "fixture"
+	local place_id = landmark and landmark._place_id or "unknown"
+	if source ~= "fixture" then
+		local now = (minetest.get_us_time and minetest.get_us_time()) or 0
+		local stamp_key = player_name .. "\0" .. place_id
+		local stamp = view_click_at[stamp_key]
+		if stamp and now - stamp < 2000000 then return end
+		view_click_at[stamp_key] = now
+	end
 	view_send(player, place .. ": " .. description)
 	if landmark then
-		landmark.object:set_properties({nametag = place .. "\nRead: " .. description})
+		landmark._seen = true
+		landmark.object:set_properties({nametag = landmark_nametag(landmark)})
 	end
 	ev("view interaction player=%s place=%s source=%s", player_name, tostring(landmark and landmark._place_id or "unknown"), source or "player")
 end
@@ -446,8 +589,11 @@ minetest.register_entity("society:view_guide", {
 			nametag = "Wispiva guide\nFollow the route",
 			nametag_color = "#ffffff",
 		},
+		on_activate = function(self)
+			self.object:set_properties({nametag = guide_nametag(nil)})
+		end,
 		on_rightclick = function(self, clicker)
-			view_send(clicker, "Follow the guide to each named place, then right-click a landmark to inspect it.")
+			view_send(clicker, T("guide_help"))
 			ev("view guide-interaction player=%s", clicker and clicker:get_player_name() or "fixture")
 		end,
 	})
@@ -458,7 +604,7 @@ local function view_landmark_position(place)
 end
 
 local function spawn_view_scene()
-	if not WORLD_PRODUCT or not VIEW_GUIDE then return end
+	if not WORLD_PRODUCT then return end
 	local places = {}
 	for _, place in ipairs(genesis_manifest.public.places or {}) do places[#places + 1] = place end
 	table.sort(places, function(a, b) return a.id < b.id end)
@@ -472,18 +618,22 @@ local function spawn_view_scene()
 		local landmark = object:get_luaentity()
 		landmark._place_id = place.id
 		landmark._place_name = place.name
-		landmark._place_description = place.description or ("The " .. place.name .. " area.")
+		landmark._place_description = place.description or string.format(T("place_fallback"), place.name)
 		local colors = {"#d39b4a", "#8fc477", "#b58ad9", "#d87878", "#6fa9d8"}
 		object:set_properties({
 			textures = {"default_stone.png^[colorize:" .. colors[((index - 1) % #colors) + 1] .. ":180"},
-			nametag = place.name .. "\nRight-click to inspect",
+			nametag = landmark_nametag(landmark),
 			nametag_color = "#ffffff",
 		})
 		view_landmarks[place.id] = landmark
 		view_route[#view_route + 1] = {id = place.id, position = position, name = place.name}
 	end
 	if #view_route == 0 then
-		fail("view-scene", "reason=no-public-places")
+		if VIEW_GUIDE then fail("view-scene", "reason=no-public-places") end
+		return
+	end
+	if not VIEW_GUIDE then
+		ev("view landmarks places=%d", #view_route)
 		return
 	end
 	view_guide = minetest.add_entity({x = 0, y = 1.5, z = -16}, "society:view_guide")
@@ -491,7 +641,7 @@ local function spawn_view_scene()
 		fail("view-scene", "guide=missing")
 		return
 	end
-	ev("view scene-ready places=%d observer_spawn=0,2,-20 interaction=landmark-rightclick", #view_route)
+	ev("view scene-ready places=%d observer_spawn=0,1,-20 interaction=landmark-rightclick", #view_route)
 	if VIEW_ACCEPTANCE then
 		minetest.after(2, function()
 			local players = minetest.get_connected_players()
@@ -513,10 +663,13 @@ local function update_view_scene(dtime)
 			view_route_seen[target.id] = true
 			ev("view guide-arrival place=%s", target.id)
 		end
-		view_guide:set_properties({nametag = "Wispiva guide\nAt " .. target.name})
+		view_guide_place = target.name
+		view_guide:set_properties({nametag = guide_nametag(target.name)})
 		if view_route_index < #view_route then view_route_index = view_route_index + 1 else return end
 		return
 	end
+	view_guide_place = nil
+	view_guide:set_properties({nametag = guide_nametag(nil)})
 	local step = math.min(distance, math.max(VIEW_GUIDE_SPEED, 0.1) * dtime)
 	view_guide:set_pos({x = current.x + dx / distance * step, y = current.y, z = current.z + dz / distance * step})
 end
@@ -530,7 +683,6 @@ local function update_view_players()
 			local dx, dz = position.x - prior.x, position.z - prior.z
 			if not view_players[name].moved and dx * dx + dz * dz >= 1 then
 				view_players[name].moved = true
-				view_send(player, "You moved through the scene. Look for the named landmark and the guide.")
 				ev("view movement player=%s", name)
 			end
 		end
@@ -538,20 +690,386 @@ local function update_view_players()
 	end
 end
 
+local provider_drafts = {}
+
+local function provider_path_ok(path)
+	return type(path) == "string" and path:match("^/[%w%._/-]+$") ~= nil and not path:find("%.%.", 1, true)
+end
+
+local function provider_file()
+	if not provider_path_ok(PROVIDER_HOME) then return nil end
+	return PROVIDER_HOME .. "/wispiva/providers.json"
+end
+
+-- Luanti returns this environment only from the trusted mod's main file scope, not from a later function.
+local insecure_environment = minetest.request_insecure_environment and minetest.request_insecure_environment()
+local provider_file_io = insecure_environment and insecure_environment.io or nil
+local provider_file_os = insecure_environment and insecure_environment.os or nil
+
+local function provider_io()
+	-- Mod security keeps the normal io inside the world. The provider file lives in the user config directory.
+	if provider_file_io and provider_file_io.open and provider_file_io.popen
+			and provider_file_os and provider_file_os.remove then
+		return provider_file_io, provider_file_os
+	end
+	return nil, nil
+end
+
+local function load_provider_draft()
+	local path = provider_file()
+	if not path then return providers_form.empty(), "unavailable" end
+	local file_io = provider_io()
+	if not file_io then return providers_form.empty(), "unavailable" end
+	local file = file_io.open(path, "rb")
+	if not file then return providers_form.empty(), "" end
+	local raw = file:read(262145); file:close()
+	if not raw or #raw > 262144 then return providers_form.empty(), "unreadable" end
+	local data = minetest.parse_json(raw)
+	if type(data) ~= "table" or type(data.providers) ~= "table" then
+		return providers_form.empty(), "unreadable"
+	end
+	local draft = providers_form.normalize({selected = data.selected, providers = data.providers})
+	return draft, ""
+end
+
+local function shell_quote(value)
+	return "'" .. tostring(value):gsub("'", "'\\''") .. "'"
+end
+
+local function language_path()
+	if not provider_path_ok(PROVIDER_HOME) then return nil end
+	return PROVIDER_HOME .. "/wispiva/language"
+end
+
+local function read_ui_language()
+	local path = language_path()
+	local file_io = provider_io()
+	if not path or not file_io then return "zh" end
+	local ok, file = pcall(file_io.open, path, "rb")
+	if not ok or not file then return "zh" end
+	local raw = file:read(32)
+	file:close()
+	raw = type(raw) == "string" and raw:gsub("%s+", "") or ""
+	if raw == "en" or raw == "zh" then return raw end
+	return "zh"
+end
+
+local function write_ui_language(code)
+	if code ~= "zh" and code ~= "en" then return false end
+	local path = language_path()
+	local file_io, file_os = provider_io()
+	if not path or not file_io or not file_os or not file_os.execute or not file_os.rename then
+		return false
+	end
+	local directory = PROVIDER_HOME .. "/wispiva"
+	file_os.execute("mkdir -p " .. shell_quote(directory) .. " && chmod 700 " .. shell_quote(directory))
+	local temporary = path .. ".tmp"
+	local file = file_io.open(temporary, "wb")
+	if not file then return false end
+	file:write(code .. "\n")
+	file:close()
+	file_os.remove(path)
+	local renamed = file_os.rename(temporary, path)
+	if not renamed then
+		file_os.remove(temporary)
+		ev("ui language persist failed")
+		return false
+	end
+	file_os.execute("chmod 600 " .. shell_quote(path))
+	return true
+end
+
+local register_provider_command
+
+local function apply_scene_language()
+	if view_guide then
+		view_guide:set_properties({nametag = guide_nametag(view_guide_place)})
+	end
+	reader.refresh()
+	if minetest.override_item then
+		minetest.override_item("society:mark", {description = T("mark_node")})
+		minetest.override_item("society:resource", {description = T("resource_node")})
+	end
+	if register_provider_command then register_provider_command() end
+end
+
+local language_ok, language_code = pcall(read_ui_language)
+UI_LANGUAGE = language_ok and language_code or "zh"
+local provider_io_ready = provider_file_io and provider_file_io.open and provider_file_io.popen
+	and provider_file_os and provider_file_os.remove and provider_file_os.rename
+	and provider_file_os.execute and true or false
+ev("provider io ready=%s", tostring(provider_io_ready))
+
+local function save_provider_draft(draft)
+	if not provider_path_ok(PROVIDER_HOME) or not provider_path_ok(PROVIDER_ROOT) then
+		return "unavailable"
+	end
+	local file_io, file_os = provider_io()
+	if not file_io then return "unavailable" end
+	local body = {providers = draft.providers}
+	if draft.selected and draft.selected ~= "" then body.selected = draft.selected end
+	local payload = minetest.write_json(body)
+	if type(payload) ~= "string" or #payload > 262144 then return "invalid_store" end
+	local status_path = PROVIDER_HOME .. "/.wispiva-provider-status"
+	file_os.remove(status_path)
+	-- The server process carries Luanti's library path. Drop it so Python uses the system libraries.
+	local cmd = string.format(
+		"env -u LD_LIBRARY_PATH XDG_CONFIG_HOME=%s PYTHONPATH=%s WISPIVA_PROVIDER_STATUS=%s python3 -B -m model.providers",
+		shell_quote(PROVIDER_HOME), shell_quote(PROVIDER_ROOT), shell_quote(status_path))
+	local pipe = file_io.popen(cmd, "w")
+	if not pipe then return "unavailable" end
+	pipe:write(payload)
+	pipe:close()
+	local status_file = file_io.open(status_path, "rb")
+	local code = status_file and status_file:read(64) or nil
+	if status_file then status_file:close() end
+	file_os.remove(status_path)
+	code = type(code) == "string" and code:gsub("%s+", "") or ""
+	if code == "ok" then return "saved" end
+	if code == "missing_name" or code == "incomplete" or code == "bad_url"
+			or code == "invalid_store" or code == "unreadable" or code == "unavailable" then
+		return code
+	end
+	return "invalid_store"
+end
+
+local function show_provider_form(player, status, note)
+	if not player or not player:is_player() then return end
+	local name = player:get_player_name()
+	local draft = provider_drafts[name]
+	if not draft then
+		local loaded, load_status = load_provider_draft()
+		draft = loaded
+		provider_drafts[name] = draft
+		if status == nil or status == "" then status = load_status end
+	end
+	minetest.show_formspec(name, "wispiva:providers",
+		providers_form.build(draft, status or "", UI_LANGUAGE, note))
+	ev("providers form open player=%s", name)
+end
+
+if minetest.register_on_player_receive_fields then
+	minetest.register_on_player_receive_fields(function(player, formname, fields)
+		if formname ~= "wispiva:providers" or not player or not player:is_player() then return end
+		local name = player:get_player_name()
+		local ok = pcall(function()
+			local draft = provider_drafts[name]
+			if not draft then
+				draft = select(1, load_provider_draft())
+				provider_drafts[name] = draft
+			end
+			local note = nil
+			local picked = providers_form.parse_language(fields.language)
+			if picked and picked ~= UI_LANGUAGE then
+				UI_LANGUAGE = picked
+				local persisted = write_ui_language(picked)
+				apply_scene_language()
+				note = T("language_applied")
+				ev("ui language=%s persisted=%s", picked, tostring(persisted))
+			end
+			local action = providers_form.apply(draft, fields)
+			if action == "quit" then
+				provider_drafts[name] = nil
+				if minetest.close_formspec then minetest.close_formspec(name, "wispiva:providers") end
+				return
+			end
+			local status = ""
+			if action == "add" then
+				providers_form.add(draft, minetest.sha1(tostring(minetest.get_us_time()) .. ":" .. tostring({})):sub(1, 32))
+			elseif action == "remove" then
+				providers_form.remove(draft)
+			elseif action == "save" then
+				status = save_provider_draft(draft)
+				ev("providers save result=%s", status == "saved" and "ok" or status)
+			end
+			show_provider_form(player, status, note)
+		end)
+		if not ok then ev("providers form failed player=%s", name) end
+	end)
+end
+
+local function round_coord(value)
+	if type(value) ~= "number" then return nil end
+	return math.floor(value + 0.5)
+end
+
+local function agent_stand(le)
+	local raw = le and le.object and le.object:get_pos()
+	if not raw then return nil end
+	local x, y, z = round_coord(raw.x), round_coord(raw.y), round_coord(raw.z)
+	if not x or not z or not y or y < 0 or y > 3 then return nil end
+	return {x = x, y = 1, z = z}
+end
+
+local function grid_pos(pos)
+	if type(pos) ~= "table" then return nil end
+	local x, y, z = round_coord(pos.x), round_coord(pos.y), round_coord(pos.z)
+	if not x or not y or not z then return nil end
+	if math.abs(pos.x - x) > 0.001 or math.abs(pos.y - y) > 0.001 or math.abs(pos.z - z) > 0.001 then
+		return nil
+	end
+	return {x = x, y = y, z = z}
+end
+
+local function players_present()
+	local connected = minetest.get_connected_players and minetest.get_connected_players() or {}
+	return #connected > 0
+end
+
+local function set_body_solid(solid)
+	if not VISUAL then return end
+	for _, le in pairs(agents) do
+		if le and le.object and le.object.set_properties then
+			le.object:set_properties(solid and {
+				physical = true,
+				collide_with_objects = true,
+				pointable = "blocking",
+			} or {
+				physical = false,
+				collide_with_objects = false,
+				pointable = false,
+			})
+			if solid and le.object.set_velocity then
+				le.object:set_velocity({x = 0, y = 0, z = 0})
+				le.object:set_acceleration({x = 0, y = 0, z = 0})
+			end
+		end
+	end
+end
+
+local function free_blocked_agents()
+	local bound = math.min(math.max(BOUND, 1), 64)
+	for _, le in pairs(agents) do
+		local stand = agent_stand(le)
+		if stand and le.object then
+			local spot, reason = navigation.nearest_clear(minetest, stand, {
+				bound = bound, max_scan = 1024, radius = 16,
+			})
+			if spot and (spot.x ~= stand.x or spot.z ~= stand.z) then
+				le.object:set_pos({x = spot.x, y = 1, z = spot.z})
+				if le.object.set_velocity then
+					le.object:set_velocity({x = 0, y = 0, z = 0})
+					le.object:set_acceleration({x = 0, y = 0, z = 0})
+				end
+				if OPTIMIZED then index:upsert(le._id, le.object, spot) end
+				ev("ev=unstick agent=%d persona=%s from=%d,%d to=%d,%d",
+					le._id, tostring(le._persona), stand.x, stand.z, spot.x, spot.z)
+			elseif not spot then
+				ev("ev=unstick-blocked agent=%d persona=%s at=%d,%d reason=%s",
+					le._id, tostring(le._persona), stand.x, stand.z, tostring(reason))
+			end
+		end
+	end
+end
+
+local function placement_hits_body(pos)
+	local node = grid_pos(pos)
+	if not node then return false end
+	for _, le in pairs(agents) do
+		local stand = agent_stand(le)
+		if stand and navigation.occupies(stand, node) then return true end
+	end
+	return false
+end
+
+if minetest.register_on_placenode then
+	minetest.register_on_placenode(function(pos, newnode, placer, oldnode)
+		if not (placer and placer.is_player and placer:is_player()) then return end
+		if not placement_hits_body(pos) then return end
+		local restored = {name = "air"}
+		if type(oldnode) == "table" and type(oldnode.name) == "string" then
+			restored = {name = oldnode.name, param1 = oldnode.param1, param2 = oldnode.param2}
+		end
+		minetest.set_node(pos, restored)
+		cached_nodes:invalidate(pos)
+		local nearby = minetest.get_objects_inside_radius(pos, 1.5) or {}
+		for _, obj in ipairs(nearby) do
+			local ent = obj.get_luaentity and obj:get_luaentity()
+			if ent and ent.name == "__builtin:falling_node" then obj:remove() end
+		end
+		local where = grid_pos(pos) or pos
+		view_send(placer, T("body_blocked"))
+		ev("ev=place-rejected player=%s at=%d,%d,%d node=%s",
+			placer:get_player_name(), where.x, where.y, where.z,
+			tostring(newnode and newnode.name))
+		return true
+	end)
+end
+
+local VISITOR_ITEMS = {
+	"default:wood", "default:bookshelf", "default:cobble", "default:stone",
+	"default:stonebrick", "default:brick", "default:glass", "default:torch",
+}
+
+local function give_visitor_materials(player)
+	local inv = player.get_inventory and player:get_inventory()
+	if not inv or not inv.set_stack then return end
+	if player.hud_set_hotbar_itemcount then player:hud_set_hotbar_itemcount(#VISITOR_ITEMS) end
+	for index, name in ipairs(VISITOR_ITEMS) do
+		inv:set_stack("main", index, name .. " 99")
+	end
+end
+
 if minetest.register_on_joinplayer then
 	minetest.register_on_joinplayer(function(player)
+		free_blocked_agents()
+		set_body_solid(true)
+		if VIEW_SPAWN then player:set_pos({x = 0, y = 1, z = -20}) end
+		reader.refresh()
+		if WORLD_PRODUCT and not VIEW_ACCEPTANCE then
+			local name = player:get_player_name()
+			minetest.after(0, function()
+				local again = minetest.get_player_by_name(name)
+				if not again then return end
+				give_visitor_materials(again)
+				view_send(again, T("visitor_help"))
+				reader.refresh()
+			end)
+		end
 		if not VIEW_GUIDE then return end
-		if VIEW_SPAWN then player:set_pos({x = 0, y = 2, z = -20}) end
 		local name = player:get_player_name()
 		view_players[name] = nil
-		view_send(player, "Welcome. Move with WASD, look around, and right-click a named landmark for feedback.")
 		ev("view join player=%s", name)
+		if PROVIDER_FORM then
+			minetest.after(0.5, function()
+				local again = minetest.get_player_by_name(name)
+				if again and not pcall(show_provider_form, again, "") then
+					ev("providers form failed player=%s", name)
+				end
+			end)
+		end
 	end)
+end
+
+register_provider_command = function()
+	if not (WORLD_PRODUCT and minetest.register_chatcommand) then return end
+	minetest.register_chatcommand("providers", {
+		description = T("providers_command"),
+		func = function(name)
+			local player = minetest.get_player_by_name(name)
+			if player and not pcall(show_provider_form, player, "") then
+				ev("providers form failed player=%s", name)
+				return false, T("providers_unavailable")
+			end
+			return true, T("providers_opened")
+		end,
+	})
+end
+register_provider_command()
+if not pcall(apply_scene_language) then
+	ev("ui language scene refresh failed")
 end
 
 if minetest.register_on_leaveplayer then
 	minetest.register_on_leaveplayer(function(player)
-		view_players[player:get_player_name()] = nil
+		local name = player:get_player_name()
+		view_players[name] = nil
+		provider_drafts[name] = nil
+		reader.hud[name] = nil
+		minetest.after(0, function()
+			if not players_present() then set_body_solid(false) end
+			reader.refresh()
+		end)
 	end)
 end
 
@@ -621,18 +1139,47 @@ local function step_toward(self, pos, target)
 		return nil, reason
 	end
 	self.object:set_pos(np)
+	if self.object.set_velocity then
+		self.object:set_velocity({x = 0, y = 0, z = 0})
+		self.object:set_acceleration({x = 0, y = 0, z = 0})
+	end
 	if OPTIMIZED then index:upsert(self._id, self.object, np) end
 	return np, reason
+end
+
+local function clip_nametag(text)
+	if type(text) ~= "string" or text == "" then return "" end
+	local count, i, n = 0, 1, #text
+	while i <= n and count < 42 do
+		local b = text:byte(i)
+		local step = 1
+		if b >= 0xF0 then step = 4
+		elseif b >= 0xE0 then step = 3
+		elseif b >= 0xC0 then step = 2 end
+		if i + step - 1 > n then break end
+		i = i + step
+		count = count + 1
+	end
+	if i <= n then return text:sub(1, i - 1) .. "…" end
+	return text
+end
+
+local function show_nametag(self)
+	if not (VISUAL and self.object) then return end
+	reader.refresh()
 end
 
 local function apply(self, action, pos)
 	local kind = action.kind or "unknown"
 	if VISUAL then
-		local labels = {advance="Walking", approach="Approaching another agent", inspect="Looking around",
-			mark="Placing a marker", wander="Choosing a destination", say="Sending a message",
-			give="Handing over a resource",
-			gather="Gathering", build="Building"}
-		self.object:set_properties({nametag = self._persona .. "\n" .. (labels[kind] or kind)})
+		if kind == "say" then
+			-- The spoken line is stored on the say path. Do not replace it with the verb.
+		elseif self._said and self._said ~= "" then
+			show_nametag(self)
+		else
+			self._nametag_key = kind
+			show_nametag(self)
+		end
 	end
 	S.actions[kind] = (S.actions[kind] or 0) + 1
 
@@ -774,7 +1321,9 @@ local function apply(self, action, pos)
 		if GENESIS_PREVIEW then
 			local ok, reason = preview_module.deliver(self, recipient, action.text, world_time())
 			if ok then
-				if VISUAL then self.object:set_properties({nametag=self._persona .. "\n" .. action.text}) end
+				self._said = clip_nametag(action.text)
+				self._nametag_key = nil
+				show_nametag(self)
 				ev("ev=message agent=%d recipient=%d sha256=%s", self._id, action.target, minetest.sha256(action.text))
 			end
 			return ok, reason
@@ -788,7 +1337,9 @@ local function apply(self, action, pos)
 				source = {kind = "agent", id = tostring(self._id)}})
 			self._episodic:add({time = world_time(), text = action.text,
 				source = {kind = "self", id = tostring(self._id)}})
-			if VISUAL then self.object:set_properties({nametag = self._persona .. "\n" .. action.text}) end
+			self._said = clip_nametag(action.text)
+			self._nametag_key = nil
+			show_nametag(self)
 			ev("ev=message agent=%d recipient=%d sha256=%s", self._id, action.target,
 				minetest.sha256(action.text))
 			if LOG_MESSAGES then
@@ -842,6 +1393,51 @@ local function settle_contacts(self, pos)
 	end
 end
 
+local provider_wait_logged = false
+local provider_ready_logged = false
+local provider_setup_at = 0
+local provider_setup_ready = false
+
+local function provider_file_ready()
+	local ok, draft, status = pcall(load_provider_draft)
+	if not ok or status ~= "" or type(draft) ~= "table" then return false end
+	local selected = draft.selected
+	if type(selected) ~= "string" or selected == "" then return false end
+	for _, item in ipairs(draft.providers or {}) do
+		if type(item) == "table" and item.id == selected then
+			return type(item.base_url) == "string" and item.base_url ~= ""
+				and type(item.model) == "string" and item.model ~= ""
+				and type(item.api_key) == "string" and item.api_key ~= ""
+		end
+	end
+	return false
+end
+
+local function provider_pending_setup()
+	-- Open play has no decision cap. Wait for a saved provider instead of
+	-- closing the world while the person is still filling the form.
+	if not MODEL or MAX_DECISIONS > 0 or PROVIDER_ENV then return false end
+	local now = minetest.get_us_time()
+	if provider_setup_at == 0 or now - provider_setup_at >= 1000000 then
+		provider_setup_at = now
+		provider_setup_ready = provider_file_ready()
+	end
+	if not provider_setup_ready and not provider_wait_logged then
+		provider_wait_logged = true
+		ev("providers waiting")
+	elseif provider_setup_ready and not provider_ready_logged then
+		provider_ready_logged = true
+		ev("providers ready")
+	end
+	return not provider_setup_ready
+end
+
+local function defer_open_model(self)
+	if MAX_DECISIONS > 0 then return false end
+	self._model_retry_at = minetest.get_us_time() + 8 * 1000000
+	return true
+end
+
 local function decide_and_act(self)
 	if WORLD_PRODUCT and MODEL and not self._pending then
 		-- A fast provider response cannot make one role outrun the slowest role.
@@ -887,6 +1483,12 @@ local function decide_and_act(self)
 	local action
 	if MODEL then
 		if not self._pending then
+			if self._model_retry_at and minetest.get_us_time() < self._model_retry_at then
+				return
+			end
+			if provider_pending_setup() then
+				return
+			end
 			request_id = request_id + 1
 			local query_parts = {(GENESIS_PREVIEW or WORLD_PRODUCT) and self._genesis.goal or GOAL}
 			if WORLD_PRODUCT then
@@ -919,7 +1521,8 @@ local function decide_and_act(self)
 			local context = {observation = {has_target = obs.has_target,
 				nearby_agents = obs.nearby_agents,
 				visible_agents = obs.local_view and obs.local_view.agents or {},
-				pos = obs.pos, marks_nearby = obs.marks_nearby},
+				pos = obs.pos, marks_nearby = obs.marks_nearby,
+				places = WORLD_PRODUCT and genesis_context.public_places(genesis_manifest) or {}},
 				self_id = self._id, time = world_time(), persona = self._persona,
 				goal = (GENESIS_PREVIEW or WORLD_PRODUCT) and self._genesis.goal or GOAL,
 				nearby_positions = obs.local_view and obs.local_view.agents or {},
@@ -956,6 +1559,10 @@ local function decide_and_act(self)
 				end
 				add_unique(facts, genesis_context.public_world_fact(
 					genesis_manifest, self._genesis.actor_id))
+				for _, place_fact in ipairs(genesis_context.public_place_facts(
+					genesis_manifest, self._genesis.actor_id)) do
+					if #facts < 32 then add_unique(facts, place_fact) end
+				end
 				for _, node in ipairs(context.visible_nodes or {}) do
 					if #facts < 32 then
 						add_unique(facts, {id = string.format("observation:%s:%d:%d:%d", self._id,
@@ -1054,6 +1661,10 @@ local function decide_and_act(self)
 		if minetest.get_us_time() - self._pending.started > (COUNT * 270 + 30) * 1000000 then
 			os.remove(path)
 			ev("fail=model-timeout agent=%d request=%d", self._id, self._pending.id)
+			if defer_open_model(self) then
+				self._pending = nil
+				return
+			end
 			S.failed = "model-timeout"
 			summary_and_stop()
 			return
@@ -1094,6 +1705,7 @@ local function decide_and_act(self)
 			ev("fail=model-response agent=%d request=%d error=%s latency_ms=%s input_tokens=%s output_tokens=%s", self._id, id,
 				result and tostring(result.error) or "invalid", tostring(audit.latency_ms or "unknown"),
 				tostring(usage.input_tokens or "unknown"), tostring(usage.output_tokens or "unknown"))
+			if defer_open_model(self) then return end
 			S.failed = "model-response"
 			summary_and_stop()
 			return
@@ -1106,6 +1718,7 @@ local function decide_and_act(self)
 			end)
 			if not accepted then
 				ev("fail=model-reflection agent=%d request=%d", self._id, id)
+				if defer_open_model(self) then return end
 				S.failed = "model-reflection"
 				summary_and_stop()
 				return
@@ -1218,6 +1831,14 @@ local function decide_and_act(self)
 	if measured then profile.contact = profile.contact + minetest.get_us_time() - measured end
 end
 
+local function public_place_name(place_id)
+	if not (genesis_manifest and genesis_manifest.public and place_id) then return "" end
+	for _, place in ipairs(genesis_manifest.public.places or {}) do
+		if place.id == place_id then return place.name or "" end
+	end
+	return ""
+end
+
 minetest.register_entity("society:agent", {
 	initial_properties = {
 		visual = "cube",
@@ -1231,6 +1852,13 @@ minetest.register_entity("society:agent", {
 	on_activate = function(self)
 		self._steps = 0
 		self._acc = 0
+	end,
+	on_rightclick = function(self, clicker)
+		if not (clicker and clicker.is_player and clicker:is_player()) then return end
+		local who = self._persona or ""
+		local home = self._genesis and public_place_name(self._genesis.place_id) or ""
+		if home ~= "" then who = who .. " · " .. home end
+		if who ~= "" then view_send(clicker, who) end
 	end,
 	-- Per-entity counters prove participation within each sampled interval.
 	on_step = function(self, dtime)
@@ -1295,10 +1923,14 @@ local function spawn_agents()
 				le._actor_id = origin_actor.actor_id
 			end
 			if VISUAL then
-				local colors = {"#65a8dd", "#e5a768", "#b790d3", "#77bb8c", "#e487a0"}
+				-- The stock player.png is a flat green stand-in. This skin keeps a face, hair and clothes.
+				-- The box matches a standing body. Physics stays off until a player is here.
+				le._nametag_key = "waiting"
 				obj:set_properties({visual="mesh", mesh="character.b3d", visual_size={x=1, y=1},
-					textures={"player.png^[colorize:" .. colors[(i % #colors) + 1] .. ":100"},
-					nametag=le._persona .. "\nWaiting", nametag_color="#ffffff"})
+					textures={"society_person.png"},
+					collisionbox={-0.3, 0, -0.3, 0.3, 1.75, 0.3},
+					selectionbox={-0.35, 0, -0.35, 0.35, 1.8, 0.35, rotate=false},
+					nametag=reader.agent_tag(le), nametag_color="#ffffff"})
 			end
 			le._home = at
 			le._facing = FACINGS[(i % #FACINGS) + 1]
@@ -1330,7 +1962,7 @@ local function spawn_agents()
 			-- character's persisted lifetime counter.
 			le._run_start_decisions = le._decisions
 			le._resources = resources.new(minetest, obj, le._restored_inventory)
-			if (MODEL or SEED_RESOURCES) and not RESTORE and not GENESIS_PREVIEW then
+			if (MODEL or SEED_RESOURCES) and not RESTORE and not GENESIS_PREVIEW and not SUPPRESS_RESOURCES then
 				local resource_pos = {x = at.x + 1, y = at.y, z = at.z}
 				if in_bounds(resource_pos) and minetest.get_node(resource_pos).name == "air" then
 					minetest.set_node(resource_pos, {name = "society:resource"})
@@ -1357,6 +1989,8 @@ local function spawn_agents()
 				tostring(actor._genesis.actor_id), #(actor._genesis.memory_seeds or {}))
 		end
 	end
+	free_blocked_agents()
+	if players_present() then set_body_solid(true) end
 	ev("spawn count=%d ok=%d spacing=%d bound=%d", COUNT, S.spawned, SPACING, BOUND)
 	step_count, last_us = 0, minetest.get_us_time()
 	run_started = last_us
@@ -1578,16 +2212,18 @@ local function advance_product_environment()
 			fail("world-event", "environment=%s", tostring(event):gsub("%s+", "_"))
 			return false
 		end
-		local low, high = math.min(item.before, item.after), math.max(item.before, item.after)
-		for amount = low + 1, high do
-			local point = {x = -24 + amount, y = 1, z = -24}
-			if item.after > item.before then
-				if minetest.get_node(point).name == "air" then
-					minetest.set_node(point, {name = "society:resource"})
-				end
-			else
-				if minetest.get_node(point).name == "society:resource" then
-					minetest.set_node(point, {name = "air"})
+		if not SUPPRESS_RESOURCES then
+			local low, high = math.min(item.before, item.after), math.max(item.before, item.after)
+			for amount = low + 1, high do
+				local point = {x = -24 + amount, y = 1, z = -24}
+				if item.after > item.before then
+					if minetest.get_node(point).name == "air" then
+						minetest.set_node(point, {name = "society:resource"})
+					end
+				else
+					if minetest.get_node(point).name == "society:resource" then
+						minetest.set_node(point, {name = "air"})
+					end
 				end
 			end
 		end
@@ -1675,6 +2311,11 @@ minetest.register_globalstep(function(dtime)
 	step_count = step_count + 1
 	update_view_scene(dtime)
 	update_view_players()
+	reader.tick = reader.tick + (dtime or 0)
+	if reader.tick >= 0.25 then
+		reader.tick = 0
+		reader.refresh()
+	end
 	if S.finished or S.failed or S.spawned == 0 then return end
 	poll_product_control()
 	if WORLD_PRODUCT then

@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "title": "红发会",
+  "description": "1890年秋的伦敦。贝克街221B，萨克斯-科堡广场上的一家当铺，当铺底下的地窖，以及与当铺相邻的银行。",
+  "places": [
+    {
+      "id": "baker",
+      "name": "贝克街221B",
+      "description": "Holmes 见客人的起居室。"
+    },
+    {
+      "id": "pawnshop",
+      "name": "当铺",
+      "description": "萨克斯-科堡广场上的一家小当铺。"
+    },
+    {
+      "id": "cellar",
+      "name": "当铺地窖",
+      "description": "当铺地板下面的地窖。"
+    },
+    {
+      "id": "bank",
+      "name": "城市与郊区银行",
+      "description": "坐落在当铺旁边的银行。"
+    }
+  ],
+  "actors": [
+    {
+      "id": "holmes",
+      "name": "Sherlock Holmes",
+      "role": "咨询侦探",
+      "goal": "根据已经听到的陈述，查清红发会这回事。",
+      "placeId": "baker"
+    },
+    {
+      "id": "watson",
+      "name": "John Watson",
+      "role": "医生",
+      "goal": "陪着 Holmes，把接下来真正发生的事看清楚。",
+      "placeId": "baker"
+    },
+    {
+      "id": "wilson",
+      "name": "Jabez Wilson",
+      "role": "当铺老板",
+      "goal": "弄清红发会为什么在今早解散。",
+      "placeId": "baker"
+    },
+    {
+      "id": "spaulding",
+      "name": "Vincent Spaulding",
+      "role": "当铺助手",
+      "goal": "趁 Wilson 不在店里，继续地窖里的工作。",
+      "placeId": "pawnshop"
+    }
+  ],
+  "memories": [
+    {
+      "actorId": "holmes",
+      "text": "今天上午 Jabez Wilson 在贝克街讲完：他经营一家当铺，助手 Vincent Spaulding 工钱很低，还常下地窖；Spaulding 拿红发会的广告劝他去应征。Wilson 因为红发被录用，每天离开店铺到教皇院抄百科全书，周薪四英镑。今早会所解散。Watson 在场听完。我还没有出门查看那家当铺。"
+    },
+    {
+      "actorId": "watson",
+      "text": "我在贝克街听 Wilson 讲了红发会。助手 Spaulding 劝他去应征，他因此每天离开当铺去抄百科全书，今早会所解散。我听到的和 Holmes 一样多，还看不出这件事会通向哪里。"
+    },
+    {
+      "actorId": "wilson",
+      "text": "我在萨克斯-科堡广场开当铺。助手 Vincent Spaulding 要的工钱很少，喜欢钻进地窖。他给我看红发会的广告。我因红发被录用，每天去教皇院抄百科全书，周薪四英镑，店铺交给他照看。今早会所解散，门上贴着告示。我已经把这些告诉贝克街的 Holmes。我不明白会所为什么消失。"
+    },
+    {
+      "actorId": "spaulding",
+      "text": "Wilson 只知道我叫 Vincent Spaulding。红发会是让他白天离开当铺的办法，今早已经收场，店仍在我手上。我一直在地窖里向前挖，隔壁是银行。今晚还没有任何行动。"
+    }
+  ],
+  "rules": [],
+  "layout": {
+    "places": [
+      {"placeId": "baker", "space": "indoor", "grid": [0, 0], "floor": "default:wood", "wall": "default:bookshelf", "ceiling": "default:wood", "windows": true, "apron": "default:cobble"},
+      {"placeId": "pawnshop", "space": "indoor", "grid": [2, 0], "floor": "default:cobble", "wall": "default:brick", "ceiling": "default:wood", "windows": true, "apron": "default:cobble"},
+      {"placeId": "cellar", "space": "indoor", "grid": [2, 1], "floor": "default:stone", "wall": "default:cobble", "ceiling": "default:stone", "apron": "default:cobble"},
+      {"placeId": "bank", "space": "indoor", "grid": [3, 0], "floor": "default:stonebrick", "wall": "default:stonebrick", "ceiling": "default:stone", "windows": true, "apron": "default:cobble"}
+    ],
+    "connections": [
+      {"from": "pawnshop", "to": "cellar"}
+    ]
+  }
+}

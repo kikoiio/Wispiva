@@ -250,10 +250,8 @@ class AdapterTests(unittest.TestCase):
                 adapter.decide(CONFIG, CTX, transport=lambda *_: raw)
 
     def test_config_and_redirect_policy(self):
-        env = {'XUNFEI_BASE_URL': 'https://api.example/v1/responses', 'XUNFEI_MODEL': 'm', 'XUNFEI_API_KEY': 'k'}
-        self.assertEqual(adapter.Config.from_env(env).endpoint(), env['XUNFEI_BASE_URL'])
-        env['XUNFEI_OPENAI_RESPONSE_URL'] = 'https://api.example/custom/endpoint'
-        self.assertEqual(adapter.Config.from_env(env).endpoint(), env['XUNFEI_OPENAI_RESPONSE_URL'])
+        env = {'LLM_BASE_URL': 'https://api.example/v1/responses', 'MODEL_NAME': 'm', 'LLM_API_KEY': 'k'}
+        self.assertEqual(adapter.Config.from_env(env).endpoint(), env['LLM_BASE_URL'])
         self.assertEqual(CONFIG.endpoint(), 'https://example.invalid/v1/responses')
         for url in ['http://example.com', 'https://user:pass@example.com', 'https://example.com/?key=secret']:
             with self.assertRaisesRegex(adapter.ModelError, 'invalid_config'):
@@ -262,32 +260,37 @@ class AdapterTests(unittest.TestCase):
 
     def test_llm_env_selects_anthropic_messages_without_exposing_the_key(self):
         env = {'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic',
-               'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key',
+               'MODEL_NAME': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key',
+               'MODEL': '1', 'LLM_MODEL': 'old-name',
                'XUNFEI_BASE_URL': '', 'WISPIVA_LLM_BASE_URL': ''}
         config = adapter.Config.from_env(env)
+        self.assertEqual(config.model, 'GLM-5.3-Flash')
         self.assertEqual(config.protocol, 'anthropic')
         self.assertEqual(config.socket_timeout, 80.0)
         self.assertEqual(config.endpoint(), 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
         self.assertNotIn('secret-key', repr(config))
+        ignored = adapter.Config.from_env({
+            **env, 'XUNFEI_BASE_URL': 'https://api.example/v1/responses',
+            'XUNFEI_OPENAI_RESPONSE_URL': 'https://api.example/custom/endpoint',
+            'XUNFEI_MODEL': 'm', 'XUNFEI_API_KEY': 'k',
+            'WISPIVA_LLM_BASE_URL': 'https://api.example/other',
+            'WISPIVA_LLM_MODEL': 'w', 'WISPIVA_LLM_API_KEY': 'wkey'})
+        self.assertEqual(ignored.model, 'GLM-5.3-Flash')
+        self.assertEqual(ignored.protocol, 'anthropic')
+        self.assertEqual(ignored.endpoint(), 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
         complete = adapter.Config.from_env({
             'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic/v1/messages/',
-            'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
+            'MODEL_NAME': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
         self.assertEqual(complete.endpoint(), 'https://api.scnet.cn/api/llm/anthropic/v1/messages')
-        preferred = adapter.Config.from_env({
-            **env, 'XUNFEI_BASE_URL': 'https://api.example/v1/responses',
-            'XUNFEI_MODEL': 'm', 'XUNFEI_API_KEY': 'k'})
-        self.assertEqual(preferred.protocol, 'responses')
-        self.assertEqual(preferred.endpoint(), 'https://api.example/v1/responses')
-        self.assertEqual(preferred.model, 'm')
         missing = adapter.Config.from_env({
-            'LLM_BASE_URL': env['LLM_BASE_URL'], 'LLM_MODEL': 'm', 'LLM_API_KEY': ''})
+            'LLM_BASE_URL': env['LLM_BASE_URL'], 'MODEL_NAME': 'm', 'LLM_API_KEY': ''})
         with self.assertRaisesRegex(adapter.ModelError, '^invalid_config$'):
             missing.endpoint()
 
     def test_anthropic_message_ignores_thinking_and_one_fence(self):
         config = adapter.Config.from_env({
             'LLM_BASE_URL': 'https://api.scnet.cn/api/llm/anthropic',
-            'LLM_MODEL': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
+            'MODEL_NAME': 'GLM-5.3-Flash', 'LLM_API_KEY': 'secret-key'})
         captured = {}
 
         def transport(_config, body):

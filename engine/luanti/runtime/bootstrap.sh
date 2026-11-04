@@ -26,6 +26,7 @@ LIBDIR="$TREE/usr/lib/x86_64-linux-gnu"
 # 引擎 + 发行版自带的 Minetest Game + 运行时缺的 .so。版本由 apt 解析，解包后写进 manifest。
 PKGS=(
   luanti luanti-server luanti-data luanti-game-minetest
+  fonts-croscore fonts-droid-fallback
   libjsoncpp26 libluajit-5.1-2 libpq5
   libprometheus-cpp-core1.0 libprometheus-cpp-pull1.0 libspatialindex8 libcivetweb1
 )
@@ -94,6 +95,14 @@ fi
 # 3. 让引擎找得到自己的 builtin/ 与 share/。
 #    deb 把二进制放在 usr/libexec/luanti/，但内置资源在 usr/share/luanti/。
 ln -sfn ../share "$TREE/usr/libexec/share"
+
+# 暂停菜单只留「退出」。补丁认这版 5.10.0 客户端的指令，--force 解包后会再打一次。
+python3 "$HERE/pause_menu_exit.py" \
+  "$TREE/usr/libexec/luanti/luanti" \
+  "$TREE/usr/share/locale/zh_CN/LC_MESSAGES/luanti.mo" || {
+  echo "bootstrap: 暂停菜单补丁失败" >&2
+  exit 2
+}
 
 # 4. 游戏包发现：Luanti 在 $HOME/.minetest/games 与 $HOME/.luanti/games 下找游戏。
 mkdir -p "$LUA_HOME/.luanti/games" "$LUA_HOME/.minetest"

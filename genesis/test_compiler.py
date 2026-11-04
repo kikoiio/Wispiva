@@ -87,6 +87,22 @@ class CompilerTests(unittest.TestCase):
         d = with_actors(1); d['layout']['places'][0]['grid'] = [-3, 3]
         self.assertEqual(compile_plan(d)['public']['actors'][0]['position'], {'x': -26, 'y': 1, 'z': 22})
 
+    def test_public_place_keeps_description_and_optional_materials(self):
+        d = with_actors(1)
+        d['layout']['places'][0]['floor'] = 'default:stone'
+        d['layout']['places'][0]['wall'] = 'default:bookshelf'
+        d['layout']['places'][0]['windows'] = True
+        place = compile_plan(d)['public']['places'][0]
+        self.assertEqual(place['description'], '河岸')
+        self.assertEqual(place['floor'], 'default:stone')
+        self.assertEqual(place['wall'], 'default:bookshelf')
+        self.assertIs(place['windows'], True)
+        self.assertNotIn('goal', place)
+        d['layout']['places'][0]['wall'] = 'default:obsidian'
+        with self.assertRaises(CompileError) as error:
+            compile_plan(d)
+        self.assertEqual(error.exception.code, 'invalid_draft')
+
     def test_rules_are_reported_not_executed(self):
         d = with_actors(1); d['rules'] = [{'id': 'rule', 'description': 'Never reveal this secret'}]
         plan = compile_plan(d)

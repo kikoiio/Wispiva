@@ -35,13 +35,13 @@ Luanti 运行时已经能从 manifest 读取公开地点、连接和角色起点
 
 ### 2. DraftStore 的确认对象与产品世界没有完成同一操作绑定
 
-`DraftStore.confirm()` 确认的是一个起源 SQLite 目标；它把状态推进到 `confirmed`。随后 `create_world()` 读取该确认记录，另建一个 Luanti 世界目录。产品目录中的 `creation.json` 保留 world ID、draft ID、revision、origin event ID 和 intent 摘要，但这些信息不会回写 DraftStore，也没有独立的发布状态或 operation ID。
+`DraftStore.confirm()` 确认的是一个起源 SQLite 目标；它把状态推进到 `confirmed`。随后 `create_world()` 读取该确认记录，另建一个 Luanti 世界目录。产品发布账本现在在 DraftStore 里绑定 world path、world ID、draft ID、revision、draft digest、origin event ID 和稳定 operation ID，并记录 `PUBLISHING`、`PUBLISHED`、`UNKNOWN` 或 `FROZEN`。
 
 这带来两个边界：
 
-- DraftStore 可以显示起源已 confirmed，但产品世界目录尚未发布或发布失败。
+- DraftStore 的起源确认和产品发布仍是两个 SQLite／文件系统提交；发布账本明确记录中间状态，但不声称跨存储原子事务。
 - `create_world()` 现在对已存在目标执行只读重核：identity、manifest、contract、creation record、origin SQLite 起始事件和 runtime 入口全部与当前确认 revision 一致时，才返回 `idempotent=true`；损坏目录或另一确认请求一律 `existing_world_conflict`，不覆盖任何内容。`genesis.test_world_create` 定向覆盖精确重试和冲突保留；[Actions 41076669398](https://github.com/kikoiio/Wispiva/actions/runs/41076669398) 的全量回归通过。
-- DraftStore 仍没有与产品目录共同推进的发布状态或 operation ID。若跨库之间的状态不一致，当前只能拒绝重试，不能报告 `PUBLISHING`、`UNKNOWN/FROZEN`、`PUBLISHED` 等持久状态，也不能自动从未知状态恢复。
+- 新的 creation record 和版本 2 manifest／contract 共用一个 operation ID；原子目录发布前先持久绑定 world ID。若 rename 已发生、账本仍为 `PUBLISHING`，精确核验同一目录后可补记 `PUBLISHED`；阶段残留、绑定冲突或已发布世界消失则冻结。`UNKNOWN/FROZEN` 还没有自动修复入口，需要人工检查残留阶段目录。
 
 这不是要把两个文件系统强行做成一个事务，而是需要一个明确的跨存储状态机：发布前、已发布、待核对和已就绪必须可区分；未知状态必须冻结并要求核对。逐目录的完全匹配重试已落地，但 DraftStore 发布账本和 operation 绑定仍待实现。
 
@@ -49,19 +49,19 @@ Luanti 运行时已经能从 manifest 读取公开地点、连接和角色起点
 
 `genesis/preflight.py` 能检查确认 revision、草稿编译和部分当前不支持的规则／连接，但它明确不能授权启动，也只把目标目录可用性作为建议检查。它没有检查产品世界目录中的 manifest、`creation.json`、`origin.sqlite`、`wispiva-world-id` 是否互相绑定。
 
-`launch.py` 只负责 `WorldSession`：取得锁、读取或创建 UUID、设置 `WISPIVA_WORLD_ID`、运行子进程并转发信号。`run_product.sh` 只检查世界目录、运行时、身份文件，然后生成临时配置并启动 Luanti。任何带有效身份文件的目录都有机会进入这条启动路径，启动器不会验证它是不是由当前创建链产生的世界，也不会在锁内核对 manifest 与起源副本。
+`launch.py` 在取得 `WorldSession` 锁后核对产品创建契约。版本 2 世界要求 operation ID 在 creation record、manifest 和 contract 中一致；启动前从私有 `origin_draft` 重编译公开投影与角色映射，并以只读 SQLite 方式验证 `origin.sqlite` 仍是与该确认草稿相符的首个 `genesis.created` checkpoint。损坏、已推进或不一致的起源拒绝启动。版本 1 旧世界保留兼容校验路径，不会伪称具备新起源核验。
 
 ### 4. Luanti 的投影已经有入口，但缺少创建态到运行态的对账门
 
-`society/world_projection.lua` 会重新从 manifest 编译投影计划，并在产品启动时写入地点、连接和角色位置；这保护了“不要信任调用方预计算 plan”的边界。但当前启动前没有验证：
+`society/world_projection.lua` 会重新从 manifest 编译投影计划，并在产品启动时写入地点、连接和角色位置。版本 2 admission 现在会从私有原始草稿重编译并核对公开投影、角色映射及 origin SQLite 首事件：
 
 - manifest 的 `world_id` 是否等于目录身份；
 - manifest 的 draft ID、revision、digest、origin event 是否等于 `creation.json` 和 `origin.sqlite`；
 - origin 副本是否仍是同一创建起点，是否已经被推进或替换；
 - 角色 runtime ID 与 manifest 顺序、稳定 actor ID 是否一致；
-- 已投影世界是否属于该 origin，能否安全恢复而不是重新覆盖。
+- 已投影地图在后续运行中是否仍属于该 origin，能否安全恢复而不是重新覆盖。
 
-运行时已有产品状态账本和正常停服恢复，但那是创建完成之后的持续运行协议，不能替代首次启动的 origin admission check。
+已投影地图是否仍属于该 origin、运行后地图与数据库的跨存储一致性，仍不由首次 admission check 解决。门禁验证创建来源，不冒充运行期事务。
 
 ### 5. 私有边界已有实现意图，创建入口仍缺语义确认
 

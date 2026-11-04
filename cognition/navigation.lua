@@ -167,4 +167,66 @@ function M.step(engine, pos, target, options)
   return result, reason
 end
 
+-- The standing body occupies the feet cell (y=1) and the head cell (y=2).
+function M.occupies(stand, node_pos)
+  if not position(stand) or not position(node_pos) then return false end
+  if stand.y ~= 1 then return false end
+  return stand.x == node_pos.x and stand.z == node_pos.z
+    and (node_pos.y == 1 or node_pos.y == 2)
+end
+
+local function nearest_search(engine, pos, bound, max_scan, radius)
+  local function allowed(x, z)
+    return inside(x, z, bound)
+      and math.abs(x - pos.x) + math.abs(z - pos.z) <= radius
+  end
+  if allowed(pos.x, pos.z) and clear(engine, pos.x, pos.z) == true then
+    return {x=pos.x, y=1, z=pos.z}, "clear"
+  end
+  local queue, head = {{x=pos.x, z=pos.z}}, 1
+  local seen, scanned = {[pos.x .. ":" .. pos.z] = true}, 0
+  while queue[head] do
+    local cell = queue[head]
+    head = head + 1
+    for index = 1, #DIRECTIONS do
+      local x = cell.x + DIRECTIONS[index][1]
+      local z = cell.z + DIRECTIONS[index][2]
+      local id = x .. ":" .. z
+      if not seen[id] and allowed(x, z) then
+        seen[id] = true
+        scanned = scanned + 1
+        if scanned > max_scan then return nil, "scan_limit" end
+        if clear(engine, x, z) == true then return {x=x, y=1, z=z}, "clear" end
+        queue[#queue + 1] = {x=x, z=z}
+      end
+    end
+  end
+  return nil, "blocked"
+end
+
+-- Read-only. Returns a standable cell, preferring the current one, or nil, reason.
+function M.nearest_clear(engine, pos, options)
+  if type(engine) ~= "table" or type(engine.get_node_or_nil) ~= "function"
+      or type(engine.registered_nodes) ~= "table" then return nil, "invalid_engine" end
+  if not position(pos) then return nil, "invalid_position" end
+  if options == nil then options = {} end
+  if type(options) ~= "table" or getmetatable(options) ~= nil then return nil, "invalid_options" end
+  for option in pairs(options) do
+    if option ~= "bound" and option ~= "max_scan" and option ~= "radius" then
+      return nil, "invalid_options"
+    end
+  end
+  local bound = options.bound == nil and 32 or options.bound
+  local max_scan = options.max_scan == nil and 512 or options.max_scan
+  local radius = options.radius == nil and 8 or options.radius
+  if not integer(bound, 1, MAX_DISTANCE) or not integer(max_scan, 1, MAX_SCAN)
+      or not integer(radius, 0, MAX_DISTANCE) then return nil, "invalid_options" end
+  if pos.y ~= 1 then return nil, "unsupported_level" end
+  if not inside(pos.x, pos.z, bound) then return nil, "out_of_bounds" end
+  local copy = {x=pos.x, y=pos.y, z=pos.z}
+  local ok, spot, reason = pcall(nearest_search, engine, copy, bound, max_scan, radius)
+  if not ok then return nil, "engine_error" end
+  return spot, reason
+end
+
 return M

@@ -36,7 +36,10 @@ PROMPT = ('Choose one action for the given observation. Return only a JSON objec
           'local_actions lists currently reachable gather_points and build_points. '
           'Prefer these for resource actions. To reach a distant node, wander to a nearby '
           'point then advance until in reach. Wander and approach only SET a destination; '
-          'advance actually moves. Use observed positions and action failure feedback. '
+          'advance actually moves. If current.observation.places lists public places, each '
+          'point is a standable location inside that place. To go to one, wander to its '
+          'point and then advance. A society:resource node is not a place. '
+          'Use observed positions and action failure feedback. '
           'Use advance only when has_target is true. For inspect, mark, and advance output '
           'only kind. For approach output only kind and target. For wander output only kind '
           'and point. Gather and build also use only kind and point. For say output only '
@@ -88,24 +91,23 @@ class Config:
     model: str
     api_key: str = field(repr=False)
     socket_timeout: float = 30.0
-    endpoint_is_complete: bool = False
     protocol: str = 'responses'
 
     @classmethod
-    def from_env(cls, env: Mapping[str, str] | None = None) -> 'Config':
-        env = os.environ if env is None else env
-        # XUNFEI, then WISPIVA_LLM, then the Actions LLM names. Do not load .env files.
-        def get(suffix: str) -> str:
-            return (env.get('XUNFEI_' + suffix) or env.get('WISPIVA_LLM_' + suffix)
-                    or env.get('LLM_' + suffix) or '')
-        response_url = env.get('XUNFEI_OPENAI_RESPONSE_URL') or ''
-        base_url = response_url or get('BASE_URL')
+    def from_values(cls, base_url: str, model: str, api_key: str) -> 'Config':
         protocol = 'anthropic' if _anthropic_base(base_url) else 'responses'
         # Stay inside the product spool's 90s attempt deadline so a slow call
         # returns transport_error instead of being killed mid-request.
         timeout = 80.0 if protocol == 'anthropic' else 30.0
-        return cls(base_url, get('MODEL'), get('API_KEY'), socket_timeout=timeout,
-                   endpoint_is_complete=bool(response_url), protocol=protocol)
+        return cls(base_url, model, api_key, socket_timeout=timeout, protocol=protocol)
+
+    @classmethod
+    def from_env(cls, env: Mapping[str, str] | None = None) -> 'Config':
+        """Read the single Actions provider. Do not load .env or a local provider file."""
+        env = os.environ if env is None else env
+        # MODEL is a 0/1 switch in engine/luanti/run.sh, so the model id is MODEL_NAME.
+        return cls.from_values(env.get('LLM_BASE_URL') or '', env.get('MODEL_NAME') or '',
+                               env.get('LLM_API_KEY') or '')
 
     def endpoint(self) -> str:
         if self.protocol not in ('responses', 'anthropic'):
@@ -125,8 +127,8 @@ class Config:
             if not path.endswith('/v1/messages'):
                 path += '/v1/messages'
         else:
-            path = p.path if self.endpoint_is_complete else p.path.rstrip('/')
-            if not self.endpoint_is_complete and not path.endswith('/responses'):
+            path = p.path.rstrip('/')
+            if not path.endswith('/responses'):
                 path += '/responses'
         return urllib.parse.urlunsplit((p.scheme, p.netloc, path, '', ''))
 

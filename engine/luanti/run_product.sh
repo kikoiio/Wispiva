@@ -31,6 +31,8 @@ SERVE=0
 VISUAL_FIXTURE=0
 AUDIT_MODEL=0
 MODEL_WORKERS=1
+VIEW_GUIDE=1
+SUPPRESS_RESOURCES=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -51,6 +53,8 @@ while [[ $# -gt 0 ]]; do
     --resume) RESUME=1; shift ;;
     --serve) SERVE=1; shift ;;
     --visual-fixture) VISUAL_FIXTURE=1; shift ;;
+    --no-view-guide) VIEW_GUIDE=0; shift ;;
+    --no-resource-nodes) SUPPRESS_RESOURCES=1; shift ;;
     --audit-model) AUDIT_MODEL=1; shift ;;
     --model-workers) MODEL_WORKERS="$2"; shift 2 ;;
     -h|--help) sed -n '1,26p' "$0"; exit 0 ;;
@@ -91,8 +95,33 @@ if pgrep -x 'luantiserver' >/dev/null 2>&1; then
   exit 2
 fi
 
+# Product worlds keep their own copy of the mod. Refresh it from this checkout
+# so an existing world picks up the in-game provider form.
+mkdir -p "$WORLD/worldmods/society"
+for src in "$HERE/mod/society"/*.lua; do
+  cp "$src" "$WORLD/worldmods/society/"
+done
+for src in "$ROOT/cognition"/*.lua; do
+  base="$(basename "$src")"
+  case "$base" in
+    test.lua|test_*.lua) continue ;;
+  esac
+  cp "$src" "$WORLD/worldmods/society/"
+done
+if compgen -G "$HERE/mod/society/textures/*.png" >/dev/null; then
+  mkdir -p "$WORLD/worldmods/society/textures"
+  cp "$HERE/mod/society/textures/"*.png "$WORLD/worldmods/society/textures/"
+fi
+
 conf="$WORLD/private/.runtime.conf"
 log="$WORLD/private/product.log"
+if [[ -e "$log" ]]; then
+  history_log="$WORLD/private/product-history.$namespace.log"
+  [[ ! -e "$history_log" ]] || { echo "run_product.sh: history log already exists: $history_log" >&2; exit 2; }
+  mv "$log" "$history_log" || { echo "run_product.sh: cannot archive prior product log" >&2; exit 2; }
+fi
+: > "$log" || { echo "run_product.sh: cannot create product log" >&2; exit 2; }
+chmod 600 "$log"
 worker_pid=""
 server_pid=""
 cat > "$conf" <<EOF
@@ -105,14 +134,15 @@ creative_mode = true
 max_forceloaded_blocks = -1
 dedicated_server_step = 0.09
 server_map_save_interval = 1
-static_spawnpoint = (0,2,-20)
+static_spawnpoint = (0,1,-20)
 society_world_product = true
 society_genesis_manifest = $WORLD/private/wispiva-origin.json
 society_spool = $spool
 society_model = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo false || echo true)
 society_cognition = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo false || echo true)
 society_visual = true
-society_view_guide = true
+society_view_guide = $([[ "$VIEW_GUIDE" -eq 1 ]] && echo true || echo false)
+society_suppress_resource_nodes = $([[ "$SUPPRESS_RESOURCES" -eq 1 ]] && echo true || echo false)
 society_view_spawn = true
 society_view_acceptance = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo true || echo false)
 society_persist = true
@@ -140,6 +170,18 @@ if [[ -n "$ENV_CHANGE_AT" && "$ENV_CHANGE_AT" != 0 && -z "$ENV_RATE_AFTER" ]]; t
   echo "run_product.sh: environment change requires --environment-rate-after" >&2
   exit 2
 fi
+providers_config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+provider_env=false
+if [[ -n "${LLM_BASE_URL:-}" && -n "${MODEL_NAME:-}" && -n "${LLM_API_KEY:-}" ]]; then
+  provider_env=true
+fi
+cat >> "$conf" <<EOF
+society_provider_form = $([[ "${WISPIVA_PROVIDER_FORM:-1}" == "0" ]] && echo false || echo true)
+society_provider_env = $provider_env
+society_providers_config_home = $providers_config_home
+society_repo_root = $ROOT
+secure.trusted_mods = society
+EOF
 chmod 600 "$conf"
 
 if [[ "$VISUAL_FIXTURE" -eq 1 ]]; then
@@ -191,5 +233,5 @@ status=$?
 grep -q 'SOCIETY done result=ok' "$log" || { tail -n 80 "$log" >&2; exit 1; }
 ! grep -q 'SOCIETY fail=' "$log" || { tail -n 80 "$log" >&2; exit 1; }
 grep -q 'SOCIETY origin projection ' "$log" || { tail -n 80 "$log" >&2; exit 1; }
-grep -q 'SOCIETY ev=environment ' "$log" || { tail -n 80 "$log" >&2; exit 1; }
+grep -q 'SOCIETY environment-checkpoint time=' "$log" || { tail -n 80 "$log" >&2; exit 1; }
 echo "product world run passed: $WORLD"

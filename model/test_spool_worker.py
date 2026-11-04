@@ -106,10 +106,11 @@ class SpoolTests(unittest.TestCase):
                 stop.unlink(missing_ok=True)
 
     def test_worker_process_without_credentials(self):
-        hidden = {'LLM_BASE_URL', 'LLM_MODEL', 'LLM_API_KEY'}
-        env = {k: v for k, v in os.environ.items()
-               if not (k.startswith('XUNFEI_') or k.startswith('WISPIVA_LLM_') or k in hidden)}
+        hidden = {'LLM_BASE_URL', 'MODEL_NAME', 'LLM_API_KEY'}
+        env = {k: v for k, v in os.environ.items() if k not in hidden}
         env['PYTHONDONTWRITEBYTECODE'] = '1'
+        env['XDG_CONFIG_HOME'] = str(self.root)
+        env['HOME'] = str(self.root)
         process = subprocess.Popen([sys.executable, '-B', str(Path(worker.__file__)), str(self.root), '--poll-interval', '0.01'], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
         try:
             (self.root / 'request-1.json').write_text(json.dumps({'id': 1, 'context': {}}))

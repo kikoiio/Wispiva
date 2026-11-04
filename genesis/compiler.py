@@ -43,8 +43,15 @@ def compile_plan(draft):
         x, z = gx * GRID_SPACING, gz * GRID_SPACING
         if abs(x) > BOUND or abs(z) > BOUND:
             raise CompileError('out_of_bounds', [{'path': '$.layout.places', 'code': 'place_out_of_bounds'}])
-        places.append({'id': place['id'], 'name': place['name'], 'space': item['space'],
-                       'grid': [gx, gz], 'anchor': {'x': x, 'y': SPAWN_Y, 'z': z}})
+        public_place = {'id': place['id'], 'name': place['name'],
+                        'description': place['description'], 'space': item['space'],
+                        'grid': [gx, gz], 'anchor': {'x': x, 'y': SPAWN_Y, 'z': z}}
+        for field in ('floor', 'wall', 'ceiling', 'apron'):
+            if field in item:
+                public_place[field] = item[field]
+        if item.get('windows') is True:
+            public_place['windows'] = True
+        places.append(public_place)
     by_place = {p['id']: p for p in places}
     actors = sorted(source['actors'], key=lambda a: a['id'])
     occupants = {}

@@ -312,7 +312,7 @@ class MemoryEvaluationTests(unittest.TestCase):
         context = evaluation.context_for(case, case.events[:1])
         payload = evaluation.compact({'context': context, 'expected': case.expected}).encode()
         out = io.StringIO()
-        with mock.patch.object(adapter.Config, 'from_env', return_value=CONFIG), \
+        with mock.patch.object(evaluation, 'load_config', return_value=CONFIG), \
                 mock.patch.object(adapter, 'decide', return_value={
                     'action': {**case.expected, 'why': 'model'},
                     'audit': {'latency_ms': 1, 'usage': {'input_tokens': 5, 'output_tokens': 2}}}) as decide, \
@@ -342,7 +342,7 @@ class MemoryEvaluationTests(unittest.TestCase):
             invoke.assert_not_called()
 
     def test_real_mode_invalid_config_does_not_call_model(self):
-        with mock.patch.object(adapter.Config, 'from_env',
+        with mock.patch.object(evaluation, 'load_config',
                                return_value=adapter.Config('', '', '')), \
              mock.patch.object(evaluation, 'invoke') as invoke:
             with contextlib.redirect_stderr(io.StringIO()):
@@ -519,7 +519,7 @@ class ScoreDetailTests(unittest.TestCase):
                                       'score_oracle': case.score_oracle}).encode()
         action = {**case.expected, 'text': old, 'why': 'model'}
         out = io.StringIO()
-        with mock.patch.object(adapter.Config, 'from_env', return_value=CONFIG), \
+        with mock.patch.object(evaluation, 'load_config', return_value=CONFIG), \
                 mock.patch.object(adapter, 'decide', return_value={
                     'action': action, 'audit': {'usage': {'input_tokens': 5, 'output_tokens': 2}}}) as decide, \
                 mock.patch.object(evaluation.sys, 'stdin', mock.Mock(buffer=io.BytesIO(payload))), \

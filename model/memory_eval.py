@@ -26,8 +26,10 @@ import time
 
 try:
     from . import adapter
+    from .providers import load_config
 except ImportError:  # direct evaluator script execution
     import adapter
+    from providers import load_config
 
 ROOT = Path(__file__).resolve().parents[1]
 HARD_CALL_LIMIT = 48
@@ -384,7 +386,7 @@ def _worker(fixture, deadline):
             raise ValueError
         payload = json.loads(raw)
         config = (adapter.Config('https://fixture.invalid/v1', 'fixture', 'fixture')
-                  if fixture else adapter.Config.from_env())
+                  if fixture else load_config())
         config = replace(config, socket_timeout=min(config.socket_timeout, deadline))
         record = evaluate_decision(config, payload['context'], payload['expected'],
                                    _fixture_transport if fixture else None,
@@ -579,7 +581,7 @@ def main(argv=None):
     if calls > args.max_calls:
         parser.error('call budget exceeded; no requests started')
     try:
-        config = adapter.Config('https://fixture.invalid/v1', 'fixture', 'fixture') if args.fixture else adapter.Config.from_env()
+        config = adapter.Config('https://fixture.invalid/v1', 'fixture', 'fixture') if args.fixture else load_config()
         config.endpoint()  # Fail before selecting memory or starting any model calls.
         kwargs = dict(fixture=args.fixture, deadline=args.deadline, max_calls=args.max_calls)
         report = (concurrency_probe(levels, **kwargs) if levels else

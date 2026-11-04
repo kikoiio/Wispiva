@@ -70,7 +70,7 @@ cat >"$client_config" <<'EOF'
 enable_sound = false
 EOF
 
-"$HERE/run_product.sh" --world "$WORLD" --serve --visual-fixture --resume --port "$PORT" >"$server_log" 2>&1 &
+WISPIVA_PROVIDER_FORM=0 "$HERE/run_product.sh" --world "$WORLD" --serve --visual-fixture --resume --port "$PORT" >"$server_log" 2>&1 &
 server_pid=$!
 for _ in $(seq 1 30); do
   new_product_log | grep -F 'SOCIETY view scene-ready' >/dev/null && break

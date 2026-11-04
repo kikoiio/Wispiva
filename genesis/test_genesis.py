@@ -102,6 +102,20 @@ class GenesisTests(unittest.TestCase):
         self.assertEqual(len(calls), 3)
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
 
+    def test_place_materials_are_optional_and_limited(self):
+        d = draft()
+        d['layout']['places'][0]['floor'] = 'default:cobble'
+        d['layout']['places'][0]['windows'] = False
+        self.assertEqual(validate(d), [])
+        d['layout']['places'][0]['roof'] = 'default:wood'
+        self.assertIn('fields', {e['code'] for e in validate(d)})
+        d = draft()
+        d['layout']['places'][0]['wall'] = 'air'
+        self.assertIn('material', {e['code'] for e in validate(d)})
+        d = draft()
+        d['layout']['places'][0]['windows'] = 1
+        self.assertIn('enum', {e['code'] for e in validate(d)})
+
     def test_references_layout_and_unknown_fields(self):
         d = draft(); d['actors'][0]['placeId'] = 'missing'; d['layout']['places'][0]['grid'] = [True, 0]; d['extra'] = 1
         self.assertTrue(validate(d))

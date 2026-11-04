@@ -23,7 +23,7 @@ def my_model(system_prompt, user_json):
 draft = generate('安静的河谷，有一位旅人', my_model)
 ```
 
-For the existing `model.adapter` Responses transport, the host supplies an already constructed `Config` and keeps credentials out of logs. Neither genesis nor this bridge reads environment variables or `.env`:
+For the existing `model.adapter` Responses transport, the host supplies an already constructed `Config` and keeps credentials out of logs. `create-draft --live` instead uses the provider selected in the world window, or `LLM_BASE_URL`, `MODEL_NAME` and `LLM_API_KEY` when none is selected. It does not read `.env`:
 
 ```python
 from genesis.genesis import generate
@@ -46,7 +46,7 @@ Run at repository root. The CLI can consume an already obtained model response o
 python3 -m genesis validate genesis/example.json
 python3 -m genesis generate --intent '安静的河谷，有一位旅人' --response genesis/example.json > /path/to/new-draft.json
 python3 -m genesis create-draft --draft-db /private/drafts.sqlite --intent '当前用户的世界描述' --response /private/model-response.json
-# 已配置 XUNFEI_* 或 WISPIVA_LLM_* 时，可以直接调用真实模型生成可编辑草稿：
+# 本机设置里选中一家，或已配置 LLM_BASE_URL、MODEL_NAME、LLM_API_KEY 时，可以直接调用真实模型生成可编辑草稿：
 python3 -m genesis create-draft --draft-db /private/drafts.sqlite --intent '当前用户的世界描述' --live
 python3 -m genesis read --draft-db /private/drafts.sqlite --draft-id DRAFT_ID --draft-only > /private/draft-review.json
 python3 -m genesis edit --draft-db /private/drafts.sqlite --draft-id DRAFT_ID --revision 1 --draft /private/edited-draft.json

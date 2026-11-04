@@ -27,6 +27,7 @@ if __package__ in (None, ''):  # direct script execution from any working direct
 
 from model import adapter
 from model.product_envelope import validate as validate_envelope
+from model.providers import load_config
 
 MAX_CALLS = 2048
 MAX_CONCURRENCY = 16
@@ -148,7 +149,7 @@ def run(audit_dir, output, *, calls=128, concurrency=4, config=None, runner=None
             type(concurrency) is not int or not 1 <= concurrency <= MAX_CONCURRENCY):
         raise ValueError('invalid_load_configuration')
     samples = load_inputs(audit_dir, limit=calls)
-    config = adapter.Config.from_env() if config is None else config
+    config = load_config() if config is None else config
     runner_kind = 'provider' if runner is None else 'injected'
     runner = adapter.decide if runner is None else runner
     secrets = sorted({value for value in (getattr(config, 'api_key', None),

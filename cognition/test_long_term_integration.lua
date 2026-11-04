@@ -60,6 +60,7 @@ local function make_engine(fail_spawn)
       local name=path:match("([^/]+)$")
       if name == "policy.lua" then return real_dofile("../engine/luanti/mod/society/policy.lua") end
       if name == "genesis_context.lua" then return real_dofile("../engine/luanti/mod/society/genesis_context.lua") end
+      if name == "providers_form.lua" then return real_dofile("../engine/luanti/mod/society/providers_form.lua") end
       return real_dofile(name)
     end
     return real_dofile(path)

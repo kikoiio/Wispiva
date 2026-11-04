@@ -25,6 +25,12 @@
 -- Retry the SAME origin while frozen; unknown or divergent state requires review.
 local M = {}
 local interactive = {['default:chest'] = true, ['default:furnace'] = true}
+-- Nodes that exist in minetest_game's default mod. Absent fields keep wood.
+local build_nodes = {
+  ['default:wood'] = true, ['default:bookshelf'] = true, ['default:glass'] = true,
+  ['default:stonebrick'] = true, ['default:stone'] = true, ['default:cobble'] = true,
+  ['default:brick'] = true,
+}
 
 local function check(ok, message)
   assert(ok, 'world projection: ' .. message)
@@ -105,20 +111,38 @@ function M.plan(manifest)
       check(math.abs(p.x-other.anchor.x) > radius+other.radius
         or math.abs(p.z-other.anchor.z) > radius+other.radius, 'overlapping places')
     end
-    local item = {id=place.id, anchor=p, radius=radius, space=place.space}
+    if place.windows ~= nil then check(type(place.windows) == 'boolean', 'invalid windows') end
+    local function build_node(field)
+      local name = place[field]
+      if name == nil then return nil end
+      check(type(name) == 'string' and build_nodes[name] == true, 'unsupported material')
+      return name
+    end
+    local item = {id=place.id, anchor=p, radius=radius, space=place.space,
+      floor=build_node('floor'), wall=build_node('wall'), ceiling=build_node('ceiling'),
+      apron=build_node('apron'), windows=place.windows == true}
     places[place.id] = item; ordered[#ordered+1] = item
   end
   table.sort(ordered, function(a,b) return a.id < b.id end)
   for _, place in ipairs(ordered) do
     local p, r = place.anchor, place.radius
+    local floor_name = place.floor or (place.space == 'indoor' and 'default:wood' or 'default:dirt_with_grass')
+    local wall_name = place.wall or 'default:wood'
+    local ceiling_name = place.ceiling or 'default:wood'
     for x = p.x-r, p.x+r do
       for z = p.z-r, p.z+r do
-        node(point(x,0,z), place.space == 'indoor' and 'default:wood' or 'default:dirt_with_grass')
+        node(point(x,0,z), floor_name)
         for y = 1, 3 do
           local wall = place.space == 'indoor' and (math.abs(x-p.x)==r or math.abs(z-p.z)==r)
-          node(point(x,y,z), wall and 'default:wood' or nil)
+          -- East doorway, feet and head. A lintel stays at y=3. Other walls stay shut.
+          local door = wall and x == p.x + r and z == p.z and y <= 2
+          local corner = math.abs(x-p.x)==r and math.abs(z-p.z)==r
+          local window = place.windows and wall and not door and not corner and y == 2
+          local name = nil
+          if wall and not door then name = window and 'default:glass' or wall_name end
+          node(point(x,y,z), name)
         end
-        if place.space == 'indoor' then node(point(x,4,z), 'default:wood') end
+        if place.space == 'indoor' then node(point(x,4,z), ceiling_name) end
       end
     end
   end
@@ -184,6 +208,22 @@ function M.plan(manifest)
       for y=1,3 do node(point(x,y,z), nil) end
     end
     for _, p in ipairs(route(a, b, c.from, c.to)) do path(p.x,p.z) end
+  end
+  -- A one-node ring outside an indoor place. Skip cells already claimed by a
+  -- room or a connection so the doorway and the stone route stay as planned.
+  for _, place in ipairs(ordered) do
+    if place.apron and place.space == 'indoor' then
+      local p, r = place.anchor, place.radius
+      for x = p.x-r-1, p.x+r+1 do
+        for z = p.z-r-1, p.z+r+1 do
+          if (math.abs(x-p.x) == r+1 or math.abs(z-p.z) == r+1)
+            and x >= -64 and x <= 64 and z >= -64 and z <= 64 then
+            local at = point(x, 0, z)
+            if nodes[key(at)] == nil then node(at, place.apron) end
+          end
+        end
+      end
+    end
   end
   local function interior(place_id, p)
     local place = places[place_id]

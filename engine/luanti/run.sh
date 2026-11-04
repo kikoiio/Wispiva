@@ -148,6 +148,10 @@ PY
   fi
   cp "$MOD_SRC"/*.lua "$world/worldmods/society/"
   cp "$EXP/cognition"/*.lua "$world/worldmods/society/"
+  if compgen -G "$MOD_SRC/textures/*.png" >/dev/null; then
+    mkdir -p "$world/worldmods/society/textures"
+    cp "$MOD_SRC/textures/"*.png "$world/worldmods/society/textures/"
+  fi
 
   {
     echo "bind_address = 127.0.0.1"
@@ -325,7 +329,7 @@ PY
       echo "执行模式: deterministic-fixture (not a model)"
     elif [[ "$MODEL" -eq 1 ]]; then
       echo "执行模式: real-model"
-      echo "模型: ${XUNFEI_MODEL:-${WISPIVA_LLM_MODEL:-${LLM_MODEL:-not-configured}}}"
+      echo "模型: ${MODEL_NAME:-not-configured}"
     else
       echo "执行模式: rule-policy"
     fi

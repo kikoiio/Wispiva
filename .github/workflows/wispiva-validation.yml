@@ -50,6 +50,7 @@ jobs:
               lua5.1 test_navigation.lua
             )
           lua5.1 engine/luanti/mod/society/test_world_projection.lua
+          lua5.1 engine/luanti/mod/society/test_providers_form.lua
           lua5.1 engine/luanti/mod/society/test_genesis_context.lua
           python3 -B -m unittest discover -s model -t . -p 'test_*.py' -v
           python3 -B -m unittest -v engine/luanti/test_control.py
@@ -283,7 +284,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' && github.ref_name != 'validation/luanti-product-model-longitudinal-20261103' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -405,7 +406,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-workers-20261030' && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' && github.ref_name != 'validation/luanti-product-model-longitudinal-20261103' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -418,7 +419,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' && github.ref_name != 'validation/luanti-product-model-longitudinal-20261103' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -517,7 +518,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-product-model-') && github.ref_name != 'validation/luanti-product-model-knowledge-20261103' && github.ref_name != 'validation/luanti-product-model-longitudinal-20261103' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -627,7 +628,7 @@ jobs:
         if: ${{ github.ref_name == 'validation/luanti-product-model-knowledge-20261103' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -677,7 +678,7 @@ jobs:
         if: ${{ always() && !cancelled() && steps.longitudinal_gate.outcome == 'success' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -702,7 +703,7 @@ jobs:
         if: ${{ always() && !cancelled() && steps.longitudinal_gate.outcome == 'success' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -729,7 +730,7 @@ jobs:
         if: ${{ always() && !cancelled() && steps.longitudinal_gate.outcome == 'success' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -852,7 +853,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-memory-') && !startsWith(github.ref_name, 'validation/luanti-memory-audit-') && github.ref_name != 'validation/luanti-memory-selector-20261030' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p memory-results
@@ -862,7 +863,7 @@ jobs:
         if: ${{ github.ref_name == 'validation/luanti-memory-selector-20261030' }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p memory-results
@@ -877,7 +878,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-model-') }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           engine/luanti/run.sh --label ci-model --agents 3 --decisions 2 --interval 1 --seconds 600 --model
@@ -885,7 +886,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-genesis-') }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           mkdir -p genesis-results
@@ -938,7 +939,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-genesis-cjk-') }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           set -euo pipefail
@@ -1141,7 +1142,7 @@ jobs:
         if: ${{ startsWith(github.ref_name, 'validation/luanti-model-') }}
         env:
           LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
-          LLM_MODEL: ${{ vars.LLM_MODEL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
           LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
         run: |
           exp=engine/luanti

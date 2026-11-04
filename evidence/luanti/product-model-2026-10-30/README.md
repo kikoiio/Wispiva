@@ -77,39 +77,48 @@ Run 41053739638 与 41054466103 的自由社会步骤成功，但各自后续回
 
 真实模型记忆对照 [Actions 41105494227](https://github.com/kikoiio/Wispiva/actions/runs/41105494227) 使用 6 类固定合成任务、3 个 seeds、FIFO 与 retrieval 两种策略，36/36 次调用完成，provider errors 为 0，token 审计完整。FIFO 正确 0/18；retrieval 正确 15/18（83.3%），并且 18/18 次都选择了含目标证据的记忆。四种英文基础任务与中文明确逐字提取各 3/3；中文短线索任务 0/3，尽管对应证据已选入上下文。配对场景固定问题、答案和事件流，只改提问目标的明确程度：结果将错误定位到模型使用含蓄中文线索，而不是记忆检索遗漏。FIFO/retrieval 输入输出合计 tokens 为 13,935/14,305；安全摘要 artifact [ID 13001097625](https://github.com/kikoiio/Wispiva/actions/runs/41105494227/artifacts/13001097625) 只保留任务聚合分数、选择布尔计数和 token 总量。
 
-该实验只有每任务三个 seeds，答案是固定合成事实，短线索不代表自然中文理解的全面测量；它没有验证长时间世界中的事实更新、矛盾反思、人物关系记忆、恢复窗口或用户主观质量。下一步是增加语义改写与真实世界事件序列，并保持提示与记忆文本不公开；在更多 seeds 和真人评估前，不应把这类小样本准确率当作产品记忆可靠性指标。
+四 seed 扩展 [Actions 41149546110](https://github.com/kikoiio/Wispiva/actions/runs/41149546110) 在六类任务上运行 48 次真实模型请求，provider errors 为 0，token 审计完整。FIFO 正确 1/24（4.2%），retrieval 22/24（91.7%）；24 对中 retrieval 胜 21、平 3、FIFO 胜 0。retrieval 在 24/24 请求选中目标证据；FIFO 为 0/24。Retrieval/FIFO 输入输出 token 合计分别为 24,385/23,828。四 seed retrieval 的 delayed recall、stale fact、known failure、source attribution 和明确中文提取各 4/4；中文短线索 2/4。安全聚合 artifact [ID 13022577581](https://github.com/kikoiio/Wispiva/actions/runs/41149546110/artifacts/13022577581) 只包含计数、准确率、token 汇总和哈希。相比三 seed 批次，该结果支持当前检索选取在这些合成任务上可靠，但它不是独立真人评分，也不证明长期真实世界的记忆、反思或语义理解质量。
+
+另一批新 seeds [Actions 41150339826](https://github.com/kikoiio/Wispiva/actions/runs/41150339826) 完成了六类任务共 48 次调用，所有请求有完整 token 审计；retrieval 为 20/24，24/24 均选中相关证据；FIFO 为 0/24，但有 1 次 `invalid_action`，因此严格验证 job 以 failure 结束。retrieval 配对胜 20、平 4、FIFO 胜 0。此批中文短线索 0/4、明确提取 4/4。与前一批合并的 8 个新 seeds 共 96 次请求：retrieval 42/48（87.5%）、FIFO 1/48（2.1%）；配对 retrieval 胜 41/48、平 7/48、FIFO 胜 0；retrieval 证据选取 48/48。中文短线索合计 2/8，明确提取 8/8。合并分数是描述性计数，两个批次来自同一模型配置和同一类合成事实，不等于跨模型或真实长时记忆的独立评估。
+
+这些合成任务仍没有覆盖长时间世界里的事实更新、矛盾反思、人物关系记忆、恢复窗口或用户主观质量。下一步需要加入语义改写和真实世界事件序列，并保持提示与记忆文本不公开；不能将精确短线索得分当成产品记忆可靠性指标。
 
 ### 信息投影提示改进复验
 
 为明确角色收到的 JSON 输入及记忆证据如何使用，模型系统提示现在解释 `actor`、`knowledge`、`current` 和 `feedback` 各字段，并要求将短 query 当作检索线索；有直接个人证据时逐字提取，无证据不猜；来源／访问标签只描述证据边界，运行时 validator 才是授权边界。回归 [Actions 41107576079](https://github.com/kikoiio/Wispiva/actions/runs/41107576079) 通过 393 项（1 项跳过）。真实模型复验 [Actions 41107598621](https://github.com/kikoiio/Wispiva/actions/runs/41107598621) 再跑 36 次，无 provider error：retrieval 16/18、FIFO 0/18，目标证据选择仍为 18/18；中文短线索从上一批的 0/3 变为 1/3，明确逐字提取仍为 3/3。每种提示只有一轮三 seeds，模型输出存在抽样不确定性；这不是提示改进的因果证明。
 
+## 记忆开关与社会互动配对（6 组，2026-10-30）
+
+[Actions 41144262599](https://github.com/kikoiio/Wispiva/actions/runs/41144262599) 在验证分支运行六组交替顺序配对。每组比较相同三人起点、目标与 24 次真实模型决策预算，记忆关闭／开启各 144 次请求，共 288 次。两臂都完成 144/144 决策、0 次终止失败；关闭记忆有 3 次 `invalid_action` 重试，开启记忆有 2 次。由于任务明确要求向邻居说明计划，且场景预设 meeting，消息与会议计数是受控压力测试结果，不是自发互动指标。
+
+| 配对组 | say / 消息（关闭） | say / 消息（开启） | build（关闭 → 开启） | meeting（关闭 → 开启） | invalid_action 重试（关闭 → 开启） |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 10 | 15 | 1 → 2 | 3 → 3 | 2 → 0 |
+| 2 | 16 | 13 | 0 → 2 | 3 → 3 | 0 → 0 |
+| 3 | 12 | 10 | 2 → 1 | 3 → 3 | 1 → 0 |
+| 4 | 15 | 14 | 0 → 2 | 3 → 3 | 0 → 0 |
+| 5 | 15 | 17 | 0 → 2 | 3 → 3 | 0 → 0 |
+| 6 | 14 | 15 | 2 → 1 | 3 → 3 | 0 → 2 |
+| 合计 | 82 | 84 | 5 → 10 | 18 → 18 | 3 → 2 |
+
+逐组 say 差值为 +5、−3、−2、−1、+2、+1，开启记忆后方向各半，中位差为 0；总量仅多 2 条消息。build 在 4/6 组增加、2/6 组减少，总量多 5 次。两臂都有 18 次脚本会议。该 6 组试验未显示记忆对交流频率的稳定配对效果；build 差异也只是小样本观察，不能归因于记忆。它只说明有记忆时模型能够完成同一短任务，没有终止失败，不能证明世界长期记忆质量、关系形成或自由社会涌现。运行还重复了完整产品回归与 1,000 个规则实体容量步骤；后者不代表 LLM 角色容量。
+
 ## Luanti 客户端画面验收（Actions 41110698741）
 
 [Actions 41110698741](https://github.com/kikoiio/Wispiva/actions/runs/41110698741) 在 CI 的 Xvfb 中启动真实 Luanti 客户端，连接合成产品世界，验证 scene-ready、玩家加入、互动和引导到达，并在到达后捕获 1280×720 客户端画面。安全产品 artifact [ID 13002868352](https://github.com/kikoiio/Wispiva/actions/runs/41110698741/artifacts/13002868352) 包含 `view-acceptance.png`；上传 allowlist 只加入这张合成场景画面。它为人查看 Minecraft-like 世界提供实际客户端截图，但不能替代真人进入游戏的交互评价；本机没有 Luanti 客户端，因此没有声称完成本地视觉验收。
-
 
 ## 四角色长自由社会与恢复边界（Actions 41113101332）
 
 运行在产品树 `7ccd1ff` 的四角色世界，每角色最多 24 次真实模型决策。最终 91/96 次完成，动作数为 `advance=5, approach=7, build=11, gather=14, give=2, inspect=13, say=32, wander=7`；消息事件 32、资源转移 2、meeting 0。错误共计 `invalid_response=8`、`provider_failed=2`、`invalid_action=3`。最后一次请求在 3 次有界重试后仍返回无效响应，因此场景以失败退出，没有 checkpoint，且世界未完成。安全摘要 artifact [13004204099](https://github.com/kikoiio/Wispiva/actions/runs/41113101332/artifacts/13004204099)；额外验证 artifact [13006260146](https://github.com/kikoiio/Wispiva/actions/runs/41113101332/artifacts/13006260146)。
 
-同次 Actions 的测试和较短的三角色模型运行／恢复阶段通过；长场景的失败不是回归测试失败。恢复 marker 被保留，资源结算审计未通过，因为没有完成的 checkpoint。现有实现选择冻结而非猜测部分存储状态，保护了安全边界；目前没有自动协调并继续的协议。此轮显示角色能发消息和转移资源，但不足以证明稳定互动，也不能被记作完成的持久世界。恢复实现必须先明确 checkpoint 边界，并验证回滚／幂等恢复、事件与库存无重复结算、逻辑时间不前跳。
-
-
 ### 已提交 checkpoint 的 marker 恢复命令
 
-产品 launcher 增加 `--recover-committed-checkpoint`。它先检查 Luanti server 停止，并在世界锁、产品契约和完整 checkpoint 校验后清除遗留 marker。验证条件包括 `READY`、无 pending commit、无 `product_active_run`、时钟一致以及记忆／事件计数一致。若 marker 指向活动或不完整运行，命令失败并保留 marker。它只恢复 commit 成功后 marker 未清理的崩溃窗口，不修复 41113101332 的部分推进世界，也不代表跨存储原子事务；对应 Actions [41115517669](https://github.com/kikoiio/Wispiva/actions/runs/41115517669) 仍在队列中。
+产品 launcher 增加 `--recover-committed-checkpoint`。它先检查 Luanti server 停止，并在世界锁、产品契约和完整 checkpoint 校验后清除遗留 marker。验证条件包括 `READY`、无 pending commit、无 `product_active_run`、时钟一致以及记忆／事件计数一致。若 marker 指向活动或不完整运行，命令失败并保留 marker。首次恢复用例因夹具初始化身份顺序失败（[Actions 41115517669](https://github.com/kikoiio/Wispiva/actions/runs/41115517669)）；修正版 [Actions 41116220558](https://github.com/kikoiio/Wispiva/actions/runs/41116220558) 已通过新恢复用例、产品回归、持久世界恢复及客户端验收。该命令不修复长场景的部分推进，也不代表跨存储原子事务。
 
+## 公开邻居观察与自由社会复验（Actions 41136848017）
 
-### 恢复测试夹具修正
+模型观察现在为最多 16 名最近邻提供公开姓名、位置和距离；其他角色的私有目标、记忆种子和 Genesis 私有字段不进入该投影。产品回归 [Actions 41136799811](https://github.com/kikoiio/Wispiva/actions/runs/41136799811) 全绿，包括单测、起源预览、持久世界、记忆重启、控制操作与 Luanti 客户端验收。
 
-[Actions 41115517669](https://github.com/kikoiio/Wispiva/actions/runs/41115517669) 在新增恢复用例处失败，原因是测试夹具先写 map/mod-storage、再初始化 world identity；产品的身份协议会拒绝在非空目录创建新身份。夹具已调整为先创建身份，再填入模拟的 `READY` checkpoint；[Actions 41116220558](https://github.com/kikoiio/Wispiva/actions/runs/41116220558) 通过修正版新恢复用例和完整产品回归。
+真实模型场景 attempt 1 在 68/96 次决策后因 `invalid_response` 重试耗尽退出，未提交 checkpoint；该运行不能视为完成。Attempt 2 从新建世界开始，四角色完成 96/96 次决策并提交 checkpoint。安全汇总显示 96/96 请求包含邻居观察（288 条邻居观察）；动作计数 `say=30`、`give=4`、`approach=25`、`gather=10`、`build=1`，产生 30 条消息事件、4 次资源转移、0 次 meeting。尝试中有 5 次 `invalid_action`、4 次 `invalid_response`、4 次 `provider_failed`，最终场景仍成功完成。并发 4 的独立 24 次真实模型回放为 24/24 可执行，吞吐 1.173 次/秒；checkpoint 故障窗口探针通过，整条 Actions 成功。
 
-
-## Product resume failure and ground reconciliation fix
-
-[Actions 41117324797](https://github.com/kikoiio/Wispiva/actions/runs/41117324797) passed the real-model three-character product loop with 24 completed decisions (12 say, 11 inspect, 1 gather), checkpoint version 2, 33 world events and 79 memory records. Its follow-up resume failed closed because committed outdoor ground at `0,0,-2` was `default:dirt` while origin expected `default:dirt_with_grass`; the free-society stage was consequently skipped. The run also exposed an accounting gap: environment regeneration raised the expected total by 14, but the audit compared against the initial 3 alone (actual 16 in world plus 1 in inventory). The fix allows only grass-to-dirt for outdoor ground during reconciliation and includes environment delta in expected resource conservation; all structure nodes remain exact. This is a regression diagnosis, not a recovery pass.
-
-
-### 修复验证期间的两次 CI 失败
-
-[Actions 41118712614](https://github.com/kikoiio/Wispiva/actions/runs/41118712614) 首次因提交中的 `init.lua` 内容被工具输出上限截断而发生 Lua 解析错误；随后从完整父版本恢复 81 KB 文件并重新应用补丁。[Actions 41119361344](https://github.com/kikoiio/Wispiva/actions/runs/41119361344) 中 Lua 与其他 Python 回归通过，唯一失败来自新增测试误用不存在的摘要 API `load()`；测试已修正为 `summarize()`。这两轮均未验证草地→泥土兼容后的真实恢复。
+这与 Actions 41099553897 的 15 次对白和 3 次转移一致地表明角色会交流和分享物资，但各轮数量不同，没有观察到正式会议；两轮不证明互动稳定、长期关系或社会制度。1.173 次/秒来自 24 个既有角色上下文的短批次回放，不代表千级 LLM 角色服务能力。第一次 attempt 失败的部分世界保留 marker；没有手动清理或续跑。

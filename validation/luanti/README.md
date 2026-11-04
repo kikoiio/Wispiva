@@ -159,7 +159,7 @@ engine/luanti/runtime/bootstrap.sh    # 下载 11 个 deb -> 解包到 .runtime/
 
 最新结果见 [10000 完整容量](../../evidence/luanti/scale/2026-10-28-optimization/10000/summary.md)、[预算调优](../../evidence/luanti/scale/2026-10-28-budget-tuning/summary.md) 和 [真实模型记忆检索对照](../../evidence/luanti/model/2026-10-28-retrieval/summary.md)。1000/5000/10000 的完整规则负载均完成五次交替对照；优化侧保持约 11 step/s，但 10000＋cognition 的实际决策间隔中位 14.32 秒，仍未达到 2 秒目标。受控真实模型任务中检索 12/12、FIFO 0/12；这不代表开放世界长期记忆或社会行为。规则 agent 的早期短时容量测量见 [阶梯结果](../../evidence/luanti/scale/2026-10-28-agent.md)。
 
-`engine/luanti/run.sh --model` 使用单个独立进程、私有文件队列和受约束动作连接模型。Actions 注入 `LLM_BASE_URL`、`LLM_MODEL`、`LLM_API_KEY`；本地仍可提供 `XUNFEI_OPENAI_RESPONSE_URL`、`XUNFEI_MODEL`、`XUNFEI_API_KEY` 或 `WISPIVA_LLM_*`。适配器不读取 `.env`。参数 `--fake-model` 使用完全确定性的测试夹具，不调用模型；新事件明确记录 origin，旧证据须结合运行配置区分两者。每个格式无效的模型决策最多尝试三次，逐次记录错误、延迟和可用 token 数；当前桥接是串行的，并非千人模型调度器。
+`engine/luanti/run.sh --model` 使用单个独立进程、私有文件队列和受约束动作连接模型。Actions 注入 `LLM_BASE_URL`、`MODEL_NAME`、`LLM_API_KEY`。本机在世界窗口里设置模型服务，配置写在用户目录而不是世界存档。不读取 `.env`，也不把名为 `MODEL` 的变量当成模型名。参数 `--fake-model` 使用完全确定性的测试夹具，不调用模型；新事件明确记录 origin，旧证据须结合运行配置区分两者。每个格式无效的模型决策最多尝试三次，逐次记录错误、延迟和可用 token 数；当前桥接是串行的，并非千人模型调度器。
 
 每个角色只能接收局部半径内的公开对象和节点、自己的有界记忆与库存；采集和建造会检查距离、库存与世界回读。范围感知没有遮挡或视野方向；采集／建造不模拟玩家物理，也没有通用保护权限。`snapshot.py` 在停服后复制世界并核对文件哈希；`--resume` 在指定副本上恢复角色并清空记忆和目标，因此应先复制原世界再恢复。
 

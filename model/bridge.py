@@ -3,12 +3,14 @@ import json
 import sys
 
 try:
-    from .adapter import Config, MAX_REQUEST, ModelError, decide
+    from .adapter import MAX_REQUEST, ModelError, decide
     from .product_envelope import EnvelopeError, validate as validate_product_envelope
+    from .providers import load_config
     from .reflection import ReflectionError, build_input, reflect
 except ImportError:  # direct worker script execution
-    from adapter import Config, MAX_REQUEST, ModelError, decide
+    from adapter import MAX_REQUEST, ModelError, decide
     from product_envelope import EnvelopeError, validate as validate_product_envelope
+    from providers import load_config
     from reflection import ReflectionError, build_input, reflect
 
 MAX_LINE = MAX_REQUEST * 2
@@ -113,7 +115,7 @@ def serve(source, sink, config, decision=decide, reflection=reflect):
 
 
 def main():
-    serve(sys.stdin, sys.stdout, Config.from_env())
+    serve(sys.stdin, sys.stdout, load_config())
 
 
 if __name__ == '__main__':

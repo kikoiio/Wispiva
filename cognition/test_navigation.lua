@@ -206,4 +206,30 @@ assert(write_count == 0)
 engine.get_node_or_nil = function() error("engine details must not escape") end
 failure(engine, pos_input, target_input, options_input, "engine_error")
 
+-- Body cells are the feet and the head. A buried start moves to the nearest open column.
+assert(navigation.occupies(point(2, 3), point(2, 3)) == true)
+assert(navigation.occupies(point(2, 3), point(2, 3, 2)) == true)
+assert(navigation.occupies(point(2, 3), point(2, 3, 0)) == false)
+assert(navigation.occupies(point(2, 3), point(3, 3)) == false)
+assert(navigation.occupies(point(2, 3, 2), point(2, 3)) == false)
+engine, world, counts = fixture()
+local home = point(1, 1)
+assert(equal(navigation.nearest_clear(engine, home, {bound=4, radius=2}), home))
+world[key(home)] = "default:stone"
+local escaped = navigation.nearest_clear(engine, home, {bound=4, radius=2, max_scan=32})
+assert(equal(escaped, point(1, 2)) or equal(escaped, point(2, 1))
+  or equal(escaped, point(1, 0)) or equal(escaped, point(0, 1)))
+world[key(point(1, 2))] = "default:stone"
+world[key(point(2, 1))] = "default:stone"
+world[key(point(1, 0))] = "default:stone"
+world[key(point(0, 1))] = "default:stone"
+world[key(point(1, 1, 2))] = "default:stone"
+assert(navigation.nearest_clear(engine, home, {bound=4, radius=1, max_scan=32}) == nil)
+local around = navigation.nearest_clear(engine, home, {bound=4, radius=2, max_scan=32})
+assert(around and math.abs(around.x - 1) + math.abs(around.z - 1) == 2)
+assert(engine.get_node_or_nil(around).name == "air")
+assert(select(2, navigation.nearest_clear(engine, home, {radius=false})) == "invalid_options")
+local _, body_writes = counts()
+assert(body_writes == 0)
+
 print("navigation tests passed")
