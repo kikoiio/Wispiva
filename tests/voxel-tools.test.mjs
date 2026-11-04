@@ -47,6 +47,24 @@ test('roof is symmetric along x, capped at to.y, and extends along z', () => {
   }
 });
 
+test('building plan compiles a complete floor, walls, two-cell entrance, support tile and roof', () => {
+  const expanded = expandVoxelTools([{ op: 'building', id: 'cabin', name: '木屋', from: [0, 0, 0], to: [4, 0, 4],
+    wallHeight: 3, roofRise: 2, entrance: { wall: 'south' }, floorMaterial: 'wood', wallMaterial: 'wood', roofMaterial: 'roof' }]);
+  assert.equal(expanded.filter(command => command.op === 'object' && command.kind === 'building').length, 1);
+  assert.equal(expanded.filter(command => command.op === 'object' && command.kind === 'roof').length, 1);
+  assert(expanded.some(command => command.op === 'fill' && command.objectId === 'cabin' && command.material === 'wood'));
+  assert(expanded.some(command => command.op === 'fill' && command.material === null && command.from[1] === 1 && command.to[1] === 2));
+  assert(expanded.some(command => command.op === 'fill' && command.objectId === 'cabin-roof' && command.material === 'roof'));
+});
+
+test('building plan rejects unsupported footprint, wall height, entrance and structural materials', () => {
+  const base = { op: 'building', id: 'cabin', name: '木屋', from: [0, 0, 0], to: [4, 0, 4] };
+  for (const overrides of [
+    { to: [1, 0, 4] }, { to: [4, 1, 4] }, { wallHeight: 2 }, { roofRise: 0 },
+    { entrance: { wall: 'south', offset: 0 } }, { wallMaterial: 'water' }, { roofMaterial: 'water' },
+  ]) assert.throws(() => expandVoxelTools([{ ...base, ...overrides }]), /建筑|门洞|材料|屋顶/);
+});
+
 test('passes base commands through unchanged and in order', () => {
   const commands = [shape('fill', [-1024, 0, 0], [-1024, 0, 0]), { ...shape('replace', [0, 0, 0], [0, 0, 0]), match: null },
     { op: 'object', id: 'a', name: 'A', kind: 'building', from: [0, 0, 0], to: [1, 1, 1] }, { op: 'remove-object', id: 'a' }];

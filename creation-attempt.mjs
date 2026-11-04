@@ -17,9 +17,18 @@ export function normalizeBuildingCommands(commands) {
     const path = `commands[${index}]`;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new BuildingError('建造步骤格式不完整，可按原意图重试。', path);
     const command = structuredClone(raw);
-    for (const field of ['material', ...(command.op === 'replace' ? ['match'] : [])]) {
-      if (['object', 'remove-object'].includes(command.op)) break;
+    if (command.op === 'building' && Array.isArray(command.from) && Array.isArray(command.to)
+        && command.from.length === 3 && command.to.length === 3 && command.from[1] !== command.to[1]) {
+      throw new BuildingError('建筑占地需要位于同一层。', `${path}.from[1]`);
+    }
+    const materialFields = ['object', 'remove-object'].includes(command.op) ? [] : command.op === 'building'
+      ? ['floorMaterial', 'wallMaterial', 'roofMaterial'].filter(field => Object.hasOwn(command, field))
+      : ['material', ...(command.op === 'replace' ? ['match'] : [])];
+    for (const field of materialFields) {
       const value = command[field];
+      if (command.op === 'building' && (value === null || value === 'air' || value === 'null')) {
+        throw new BuildingError('完整建筑的地板、墙和屋顶需要实心材料。', `${path}.${field}`);
+      }
       if (value === null) continue;
       const material = typeof value === 'string' ? value.trim().toLowerCase() : value;
       if (material === 'air' || material === 'null') {

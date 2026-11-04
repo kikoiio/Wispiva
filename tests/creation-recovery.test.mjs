@@ -43,10 +43,28 @@ test('large scene context is losslessly packed without hiding holes, materials o
 
 test('build prompt requires same-request object registration before using objectId', () => {
   const messages = buildDiscussionMessages({ messages: [], summary: '', ready: false, revision: 0 }, null, null,
-    { revision: 0, cells: [], objects: [] }, { mode: 'loop' });
+    { revision: 0, cells: [], objects: [] }, { mode: 'loop', loopContext: { iteration: 1, maxIterations: 4, revision: 0 } });
   assert(messages[0].content.includes('写入命令带 objectId 时，commands 中必须同时包含 id 完全相同的 op:"object" 定义'));
   assert(messages[0].content.includes('完整建筑只登记一个 kind:"building" 对象'));
-  assert(messages[0].content.includes('恰好清空地板上方两格'));
+  assert(messages[0].content.includes('恰好两格高的门洞'));
+  assert(messages[0].content.includes('完整单层建筑优先返回一个 op:"building" 结构方案'));
+  const request = JSON.parse(messages.at(-1).content);
+  assert.match(request.instruction, /空白场景的自动建造首轮.*必须生成 commands/);
+});
+
+test('automatic build loop compiles one model building plan into a checked walkable cabin', async t => {
+  const f = fixture(t, input => {
+    assert.equal(input.requestMode, 'loop');
+    return output([{ op: 'building', id: 'cabin', name: '湖边木屋', from: [0, 0, 0], to: [4, 0, 4],
+      wallHeight: 3, roofRise: 2, entrance: { wall: 'south' }, floorMaterial: 'wood', wallMaterial: 'wood', roofMaterial: 'roof' }]);
+  });
+  const result = await f.experience.discussStep({ message: '建一间可以走进去的小木屋', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(result.attempt.outcome, 'committed');
+  assert.equal(result.attempt.loop.iterations.length, 1);
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.state.creation.voxel.revision, 1);
+  assert.deepEqual(result.state.creation.voxel.objects.map(object => object.kind).sort(), ['building', 'roof']);
 });
 
 test('large exact part membership is packed without crashing the next model request', async t => {
@@ -92,27 +110,28 @@ test('build results distinguish text-only, committed and identical operations us
   assert.deepEqual(f.reload().state().creation.attempts.at(-1), unchanged.attempt);
 });
 
-test('automatic build loop rereads the committed voxel state and repairs the next reported issue', async t => {
+test('automatic build loop rereads the committed voxel state and asks the model to repair remaining issues', async t => {
   const f = fixture(t, (input, n) => {
     assert.equal(input.requestMode, 'loop');
     assert.equal(input.loopContext.iteration, n);
     if (n === 1) {
       assert.equal(input.voxel.revision, 0);
       return output([
-        { op: 'fill', from: [-1, 0, -1], to: [5, 0, 5], material: 'grass' },
-        { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [0, 0, 0], to: [1, 0, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [2, 0, 0], to: [2, 0, 1], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [2, 0, 3], to: [2, 0, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [3, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
         { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
         { op: 'roof', from: [-1, 4, -1], to: [5, 7, 5], material: 'roof', objectId: 'roof' },
         { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 7, 4] },
         { op: 'object', id: 'roof', name: '屋顶', kind: 'roof', from: [-1, 4, -1], to: [5, 7, 5] },
       ]);
     }
     assert.equal(input.voxel.revision, 1);
-    assert(input.loopContext.previousDiagnostics.some(d => /no-entrance/.test(d.path)));
-    return output([
-      { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
-      { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
-    ]);
+    assert(input.loopContext.previousDiagnostics.some(d => /floor-gap/.test(d.path)));
+    return output([{ op: 'fill', from: [2, 0, 2], to: [2, 0, 2], material: 'wood', objectId: 'house' }]);
   });
   const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop' });
   assert.equal(result.ok, true, result.message);
@@ -124,6 +143,47 @@ test('automatic build loop rereads the committed voxel state and repairs the nex
   assert.deepEqual(result.attempt.diagnostics, []);
   assert.equal(result.state.creation.dialogue.ready, true);
   assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
+});
+
+test('automatic build loop applies exact entrance repairs without a malformed model command', async t => {
+  const f = fixture(t, (input, n) => {
+    assert.equal(input.requestMode, 'loop');
+    assert.equal(n, 1);
+    return output([
+      { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
+      { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+      { op: 'roof', from: [-1, 4, -1], to: [5, 7, 5], material: 'roof', objectId: 'roof' },
+      { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 7, 4] },
+      { op: 'object', id: 'roof', name: '屋顶', kind: 'roof', from: [-1, 4, -1], to: [5, 7, 5] },
+    ]);
+  });
+  const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop' });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(f.inputs.length, 1);
+  assert.equal(result.attempt.loop.iterations.length, 2);
+  assert.deepEqual(result.attempt.loop.iterations[1].repair, { method: 'deterministic', objectId: 'house', code: 'no-entrance' });
+  assert.equal(result.attempt.toRevision, 2);
+  assert.deepEqual(result.attempt.diagnostics, []);
+  assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
+});
+
+test('cancellation at deterministic repair commit leaves the current scene unchanged', async t => {
+  const f = fixture(t, () => output([
+    { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
+    { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+    { op: 'roof', from: [-1, 4, -1], to: [5, 7, 5], material: 'roof', objectId: 'roof' },
+    { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 7, 4] },
+    { op: 'object', id: 'roof', name: '屋顶', kind: 'roof', from: [-1, 4, -1], to: [5, 7, 5] },
+  ]));
+  const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop' }, {
+    onProgress(progress) { if (progress.phase === 'committing' && progress.loopIteration === 2) f.experience.cancelModel(); },
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'cancelled');
+  assert.equal(result.attempt.outcome, 'partial');
+  assert.deepEqual(result.attempt.loop.iterations.map(i => i.outcome), ['committed', 'failed']);
+  assert.equal(result.state.creation.voxel.revision, 1);
+  assert(result.attempt.diagnostics.some(d => /no-entrance/.test(d.path)));
 });
 
 test('automatic build loop does not accept an empty initial scene as complete without commands', async t => {
@@ -144,6 +204,8 @@ test('automatic build loop reports partial completion when the iteration limit l
     if (n === 1) return output([
       { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
       { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+      { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+      { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
       { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
     ]);
     return output([{ op: 'fill', from: [n, 0, 6], to: [n, 0, 6], material: 'grass' }]);
@@ -154,7 +216,7 @@ test('automatic build loop reports partial completion when the iteration limit l
   assert.equal(result.attempt.outcome, 'partial');
   assert.equal(result.attempt.loop.iterations.length, 4);
   assert.equal(result.attempt.toRevision, 4);
-  assert(result.attempt.diagnostics.some(d => /no-entrance/.test(d.path)));
+  assert(result.attempt.diagnostics.some(d => /roof-gap/.test(d.path)));
   assert.equal(result.state.creation.voxel.revision, 4);
 });
 
@@ -163,6 +225,8 @@ test('automatic build loop keeps earlier commits when a later request is cancell
     if (n === 1) return output([
       { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
       { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+      { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+      { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
       { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
     ]);
     setTimeout(() => f.experience.cancelModel(), 5);
@@ -175,7 +239,7 @@ test('automatic build loop keeps earlier commits when a later request is cancell
   assert.equal(result.attempt.outcome, 'partial');
   assert.equal(result.attempt.loop.iterations.length, 1);
   assert.equal(result.state.creation.voxel.revision, 1);
-  assert.equal(result.state.creation.voxel.cells.length, 73);
+  assert.equal(result.state.creation.voxel.cells.length, 72);
 });
 
 test('automatic build loop preserves earlier commits when a later model request fails', async t => {
@@ -183,6 +247,8 @@ test('automatic build loop preserves earlier commits when a later model request 
     if (n === 1) return output([
       { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
       { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+      { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+      { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
       { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
     ]);
     throw new Error('fixture network failure');
@@ -201,6 +267,8 @@ test('automatic build loop times out a stalled request and keeps earlier commits
   const f = fixture(t, (_input, n) => n === 1 ? output([
     { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
     { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+    { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+    { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
     { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
   ]) : new Promise(() => {}), { timeoutMs: 20 });
   const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop' });
@@ -209,7 +277,7 @@ test('automatic build loop times out a stalled request and keeps earlier commits
   assert.equal(result.attempt.outcome, 'partial');
   assert.equal(result.attempt.toRevision, 1);
   assert.equal(result.state.creation.voxel.revision, 1);
-  assert(result.attempt.diagnostics.some(item => /no-entrance/.test(item.path)));
+  assert(result.attempt.diagnostics.some(item => /roof-gap/.test(item.path)));
 });
 
 test('restart recovers a committed automatic build loop interruption as partial', async t => {
@@ -218,6 +286,8 @@ test('restart recovers a committed automatic build loop interruption as partial'
     return output([
     { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
     { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+    { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+    { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
     { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
     ]);
   });
@@ -239,10 +309,10 @@ test('restart recovers a committed automatic build loop interruption as partial'
     assert.equal(restored.outcome, 'partial');
     assert.equal(restored.reason, 'interrupted');
     assert.equal(restored.toRevision, 1);
-    assert(restored.diagnostics.some(item => /no-entrance/.test(item.path)));
+    assert(restored.diagnostics.some(item => /roof-gap/.test(item.path)));
     assert.match(restored.message, /已保存 1 轮修改/);
     assert.equal(state.creation.voxel.revision, 1);
-    assert.equal(state.creation.voxel.cells.length, 73);
+    assert.equal(state.creation.voxel.cells.length, 72);
   } finally {
     recovered.close();
   }

@@ -320,6 +320,59 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
         for (let iteration = 1; iteration <= loopMax; iteration++) {
           active.loopIteration = iteration;
           const currentVoxel = voxel.state();
+          const exactRepair = currentVoxel.cells.length <= 5000
+            ? inspectVoxelSpaces(currentVoxel).issues.find(issue => buildVoxelRepairCommands(currentVoxel, issue))
+            : null;
+          if (exactRepair) {
+            if (controller.signal.aborted) { result = fail('cancelled', '自动建造已取消，已提交的前面几轮保持不变。'); break; }
+            if (!basisCurrent()) { result = fail('stale-basis', '场景或讨论已经变化，这次自动建造停止。'); break; }
+            const validationStarted = performance.now();
+            try {
+              const commands = buildVoxelRepairCommands(currentVoxel, exactRepair);
+              prepared = voxel.prepare({ baseRevision: currentVoxel.revision, commands });
+              const changes = describeChanges(prepared.changes);
+              const diagnostics = inspectionDiagnostics(inspectVoxelSpaces(prepared.state));
+              const iterationRecord = { index: iteration, fromRevision: currentVoxel.revision, toRevision: prepared.state.revision,
+                outcome: prepared.state.revision === currentVoxel.revision ? 'unchanged' : 'committed', changes, diagnostics,
+                repair: { method: 'deterministic', objectId: exactRepair.objectId, code: exactRepair.code } };
+              attempt.loop.iterations.push(iterationRecord);
+              attempt.timings.validationMs += performance.now() - validationStarted;
+              if (prepared.state.revision === currentVoxel.revision) {
+                result = fail('loop-no-progress', `自动建造第 ${iteration} 轮的确定性修复没有产生变化。`, diagnostics);
+                prepared = null;
+                break;
+              }
+              commitCandidate(prepared, iteration); prepared = null;
+              mergeChanges(changes); attempt.changes = { ...loopChanges }; attempt.toRevision = voxel.state().revision;
+              attempt.outcome = 'committed';
+              if (!diagnostics.length) {
+                result = { ok: true, message: `自动建造完成，共检查 ${iteration} 轮。程序按空间检查结果自动修复了一个可精确定位的问题。`, diagnostics: [] };
+                break;
+              }
+              if (iteration === loopMax) {
+                result = { ok: false, reason: 'loop-limit', message: `自动建造已提交 ${iteration} 轮，但还剩 ${diagnostics.length} 项空间检查问题。`, diagnostics };
+                break;
+              }
+              continue;
+            } catch (error) {
+              prepared = null;
+              const diagnostics = error.diagnostics ?? [{ path: `loop.${iteration}.repair`, message: error.message }];
+              const prior = attempt.loop.iterations.at(-1);
+              if (prior?.index === iteration && prior.repair?.method === 'deterministic') {
+                Object.assign(prior, { toRevision: currentVoxel.revision, outcome: 'failed',
+                  changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
+              } else {
+                attempt.loop.iterations.push({ index: iteration, fromRevision: currentVoxel.revision, toRevision: currentVoxel.revision,
+                  outcome: 'failed', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics,
+                  repair: { method: 'deterministic', objectId: exactRepair.objectId, code: exactRepair.code } });
+                attempt.timings.validationMs += performance.now() - validationStarted;
+              }
+              result = error.reason === 'cancelled' ? fail('cancelled', '自动建造已取消，已提交的前面几轮保持不变。')
+                : error.reason === 'stale-basis' ? fail('stale-basis', '场景或讨论已经变化，这次自动建造停止。')
+                : fail('invalid-repair', `自动建造第 ${iteration} 轮的确定性修复未通过检查。`, diagnostics);
+              break;
+            }
+          }
           const loopContext = { iteration, maxIterations: loopMax, revision: currentVoxel.revision,
             previousDiagnostics: iteration === 1 ? [] : attempt.loop.iterations.at(-1)?.diagnostics ?? [],
             previousSummary: loopSummary || creation.dialogue.summary };
