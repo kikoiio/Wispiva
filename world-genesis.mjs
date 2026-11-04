@@ -198,7 +198,7 @@ export function buildGenesisMessages(description, { dialogue = null, source = nu
 个人知道的事实可选：{"type":"fact","id":"...","text":"事实","knownBy":["人物id"]}。事实是角色起点时的主观知识；它不会绕过行动或资源的visibility，也不能把未来结果写成已发生。
 可检查线索可选：{"type":"clue","id":"...","name":"未检查外观","location":"地点id","detail":"检查内容","discoveredBy":[]}。不要强加谜案。
 每人前史记忆：{"type":"memory","actorId":"人物id","text":"起点之前的个人经历"}。不把未发生行动当历史。
-范围以作者确认的细节为准。通常2至5项状态、1至3项过程、2至5项行动足够；作者只要交谈时这些类型可没有。对无法支持的宏观机制，遵守对话中约定的简化，不擅自添加新规律。每条仅包含本类型规定字段。` },
+范围以作者确认的细节为准。只生成实现已确认内容所需的最少状态、过程和行动；作者只要交谈时这些类型可以没有。对无法支持的宏观机制，遵守对话中约定的简化，不擅自添加新规律。每条仅包含本类型规定字段。` },
     { role: 'user', content: JSON.stringify({ description, ...(source ? { sourceMaterial: { name: source.name, characters: source.text.length, retrieved: true } } : {}),
       ...(sourceContext?.hits?.length ? { sourceContext: { name: sourceContext.name, characters: sourceContext.characters, text: sourceContextText(sourceContext), queries: sourceContext.queries } } : {}),
       ...(dialogue ? { confirmedBrief: dialogue.summary, conversation: dialogue.messages.map(({ role, text }) => ({ role, text })) } : {}),
@@ -218,6 +218,7 @@ export function buildGenesisMessages(description, { dialogue = null, source = nu
     const allPrefixes = Object.values(groups).flat();
     messages[0].content = specifications.filter(line => !allPrefixes.some(prefix => line.startsWith(prefix)) || groups[stage.id].some(prefix => line.startsWith(prefix))).join('\n');
     messages[0].content += `\n本次只做第${{ places: 1, people: 2, rules: 3 }[stage.id]}步：只允许输出${stage.types.join('、')}条目。existingRecords是前面已完成的条目，必须沿用其id，不重复输出也不修改。所有 location 只能引用已有 place 的 id，不能把家具、窗户、屋顶等体素对象当地点；工作台上的物品仍位于其所在房间。严格依据作者约定，不丢失已明确的人物、初值、每个阈值和启停条件。每一步最后单独一行输出{"type":"complete"}，表示本步完整结束。若作者不需要数值规律，第三步可以只有complete。`;
+    if (stage.id === 'rules') messages[0].content += '\n规则阶段控制输出规模：默认上限为2项资源、1个持续过程、2个可选行动。遵守作者明确要求；若作者明确要求更多才可超过。只输出产生实际可观察效果所需的最少条目；不填满上限。每个文本字段尽量简短，一句话为限；无数值规律需求时只输出complete。';
   }
   return messages;
 }

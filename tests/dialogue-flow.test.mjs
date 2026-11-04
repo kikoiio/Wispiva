@@ -34,6 +34,15 @@ test('a genesis retry prompt repairs private-phrase overlap in public premise te
   assert.equal(JSON.parse(messages[1].content).previousGenerationDiagnostics[0].path, 'world.story.premise');
 });
 
+test('the rules stage requests a minimal rule set and preserves explicit author requirements', () => {
+  const messages = buildGenesisMessages('海边观测站。', {
+    stage: { id: 'rules', types: ['resource', 'process', 'action'] },
+  });
+  assert.match(messages[0].content, /默认上限为2项资源、1个持续过程、2个可选行动/);
+  assert.match(messages[0].content, /遵守作者明确要求；若作者明确要求更多才可超过/);
+  assert.match(messages[0].content, /只输出产生实际可观察效果所需的最少条目；不填满上限/);
+});
+
 const base = resolve('.tmp/prototype'); mkdirSync(base, { recursive: true });
 const llm = { baseUrl: 'https://fixture.invalid/v1', model: 'fixture', apiKey: 'synthetic' };
 const reply = payload => Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(payload) }] }] });
