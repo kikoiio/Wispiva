@@ -334,6 +334,24 @@ await check('feedback is persisted, marks older draft stale, blocks acceptance a
   });
   await p.click('world-generate'); assert.equal(p.$('world-accept').disabled, false);
 }));
+await check('failed world generation shows safe diagnostic paths without private audit details', () => withPage(emptyState(), async (p) => {
+  const failed = emptyState();
+  failed.creation.lastResult = {
+    ok: false, reason: 'privacy-audit-failed', generationId: 'generation-1',
+    message: '生成结果未通过世界规则或三维场景检查，请调整想法后再试。',
+    diagnostics: [{
+      path: 'world.places[0].description', code: 'privacy-leak',
+      message: '作者级公开文字重复了角色私有目标或隐藏机制的片段。',
+      detail: { source: 'world.actors.mira.goal', match: '秘密搬走仪器' },
+    }],
+  };
+  await p.push(failed);
+  const error = p.$('operation-error');
+  assert.equal(error.hidden, false);
+  assert.match(error.textContent, /world\.places\[0\]\.description/);
+  assert.match(error.textContent, /公开文字重复/);
+  assert.doesNotMatch(error.textContent, /秘密搬走仪器|world\.actors\.mira\.goal/);
+}));
 await check('legacy drafts remain confirmable; only explicit accept opens the paused world', () => {
   const initial = draftState(); delete initial.creation.draft.baseConversationRevision;
   return withPage(initial, async (p) => {
