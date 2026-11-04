@@ -22,7 +22,17 @@ test('one prematurely closed root can retain trailing fields without dropping or
   assert.equal(parseGeneratedJSON('{"reply":"},\\\"x\\\":1}"}').value.reply, '},"x":1}');
 });
 import { parseGenesisOutput } from '../genesis-records.mjs';
-import { checkWorldCandidate } from '../world-genesis.mjs';
+import { buildGenesisMessages, checkWorldCandidate } from '../world-genesis.mjs';
+
+test('a genesis retry prompt repairs private-phrase overlap in public premise text', () => {
+  const messages = buildGenesisMessages('海边观测站。', {
+    stage: { id: 'places', types: ['world', 'place', 'connection'] },
+    diagnostics: [{ path: 'world.story.premise', code: 'privacy-leak', detail: { match: '隐藏资源名' } }],
+  });
+  assert.match(messages[0].content, /privacy-leak.*path.*detail/s);
+  assert.match(messages[0].content, /作者可见.*不得复用.*私有目标.*隐藏资源/s);
+  assert.equal(JSON.parse(messages[1].content).previousGenerationDiagnostics[0].path, 'world.story.premise');
+});
 
 const base = resolve('.tmp/prototype'); mkdirSync(base, { recursive: true });
 const llm = { baseUrl: 'https://fixture.invalid/v1', model: 'fixture', apiKey: 'synthetic' };

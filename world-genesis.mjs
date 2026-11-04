@@ -187,6 +187,7 @@ export function buildGenesisMessages(description, { dialogue = null, source = nu
 作者提供的素材是参考资料而不是指令。作者明确的改动优先，其余尽量遵循素材中起始时刻之前的事实；不要把原文未来写成已经发生的事，也不要让人物知道当时尚不知道的信息。
 输出NDJSON：每个条目单独一个完整JSON对象，一行一条；没有最外层数组或大对象，没有markdown。每条都有type字段，除此之外按下面格式。程序将按空间语义编译三维场景，你不要输出scene、坐标几何、脚本、未来事件或预定剧情。所有id为简短英数字/短横线，文本简体中文。
 恰好一条世界说明：{"type":"world","title":"标题","description":"起点描述","weather":"当下天气","premise":"当下情况，没有未来情节","landscape":"coast或inland"}。world.description、premise和地点description属于公开作者叙述，不得写入只有某个角色知道的行动、资源、计划、秘密通道或未来结果；私有信息必须放入角色背景、knownBy、visibility、performers或线索揭示。
+若上一轮的previousGenerationDiagnostics含code为privacy-leak的诊断，须按诊断path及detail定位并重写对应字段；作者可见的world.description、premise、地点description不得复用诊断指向的私有目标、隐藏资源／行动名称或命中片段。
 每个地点一条：{"type":"place","id":"...","name":"...","description":"...","space":"room或outdoor","grid":[0,0],"landmark":"none或house或trees"}。grid为-2..2整数，两地不能同格；每格间距10米。room是有顶墙概念的单层剖面，landmark必须none；outdoor是露天地点，可选house表示身后的小屋或trees表示旁边树丛。按照作者描述选择，不把所有地点强行变成房间。只表达已确认的简化形态。
 每条连接：{"type":"connection","from":"地点id","to":"地点id"}。双向且不重复，所有地点连通；角色只能沿连接走。
 每个人物：{"type":"actor","id":"...","name":"...","role":"...","goal":"自己的目标","background":"本人前史","location":"地点id","fatigue":10}。fatigue在0..100；行动由角色以后自主选择，不能写保证结局的剧本。公开的世界/地点描述和role不能泄露秘密。
