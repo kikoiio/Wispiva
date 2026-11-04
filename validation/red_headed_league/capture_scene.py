@@ -67,10 +67,12 @@ def read_log(path):
 def failure_diagnostics(work):
     # Only engine errors from this disposable, credential-free fixture. Never
     # print full logs or model/draft content into the public Actions output.
-    for name in ("server.log", "world/private/product.log", "client-launch.log", "client.log", "xvfb.log"):
+    for name in ("server.log", "resume.log", "world/private/product.log", "client-launch.log", "client.log", "xvfb.log"):
         lines = [line for line in read_log(work / name).splitlines()
                  if ("ERROR[" in line or "Error:" in line or "error:" in line
-                     or "Error " in line or "SOCIETY fail=" in line)]
+                     or "Error " in line or "SOCIETY fail=" in line
+                     or "launch:" in line or "launch.py:" in line
+                     or "run_product.sh:" in line or "product-world frozen" in line)]
         for line in lines[-12:]:
             print(f"capture diagnostic ({name}): {line[:700]}", file=sys.stderr)
 
@@ -353,7 +355,11 @@ def capture(output):
         failure_diagnostics(work)
         raise
     finally:
-        resumed.close()
+        try:
+            resumed.close()
+        except Exception:
+            failure_diagnostics(work)
+            raise
     final_log = read_log(product_log)
     require("SOCIETY product-checkpoint commit " in final_log
             and "SOCIETY fail=" not in final_log, "recovered room did not checkpoint cleanly")
