@@ -130,7 +130,7 @@ local function sitting_room(p, node)
   put(0,3,3,'clock')
   put(0,4,3,'large_painting')
   put(-1,1,-1,'coffee_table_paper'); put(1,1,-1,'coffee_table_tea')
-  put(0,1,-1,'coffee_table')
+  put(0,1,-1,'coffee_table_center')
   put(-2,1,0,'armchair',3); put(2,1,0,'armchair',1)
   for x=3,4 do
     for y=1,3 do put(x,y,3,'bookcase') end

@@ -101,6 +101,10 @@ mkdir -p "$WORLD/worldmods/society"
 for src in "$HERE/mod/society"/*.lua; do
   cp "$src" "$WORLD/worldmods/society/"
 done
+if [[ -d "$HERE/mod/society/models" ]]; then
+  mkdir -p "$WORLD/worldmods/society/models"
+  cp "$HERE/mod/society/models/"* "$WORLD/worldmods/society/models/"
+fi
 for src in "$ROOT/cognition"/*.lua; do
   base="$(basename "$src")"
   case "$base" in

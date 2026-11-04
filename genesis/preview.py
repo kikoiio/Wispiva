@@ -109,6 +109,9 @@ def launch(world, count, *, engine, runtime_home, libdir, port, seconds, fixture
     mod.mkdir(parents=True, exist_ok=False, mode=0o700)
     for source in (ENGINE / 'mod' / 'society').glob('*.lua'):
         shutil.copyfile(source, mod / source.name)
+    model_dir = ENGINE / 'mod/society/models'
+    if model_dir.is_dir():
+        shutil.copytree(model_dir, mod / 'models')
     skin_dir = ENGINE / 'mod' / 'society' / 'textures'
     if skin_dir.is_dir():
         target = mod / 'textures'

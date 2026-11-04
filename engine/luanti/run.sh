@@ -147,6 +147,10 @@ PY
     spool=$(mktemp -d "$world/model-spool.XXXXXXXX") || return 1
   fi
   cp "$MOD_SRC"/*.lua "$world/worldmods/society/"
+  if [[ -d "$MOD_SRC/models" ]]; then
+    mkdir -p "$world/worldmods/society/models"
+    cp "$MOD_SRC/models/"* "$world/worldmods/society/models/"
+  fi
   cp "$EXP/cognition"/*.lua "$world/worldmods/society/"
   if compgen -G "$MOD_SRC/textures/*.png" >/dev/null; then
     mkdir -p "$world/worldmods/society/textures"

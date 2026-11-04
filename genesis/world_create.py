@@ -196,6 +196,8 @@ def _install_runtime(stage: Path, manifest_path: Path) -> None:
         if source.name.startswith("test_") or source.name == "test.lua":
             continue
         shutil.copyfile(source, world / "worldmods" / "society" / source.name)
+    if (MOD / 'models').is_dir():
+        shutil.copytree(MOD / 'models', world / 'worldmods/society/models')
     textures = MOD / "textures"
     if textures.is_dir():
         target = world / "worldmods" / "society" / "textures"

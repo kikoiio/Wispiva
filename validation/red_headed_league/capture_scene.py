@@ -307,6 +307,7 @@ def capture(output):
             "enable_sound = false\nvideo_driver = opengl\nenable_shaders = false\n"
             "enable_dynamic_shadows = false\nenable_clouds = false\nenable_3d_clouds = false\n"
             "enable_fog = false\nshow_debug = false\nshow_chat = false\n"
+            "node_highlighting = none\nshow_entity_selectionbox = false\n"
             "fps_max = 30\nfps_max_unfocused = 30\nviewing_range = 40\n"
             "num_emerge_threads = 1\n", encoding="utf-8",
         )

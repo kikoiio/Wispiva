@@ -165,6 +165,12 @@ function M.definitions()
       {0.32, -0.5, 0.28, 0.43, -0.18, 0.39},
       {-0.36, -0.39, -0.04, 0.36, -0.33, 0.04}, -- low stretcher
     }))
+  local center = copy(definitions['society:coffee_table'])
+  for _,field in ipairs({'node_box','selection_box','collision_box'}) do
+    local boxes = center[field].fixed
+    for i=9,6,-1 do table.remove(boxes,i) end
+  end
+  definitions['society:coffee_table_center'] = center
 
   add('newspaper', shaped('Folded morning newspaper',
     faces('newspaper', 'papers', 'papers'), {
@@ -203,6 +209,10 @@ function M.definitions()
   for _, attachment in ipairs({{'paper', 'newspaper', 'Folded paper'},
       {'tea', 'tea_service', 'Porcelain tea service'}}) do
     local boxes = copy(definitions['society:coffee_table'].node_box.fixed)
+    -- Each outer section supplies its two end legs. The centre section has
+    -- no extra legs, so the three cells form one table supported at its ends.
+    local remove = attachment[1]=='paper' and {9,7} or {8,6}
+    for _,i in ipairs(remove) do table.remove(boxes,i) end
     for _, accessory_box in ipairs(definitions['society:' .. attachment[2]].node_box.fixed) do
       local shifted = copy(accessory_box)
       shifted[2] = shifted[2] + 0.55
@@ -357,6 +367,9 @@ function M.definitions()
       {-0.76,0.16,0.36,0.76,0.30,0.495},
       {-0.76,-0.66,0.435,0.76,0.16,0.49},
     }))
+  definitions['society:large_painting'].drawtype = 'mesh'
+  definitions['society:large_painting'].mesh = 'society_interior_painting.obj'
+  definitions['society:large_painting'].tiles = {texture('landscape')}
   add('wall_lamp', shaped('Brass wall sconce with opal glass',
     faces('plaster','brass','brass'), {
       {-0.10,-0.30,0.36,0.10,0.24,0.49},

@@ -1,0 +1,42 @@
+Wispiva Victorian sitting-room asset kit
+======================================
+
+Applies to society_interior_painting.obj in this directory.
+Original mesh geometry and UVs are produced by tools/generate_interior_textures.py.
+
+Copyright (c) 2026 Wispiva contributors.
+These original procedural assets were authored for this repository. All pixel
+data is produced by tools/generate_interior_textures.py using standard-library
+mathematics, seeded pseudo-random variation and Pillow drawing primitives.
+No external images, fonts, scans, game textures or models are incorporated.
+The generated Baker Street reference informed palette, motifs and composition;
+none of its pixels are copied, sampled or embedded. The newspaper masthead,
+unreadable text marks, landscape, textile motifs and book bindings are original.
+These textures make no claim to reproduce any publisher's edition or screen
+adaptation of The Red-Headed League.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of these assets and associated documentation files (the "Assets"), to deal in
+the Assets without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Assets, and to permit persons to whom the Assets are furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Assets.
+
+THE ASSETS ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE ASSETS OR THE USE OR OTHER DEALINGS IN THE
+ASSETS.
+
+Reproduce from the repository root:
+    python3 tools/generate_interior_textures.py
+
+Textures have 64 x 64 pixel faces. The two coffee_table_paper/tea PNGs each pack
+two such faces into a 64 x 128 atlas for the engine's sheet texture modifier.
+Only the window texture has an alpha channel.
+The existing society_person.png and its separate LICENSE are not covered here.

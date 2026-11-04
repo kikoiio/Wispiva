@@ -69,7 +69,7 @@ doc.public.semantic_connections={{from='room',to='yard'}}
 local linked=map(doc)
 assert(linked['5,1,-2']==false and linked['5,1,0'].name=='society:panelling')
 assert(linked['0,0,0'].name=='society:rug_center')
-assert(linked['-2,1,0'].name=='society:armchair' and linked['0,1,-1'].name=='society:coffee_table')
+assert(linked['-2,1,0'].name=='society:armchair' and linked['0,1,-1'].name=='society:coffee_table_center')
 
 -- The blueprint follows an arbitrary room id and translated anchor.
 doc=fixture(); doc.public.places[1].id='unrelated-library'
