@@ -49,7 +49,7 @@ test('staged origin requests time out when the provider ignores cancellation sig
   const experience = createPrototypeExperience({
     stateFile: join(directory, 'state.json'),
     configLoader: () => ({ llm }),
-    genesisRequestTimeoutMs: 15,
+    requestTimeoutMs: 15,
     fetchImpl: async (_url, init) => {
       requestSignal = init.signal;
       return new Promise(() => {});
@@ -69,6 +69,25 @@ test('staged origin requests time out when the provider ignores cancellation sig
   assert.equal(outcome.reason, 'timeout');
   assert.equal(requestSignal?.aborted, true);
   assert.equal(outcome.state.creation.generation.timings.calls[0].reason, 'timeout');
+});
+
+test('creation discussion requests time out when the provider ignores cancellation signals', async t => {
+  const directory = mkdtempSync(join(base, 'discussion-timeout-'));
+  let requestSignal = null;
+  const experience = createPrototypeExperience({
+    stateFile: join(directory, 'state.json'),
+    configLoader: () => ({ llm }),
+    requestTimeoutMs: 15,
+    fetchImpl: async (_url, init) => {
+      requestSignal = init.signal;
+      return new Promise(() => {});
+    },
+  });
+  t.after(() => { experience.close(); rmSync(directory, { recursive: true, force: true }); });
+
+  const result = await experience.discussStep({ message: '从海边灯室开始。' });
+  assert.equal(result.reason, 'timeout');
+  assert.equal(requestSignal?.aborted, true);
 });
 
 test('the author can inspect an origin despite a false model readiness flag, with current revision and saved brief', async t => {

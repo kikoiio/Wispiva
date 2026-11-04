@@ -12,7 +12,7 @@ import { createVoxelWorldStore } from './voxel-world.mjs';
 import { bindVoxelWorld } from './voxel-bindings.mjs';
 import { retrieveSource } from './model/source-retrieval.mjs';
 import { normalizeBuildingCommands, describeChanges, recoverableAttempt } from './creation-attempt.mjs';
-import { BUILD_LOOP_REQUEST_TIMEOUT_MS, MAX_BUILD_LOOP_ITERATIONS } from './creation-limits.mjs';
+import { MODEL_REQUEST_TIMEOUT_MS, MAX_BUILD_LOOP_ITERATIONS } from './creation-limits.mjs';
 import { buildVoxelRepairCommands, inspectVoxelSpaces } from './geometry/voxel-inspection.js';
 const clone = value => structuredClone(value);
 const MAX_SOURCE_CHARACTERS = 5_000_000;
@@ -49,7 +49,7 @@ function compactModelAudit(role, audit, extra = {}) {
 }
 
 export function createWorldCreation({ stateFile, createExperience, configLoader = loadModelConfig, fetchImpl = globalThis.fetch,
-  genesisRequestTimeoutMs = BUILD_LOOP_REQUEST_TIMEOUT_MS } = {}) {
+  requestTimeoutMs = MODEL_REQUEST_TIMEOUT_MS } = {}) {
   const directory = dirname(stateFile), stagingFile = join(directory, 'creation.json');
   const save = value => {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -127,7 +127,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     } catch { return false; }
   };
   creation.worlds = creation.worlds.filter(w => isGeneratedArchive(w.id));
-  let inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl }) : null;
+  let inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null;
   if (inner && creation.draft?.id === inner.state().genesis?.draftId) { creation.draft = null; creation.mode = 'world'; }
   if (!inner) creation.mode = 'create';
   if (inner && creation.mode === 'create') inner.control({ type: 'pause' });
@@ -221,8 +221,8 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           pending: false, pendingKind: null, genesis, scene: { document: definition.scene, revision: 0, draft: null, lastResult: null } };
         // The old world is archived before the single authoritative save is replaced.
         try { archiveCurrent(); next.save(stateFile, { experience }); }
-        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl }) : null; throw error; }
-        inner = createExperience({ stateFile, configLoader, fetchImpl });
+        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
+        inner = createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs });
         creation.draft = null; creation.mode = 'world'; creation.lastResult = { ok: true, message: '世界已创建，时间停在起源，随时可以开始。' }; epoch++; persist();
         return response(true, creation.lastResult.message);
       }
@@ -231,8 +231,8 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
         if (!isGeneratedArchive(body.worldId)) return response(false, '旧实验不属于已创建的世界，请重新生成。');
         const selected = CampSimulation.load(join(directory, 'worlds', `${body.worldId}.json`));
         try { archiveCurrent(); selected.pause(); selected.save(stateFile); }
-        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl }) : null; throw error; }
-        inner = createExperience({ stateFile, configLoader, fetchImpl }); creation.mode = 'world'; epoch++; persist();
+        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
+        inner = createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }); creation.mode = 'world'; epoch++; persist();
         return response(true, '已切换到保存的世界。');
       }
       default:
@@ -284,7 +284,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     const dialogueBeforeReply = clone(creation.dialogue);
     const request = async (llm, currentVoxel, sourceContext, retrievalRound = false, loopContext = null) => {
       active.callIndex = attempt.timings.calls.length + 1;
-      const requestLlm = loopContext && llm.timeoutMs == null ? { ...llm, timeoutMs: BUILD_LOOP_REQUEST_TIMEOUT_MS } : llm;
+      const requestLlm = llm.timeoutMs == null ? { ...llm, timeoutMs: requestTimeoutMs } : llm;
       const r = await callModel({ llm: requestLlm, messages: buildDiscussionMessages(creation.dialogue, creation.draft, creation.source, currentVoxel,
         { sourceContext, retrievalRound, mode, previousAttempt: previous, attempts: creation.attempts.filter(a => a.id !== attempt.id), loopContext }), fetchImpl, signal: controller.signal, onProgress: publish });
       const audit = compactModelAudit(retrievalRound ? 'world-discussion-retrieval' : 'world-discussion', r.audit, { attemptId: attempt.id });
@@ -588,7 +588,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     let result = { ok: false, reason: 'request-failed', message: '创建世界没有完成，没有自动重试。' };
     try {
       persist(); const { llm } = configLoader();
-      const generationLlm = llm.timeoutMs == null ? { ...llm, timeoutMs: genesisRequestTimeoutMs } : llm;
+      const generationLlm = llm.timeoutMs == null ? { ...llm, timeoutMs: requestTimeoutMs } : llm;
       const records = clone(generation.records), adjustments = [...generation.adjustments];
       let definition = null, failed = false;
       for (const stage of GENESIS_STAGES) {

@@ -15,10 +15,12 @@ import { projectVoxelActors } from './voxel-bindings.mjs';
 import { validateWorldBindings } from './geometry/world-bindings.js';
 import { parseGeneratedJSON } from './model/generated-json.mjs';
 import { projectActivity } from './activity.mjs';
+import { MODEL_REQUEST_TIMEOUT_MS } from './creation-limits.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = here;
 const clone = (value) => structuredClone(value);
+const boundedModelConfig = (llm, timeoutMs = MODEL_REQUEST_TIMEOUT_MS) => llm.timeoutMs == null ? { ...llm, timeoutMs } : llm;
 const messages = {
   cancelled: '这次决定已取消，没有留下未完成的行动。',
   'stale-basis': '世界已经发生变化，旧决定没有执行。',
@@ -30,7 +32,7 @@ const messages = {
 };
 
 export function createCampExperience({ stateFile = join(root, '.data/prototype/state.json'),
-  configLoader = loadModelConfig, fetchImpl = globalThis.fetch } = {}) {
+  configLoader = loadModelConfig, fetchImpl = globalThis.fetch, requestTimeoutMs = MODEL_REQUEST_TIMEOUT_MS } = {}) {
   let sim = existsSync(stateFile) ? CampSimulation.load(stateFile) : new CampSimulation();
   let ledgers = createLedgers(sim.view(1).world);
   let autonomy = { enabled: false, waitingReason: null, nextActorId: sim.view(1).world.actors[0].id };
@@ -198,7 +200,7 @@ export function createCampExperience({ stateFile = join(root, '.data/prototype/s
     try {
       persist();
       const { llm } = configLoader();
-      const response = await callModel({ llm, messages: buildResidentMessages(start, actorId, originalLedgers, genesis), fetchImpl,
+      const response = await callModel({ llm: boundedModelConfig(llm, requestTimeoutMs), messages: buildResidentMessages(start, actorId, originalLedgers, genesis), fetchImpl,
         signal: controller.signal, onProgress: publish });
       mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
       appendFileSync(join(dirname(stateFile), 'model-calls.jsonl'), `${JSON.stringify({ role: 'resident', actorId, ...response.audit })}\n`, { mode: 0o600 });
@@ -269,7 +271,7 @@ export function createCampExperience({ stateFile = join(root, '.data/prototype/s
     try {
       persist();
       const { llm } = configLoader();
-      const response = await callModel({ llm, messages: buildSceneMessages(instruction.trim(), sceneState.document), fetchImpl, signal: controller.signal, onProgress: publish });
+      const response = await callModel({ llm: boundedModelConfig(llm, requestTimeoutMs), messages: buildSceneMessages(instruction.trim(), sceneState.document), fetchImpl, signal: controller.signal, onProgress: publish });
       mkdirSync(dirname(stateFile), { recursive: true, mode: 0o700 });
       appendFileSync(join(dirname(stateFile), 'model-calls.jsonl'), `${JSON.stringify({ role: 'scene-design', ...response.audit })}\n`, { mode: 0o600 });
       if (controller.signal.aborted) result = { ok: false, reason: 'cancelled', message: '场景生成已取消，当前世界保持原样。' };

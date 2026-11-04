@@ -3,4 +3,4 @@
 // larger batches for deterministic fixtures and future callers.
 export const MAX_BUILD_COMMANDS = 24;
 export const MAX_BUILD_LOOP_ITERATIONS = 4;
-export const BUILD_LOOP_REQUEST_TIMEOUT_MS = 180_000;
+export const MODEL_REQUEST_TIMEOUT_MS = 180_000;

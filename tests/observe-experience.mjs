@@ -22,12 +22,31 @@ function mock(action, inspect = () => {}) {
     return new Response(`data: ${JSON.stringify({ type: 'response.output_text.delta', delta: '{' })}\n\ndata: ${JSON.stringify({ type: 'response.completed', response })}\n\n`, { headers: { 'content-type': 'text/event-stream' } });
   };
 }
-function options(name, fetchImpl) { return { stateFile: join(dir, name, 'state.json'), configLoader: () => { fixtureConfigReads++; return { llm }; }, fetchImpl }; }
+function options(name, fetchImpl, requestTimeoutMs) { return { stateFile: join(dir, name, 'state.json'), configLoader: () => { fixtureConfigReads++; return { llm }; }, fetchImpl, ...(requestTimeoutMs == null ? {} : { requestTimeoutMs }) }; }
 function room(name, fetchImpl = mock({ type: 'secureCargo' })) { const e = createCampExperience(options(name, fetchImpl)); e.control({ type: 'pause' }); active.add(e); return e; }
 function close(e) { e.close(); active.delete(e); }
 try {
   await check('fresh camp has two residents and no automatic model calls', () => {
     const e = room('fresh'); assert.equal(e.state().world.actors.length, 2); assert.equal(e.state().autonomy.enabled, false); assert.equal(fixtureConfigReads, 0);
+  });
+  await check('resident and scene model calls time out when their provider ignores abort', async () => {
+    for (const kind of ['resident', 'scene']) {
+      let signal = null;
+      const experience = createCampExperience(options(`timeout-${kind}`, async (_url, init) => {
+        signal = init.signal;
+        return new Promise(() => {});
+      }, 15));
+      active.add(experience);
+      const pending = kind === 'resident'
+        ? experience.actorStep({ actorId: 'ihe' })
+        : experience.sceneStep({ instruction: '整理场景外观。' });
+      const result = await Promise.race([pending, new Promise(resolve => setTimeout(() => resolve(null), 400))]);
+      if (result === null) { experience.cancelModel(); await pending; }
+      assert.notEqual(result, null, `${kind} request should return before the test guard`);
+      assert.equal(result.reason, 'timeout');
+      assert.equal(signal?.aborted, true);
+      close(experience);
+    }
   });
   let firstInput;
   const e = room('shared-save', mock({ type: 'secureCargo' }, (input, body) => { firstInput = input; assert.equal(body.stream, true); assert.equal(Object.hasOwn(body, 'max_output_tokens'), false); }));
