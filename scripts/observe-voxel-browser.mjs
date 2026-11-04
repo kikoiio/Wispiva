@@ -230,7 +230,7 @@ export async function createVoxelScene(host, initialWorld) {
   const scene = await state();
   assert.equal(scene.revision, 1);
   const blocks = new Map(scene.cells.map(cell => [cell.position.join(','), cell.material]));
-  for (const [position, material] of [['-6,0,-6', 'grass'], ['-3,1,-3', 'wood'], ['2,2,3', 'glass'], ['0,8,0', 'roof'], ['5,4,-4', 'leaves'], ['8,1,-2', 'water'], ['-1,2,0', 'wood']]) {
+  for (const [position, material] of [['-6,0,-6', 'grass'], ['-3,1,-3', 'wood'], ['2,2,3', 'glass'], ['0,8,0', 'roof'], ['5,4,-4', 'leaves'], ['8,1,-2', 'water'], ['-1,2,0', 'stone']]) {
     assert.equal(blocks.get(position), material, `Unexpected material at ${position}`);
   }
   assert.equal(blocks.has('0,1,3'), false, 'The doorway should be open');
