@@ -118,6 +118,18 @@ test('automatic build loop rereads the committed voxel state and repairs the nex
   assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
 });
 
+test('automatic build loop does not accept an empty initial scene as complete without commands', async t => {
+  const f = fixture(t, () => output([]));
+  const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'no-building-commands');
+  assert.equal(result.attempt.outcome, 'not-built');
+  assert.equal(result.attempt.loop.iterations.length, 1);
+  assert.equal(result.attempt.loop.iterations[0].outcome, 'stalled');
+  assert.equal(result.state.creation.voxel.revision, 0);
+  assert.equal(result.state.creation.voxel.cells.length, 0);
+});
+
 test('automatic build loop reports partial completion when the iteration limit leaves diagnostics', async t => {
   const f = fixture(t, (input, n) => {
     assert.equal(input.loopContext.iteration, n);

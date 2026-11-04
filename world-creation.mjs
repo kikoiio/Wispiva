@@ -342,12 +342,18 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           if (!value.commands?.length) {
             const inspection = inspectVoxelSpaces(currentVoxel);
             const diagnostics = inspectionDiagnostics(inspection);
+            const sceneIsEmpty = currentVoxel.cells.length === 0;
             attempt.loop.iterations.push({ index: iteration, fromRevision: currentVoxel.revision, toRevision: currentVoxel.revision,
-              outcome: diagnostics.length ? 'stalled' : 'complete', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
-            if (!diagnostics.length) {
+              outcome: diagnostics.length || sceneIsEmpty ? 'stalled' : 'complete', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
+            if (!diagnostics.length && !sceneIsEmpty) {
               result = { ok: true, message: committedDuringLoop ? `自动建造完成，共检查 ${iteration} 轮。` : '当前场景已经满足这次自动建造要求，没有需要提交的变化。', diagnostics: [] };
               attempt.outcome = committedDuringLoop ? 'committed' : 'unchanged';
-            } else result = fail('no-building-commands', `自动建造第 ${iteration} 轮没有给出修复命令，仍有 ${diagnostics.length} 项检查问题。`, diagnostics);
+            } else {
+              if (sceneIsEmpty && !committedDuringLoop) attempt.outcome = 'not-built';
+              result = fail('no-building-commands', sceneIsEmpty
+                ? '自动建造尚未创建任何方块；模型没有给出建造命令。'
+                : `自动建造第 ${iteration} 轮没有给出修复命令，仍有 ${diagnostics.length} 项检查问题。`, diagnostics);
+            }
             attempt.timings.validationMs += performance.now() - validationStarted;
             break;
           }
