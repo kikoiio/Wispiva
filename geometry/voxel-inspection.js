@@ -26,9 +26,20 @@ export function inspectVoxelSpaces(world) {
       add(object, 'unsupported-building', `对象跨度为 ${spanX}×${spanZ}×${spanY}（x×z×y），单层矩形检查要求平面至少 3×3 格、垂直至少 4 层。若这是门、墙、地板等局部部件，不要登记为 building；若是完整建筑，请让 building 对象范围覆盖整座建筑。当前尚未验证可进入空间。`);
       continue;
     }
-    let walkableCells = 0, entrances = 0, roofGaps = 0, wallGaps = 0, floorGaps = 0, doorHint = null;
+    let walkableCells = 0, entrances = 0, roofGaps = 0, wallGaps = 0, floorGaps = 0, floorGapRepair = null, doorHint = null;
     for (let x = x0 + 1; x < x1; x++) for (let z = z0 + 1; z < z1; z++) {
-      if (!solid(read(x, floor, z))) floorGaps++;
+      const floorMaterial = read(x, floor, z);
+      if (!solid(floorMaterial)) {
+        floorGaps++;
+        if (!floorGapRepair && floorMaterial === undefined) {
+          const adjacentFloor = [[x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]]
+            .filter(([nx, nz]) => nx > x0 && nx < x1 && nz > z0 && nz < z1)
+            .map(([nx, nz]) => read(nx, floor, nz));
+          if (adjacentFloor.length >= 2 && solid(adjacentFloor[0]) && adjacentFloor.every(value => value === adjacentFloor[0])) {
+            floorGapRepair = { type: 'floor-gap', objectId: object.id, position: [x, floor, z], material: adjacentFloor[0] };
+          }
+        }
+      }
       if (standing(x, floor, z)) walkableCells++;
       let covered = false;
       for (let y = floor + 3; y <= top + 1; y++) if (roofCells.has(`${x},${y},${z}`)) { covered = true; break; }
@@ -51,7 +62,7 @@ export function inspectVoxelSpaces(world) {
     if (!entrances) add(object, 'no-entrance', '没有检测到连接室内与室外地面的两格高门洞；门洞外侧还必须有一格实心地面（例如 grass），并且门洞上方两格保持为空气。',
       doorHint ? `请分成两个操作：清出门洞 ${JSON.stringify(doorHint.from)} 到 ${JSON.stringify(doorHint.to)}，该操作带 objectId ${object.id}；再在外侧 ${JSON.stringify(doorHint.outside)} 补一格 grass，该操作不要带 objectId，因为它位于建筑范围外。不要把门外地面登记为建筑成员。` : null,
       doorHint ? { type: 'entrance', objectId: object.id, door: { from: doorHint.from, to: doorHint.to }, outside: doorHint.outside } : null);
-    if (floorGaps) add(object, 'floor-gap', `室内有 ${floorGaps} 处缺少实心地板。`);
+    if (floorGaps) add(object, 'floor-gap', `室内有 ${floorGaps} 处缺少实心地板。`, null, floorGapRepair);
     if (wallGaps) add(object, 'wall-gap', `墙顶高度有 ${wallGaps} 处开口，请检查墙体与屋顶衔接。`);
     if (roofGaps) add(object, 'roof-gap', `有 ${roofGaps} 列室内范围没有可确认的屋顶覆盖。`);
     if ((world.cells || []).some(c => c.material === 'water' && within(c.position, object))) add(object, 'water-inside', '水与建筑范围相交，请检查水面是否穿过地板或室内。');
@@ -89,7 +100,7 @@ export function inspectVoxelSpaces(world) {
 // The UI can offer these without asking the model to rediscover coordinates or
 // object ownership. Other findings stay model-assisted until their edit is
 // equally unambiguous.
-export function buildVoxelRepairCommands(_world, issue) {
+export function buildVoxelRepairCommands(world, issue) {
   const repair = issue?.repair;
   if (repair?.type === 'entrance') return [
     { op: 'fill', from: [...repair.door.from], to: [...repair.door.to], material: null, objectId: repair.objectId },
@@ -99,5 +110,21 @@ export function buildVoxelRepairCommands(_world, issue) {
     { op: 'object', ...repair.object },
     { op: 'replace', from: [...repair.from], to: [...repair.to], match: 'wood', material: 'glass', objectId: repair.object.id },
   ];
+  if (repair?.type === 'floor-gap') {
+    const object = world?.objects?.find(entry => entry.id === issue.objectId && entry.kind === 'building');
+    const position = repair.position;
+    if (!object || !Array.isArray(world?.cells) || !Array.isArray(object.from) || !Array.isArray(object.to) ||
+        repair.objectId !== issue.objectId || !Array.isArray(position) || position.length !== 3 ||
+        !position.every(Number.isSafeInteger) || position[1] !== object.from[1] ||
+        position[0] <= object.from[0] || position[0] >= object.to[0] ||
+        position[2] <= object.from[2] || position[2] >= object.to[2] ||
+        world.cells.some(cell => key(cell.position) === key(position)) || !solid(repair.material)) return null;
+    const [x, , z] = position;
+    const adjacentFloor = [[x - 1, z], [x + 1, z], [x, z - 1], [x, z + 1]]
+      .filter(([nx, nz]) => nx > object.from[0] && nx < object.to[0] && nz > object.from[2] && nz < object.to[2])
+      .map(([nx, nz]) => world.cells.find(cell => key(cell.position) === `${nx},${object.from[1]},${nz}`)?.material);
+    if (adjacentFloor.length < 2 || !solid(adjacentFloor[0]) || adjacentFloor.some(material => material !== repair.material)) return null;
+    return [{ op: 'fill', from: [...position], to: [...position], material: repair.material, objectId: object.id }];
+  }
   return null;
 }

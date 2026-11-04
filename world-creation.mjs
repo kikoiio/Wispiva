@@ -525,7 +525,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
       Object.assign(attempt, { reason: result.reason ?? null, message: result.message, diagnostics: result.diagnostics ?? [], finishedAt: new Date().toISOString() });
       attempt.timings.totalMs = performance.now() - startedAt;
       creation.dialogue.messages.push({ id: randomUUID(), role: 'assistant', text: result.ok || attempt.outcome === 'not-built' ? explanation || result.message : result.message, attemptId: attempt.id });
-      if (result.ok || attempt.outcome === 'not-built') {
+      if ((result.ok || attempt.outcome === 'not-built') && value) {
         creation.dialogue.summary = value.summary.trim();
         creation.dialogue.ready = value.ready && ((mode === 'build' || mode === 'loop') && result.ok || creation.dialogue.messages.filter(m => m.role === 'user').length >= 2);
       }

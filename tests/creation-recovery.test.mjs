@@ -6,7 +6,7 @@ import { createPrototypeExperience } from '../server.mjs';
 import { projectVoxelActors } from '../voxel-bindings.mjs';
 import { createGeneratedFixture } from '../world-definition.mjs';
 import { buildDiscussionMessages } from '../creation-dialogue.mjs';
-import { inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
 
 const base = resolve('.tmp/prototype');
 const fill = { op: 'fill', from: [0, 0, 0], to: [2, 0, 0], material: 'wood' };
@@ -20,7 +20,7 @@ function fixture(t, handler, { timeoutMs } = {}) {
     fetchImpl: async (_url, init) => { const input = JSON.parse(JSON.parse(init.body).input.at(-1).content); inputs.push(input); return reply(await handler(input, inputs.length, directory)); } };
   let experience = createPrototypeExperience(options);
   t.after(() => { experience.close(); rmSync(directory, { recursive: true, force: true }); });
-  return { directory, inputs, get experience() { return experience; }, reload() { experience.close(); experience = createPrototypeExperience(options); return experience; } };
+  return { directory, inputs, get experience() { return experience; }, reload(edit) { experience.close(); edit?.(directory); experience = createPrototypeExperience(options); return experience; } };
 }
 
 test('large scene context is losslessly packed without hiding holes, materials or object identities', () => {
@@ -161,7 +161,7 @@ test('automatic build loop rereads the committed voxel state and asks the model 
       return output([
         { op: 'fill', from: [0, 0, 0], to: [1, 0, 4], material: 'wood', objectId: 'house' },
         { op: 'fill', from: [2, 0, 0], to: [2, 0, 1], material: 'wood', objectId: 'house' },
-        { op: 'fill', from: [2, 0, 3], to: [2, 0, 4], material: 'wood', objectId: 'house' },
+        { op: 'fill', from: [2, 0, 3], to: [2, 0, 4], material: 'stone', objectId: 'house' },
         { op: 'fill', from: [3, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
         { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
         { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
@@ -207,6 +207,95 @@ test('automatic build loop applies exact entrance repairs without a malformed mo
   assert.equal(result.attempt.toRevision, 2);
   assert.deepEqual(result.attempt.diagnostics, []);
   assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
+});
+
+test('floor gap repair fills one missing cell only when neighboring interior floor material agrees', () => {
+  const makeWorld = ({ target = 'missing', mixed = false } = {}) => {
+    const cells = [];
+    for (let x = 0; x <= 4; x++) for (let z = 0; z <= 4; z++) cells.push({ position: [x, 0, z], material: 'wood' });
+    const targetPosition = [2, 0, 2];
+    if (target === 'missing') cells.splice(cells.findIndex(c => c.position.join(',') === targetPosition.join(',')), 1);
+    else cells.find(c => c.position.join(',') === targetPosition.join(',')).material = target;
+    if (mixed) {
+      cells.find(c => c.position.join(',') === '1,0,2').material = 'stone';
+      cells.find(c => c.position.join(',') === '2,0,1').material = 'stone';
+    }
+    return { cells, objects: [{ id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 4, 4] }] };
+  };
+  const issueFor = world => inspectVoxelSpaces(world).issues.find(issue => issue.code === 'floor-gap');
+  const world = makeWorld();
+  assert.deepEqual(buildVoxelRepairCommands(world, issueFor(world)), [
+    { op: 'fill', from: [2, 0, 2], to: [2, 0, 2], material: 'wood', objectId: 'house' },
+  ]);
+  const mixed = makeWorld({ mixed: true });
+  assert.equal(buildVoxelRepairCommands(mixed, issueFor(mixed)), null);
+  const water = makeWorld({ target: 'water' });
+  assert.equal(buildVoxelRepairCommands(water, issueFor(water)), null);
+});
+
+test('automatic build loop deterministically repairs a floor gap with one model request', async t => {
+  const f = fixture(t, (input, n) => {
+    assert.equal(input.requestMode, 'loop');
+    assert.equal(n, 1);
+    return output([
+      { op: 'fill', from: [0, 0, 0], to: [4, 0, 4], material: 'wood', objectId: 'house' },
+      { op: 'fill', from: [2, 0, 2], to: [2, 0, 2], material: null, objectId: 'house' },
+      { op: 'fill', from: [2, 0, 5], to: [2, 0, 5], material: 'grass' },
+      { op: 'walls', from: [0, 1, 0], to: [4, 3, 4], material: 'wood', objectId: 'house' },
+      { op: 'fill', from: [2, 1, 4], to: [2, 2, 4], material: null, objectId: 'house' },
+      { op: 'roof', from: [-1, 4, -1], to: [5, 7, 5], material: 'roof', objectId: 'roof' },
+      { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 7, 4] },
+      { op: 'object', id: 'roof', name: '屋顶', kind: 'roof', from: [-1, 4, -1], to: [5, 7, 5] },
+    ]);
+  });
+  const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop' });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(f.inputs.length, 1);
+  assert.equal(result.attempt.loop.iterations.length, 2);
+  assert.deepEqual(result.attempt.loop.iterations[1].repair, { method: 'deterministic', objectId: 'house', code: 'floor-gap' });
+  assert.deepEqual(result.attempt.diagnostics, []);
+  assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
+});
+
+test('an automatic repair that needs no model preserves and durably saves the prior conversation', async t => {
+  const f = fixture(t, () => { throw new Error('deterministic repair must not request the model'); });
+  const voxelId = f.experience.state().creation.voxelId;
+  const priorMessages = [
+    { id: 'prior-user', role: 'user', text: '我已经设计好一间木屋。' },
+    { id: 'prior-assistant', role: 'assistant', text: '木屋方案已保存。' },
+  ];
+  const cells = [], houseMembers = [], roofMembers = [];
+  const add = (position, material, owner) => {
+    cells.push({ position, material });
+    if (owner === 'house') houseMembers.push(position);
+    if (owner === 'roof') roofMembers.push(position);
+  };
+  for (let x = 0; x <= 4; x++) for (let z = 0; z <= 4; z++) {
+    if (x !== 2 || z !== 2) add([x, 0, z], 'wood', 'house');
+  }
+  for (let y = 1; y <= 3; y++) for (let x = 0; x <= 4; x++) for (let z = 0; z <= 4; z++) {
+    if (x !== 0 && x !== 4 && z !== 0 && z !== 4) continue;
+    if (z === 4 && x === 2 && y <= 2) continue;
+    add([x, y, z], 'wood', 'house');
+  }
+  for (let x = 1; x <= 3; x++) for (let z = 1; z <= 3; z++) add([x, 4, z], 'roof', 'roof');
+  add([2, 0, 5], 'grass', null);
+  const snapshot = { revision: 1, cells, objects: [
+    { id: 'house', name: '木屋', kind: 'building', from: [0, 0, 0], to: [4, 7, 4], members: houseMembers },
+    { id: 'roof', name: '屋顶', kind: 'roof', from: [-1, 4, -1], to: [5, 7, 5], members: roofMembers },
+  ], undo: [], redo: [] };
+  f.reload(directory => writeFileSync(join(directory, 'creation.json'), JSON.stringify({ schemaVersion: 1, voxelId, voxelRevision: 1, voxelSnapshot: snapshot,
+    dialogue: { messages: priorMessages, summary: '一间已设计好的木屋', ready: true, revision: 2 } }) + '\n', { mode: 0o600 }));
+  const result = await f.experience.discussStep({ message: '自动检查并修复木屋地板缺口。', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, true, result.message);
+  assert.equal(result.attempt.timings.calls.length, 0);
+  assert.equal(result.attempt.loop.iterations[0].repair.code, 'floor-gap');
+  assert.equal(inspectVoxelSpaces(result.state.creation.voxel).issues.length, 0);
+  assert.deepEqual(result.state.creation.dialogue.messages.slice(0, 2), priorMessages);
+  assert.equal(result.state.creation.dialogue.summary, '一间已设计好的木屋');
+  const saved = JSON.parse(readFileSync(join(f.directory, 'creation.json'), 'utf8'));
+  assert.equal(saved.voxelRevision, result.state.creation.voxel.revision);
+  assert.equal(saved.voxelSnapshot.cells.length, cells.length + 1);
 });
 
 test('cancellation at deterministic repair commit leaves the current scene unchanged', async t => {
