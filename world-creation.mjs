@@ -48,7 +48,8 @@ function compactModelAudit(role, audit, extra = {}) {
   };
 }
 
-export function createWorldCreation({ stateFile, createExperience, configLoader = loadModelConfig, fetchImpl = globalThis.fetch } = {}) {
+export function createWorldCreation({ stateFile, createExperience, configLoader = loadModelConfig, fetchImpl = globalThis.fetch,
+  genesisRequestTimeoutMs = BUILD_LOOP_REQUEST_TIMEOUT_MS } = {}) {
   const directory = dirname(stateFile), stagingFile = join(directory, 'creation.json');
   const save = value => {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -587,6 +588,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     let result = { ok: false, reason: 'request-failed', message: '创建世界没有完成，没有自动重试。' };
     try {
       persist(); const { llm } = configLoader();
+      const generationLlm = llm.timeoutMs == null ? { ...llm, timeoutMs: genesisRequestTimeoutMs } : llm;
       const records = clone(generation.records), adjustments = [...generation.adjustments];
       let definition = null, failed = false;
       for (const stage of GENESIS_STAGES) {
@@ -597,7 +599,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           stageCount: GENESIS_STAGES.length, callCount: active.callIndex, elapsedMs: performance.now() - active.startedAt });
         stageProgress({ phase: 'connecting', outputCharacters: 0 });
         const sourceContext = retrieveSource(creation.source, [description, creation.dialogue.summary, stage.label]);
-        const r = await callModel({ llm, messages: buildGenesisMessages(description.trim(), {
+        const r = await callModel({ llm: generationLlm, messages: buildGenesisMessages(description.trim(), {
           dialogue: conversational ? creation.dialogue : null, source: creation.source, sourceContext, previousDraft,
           diagnostics: creation.lastResult?.diagnostics ?? [], stage, previousRecords: records, voxel: voxel.state(),
         }), fetchImpl, jsonMode: false, signal: controller.signal, onProgress: stageProgress });

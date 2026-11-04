@@ -43,6 +43,34 @@ function fixture(t, handler) {
   return { options, requests, get experience() { return experience; }, reload() { experience.close(); experience = createPrototypeExperience(options); return experience; } };
 }
 
+test('staged origin requests time out when the provider ignores cancellation signals', async t => {
+  const directory = mkdtempSync(join(base, 'timeout-'));
+  let requestSignal = null, closed = false;
+  const experience = createPrototypeExperience({
+    stateFile: join(directory, 'state.json'),
+    configLoader: () => ({ llm }),
+    genesisRequestTimeoutMs: 15,
+    fetchImpl: async (_url, init) => {
+      requestSignal = init.signal;
+      return new Promise(() => {});
+    },
+  });
+  const close = () => {
+    if (closed) return;
+    closed = true;
+    experience.close();
+  };
+  t.after(() => { close(); rmSync(directory, { recursive: true, force: true }); });
+
+  const pending = experience.worldStep({ description: '海边灯室。' });
+  const outcome = await Promise.race([pending, new Promise(resolve => setTimeout(() => resolve(null), 400))]);
+  if (outcome === null) { close(); await pending; }
+  assert.notEqual(outcome, null, 'the staged request should return before the test guard');
+  assert.equal(outcome.reason, 'timeout');
+  assert.equal(requestSignal?.aborted, true);
+  assert.equal(outcome.state.creation.generation.timings.calls[0].reason, 'timeout');
+});
+
 test('the author can inspect an origin despite a false model readiness flag, with current revision and saved brief', async t => {
   const f = fixture(t); const e = f.experience;
   assert.equal((await e.worldStep({ authorRequested: true, conversationRevision: 0 })).reason, 'discussion-required');
