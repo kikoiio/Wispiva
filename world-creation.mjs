@@ -300,11 +300,17 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     const loopChanges = { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 };
     const inspectionDiagnostics = inspection => inspection.issues.map(i => ({ path: `objects.${i.objectId}.${i.code}`, message: i.message }));
     const mergeChanges = changes => { for (const key of Object.keys(loopChanges)) loopChanges[key] += changes[key] || 0; };
-    const parse = content => { try {
-      const parsed = parseGeneratedJSON(content, { allowEmbeddedObject: true, requiredKeys: ['reply'] });
+    let parseFailure = null;
+    const parse = content => { parseFailure = null; try {
+      const parsed = parseGeneratedJSON(content, { allowEmbeddedObject: true, requiredKeys: mode === 'loop' ? ['commands'] : ['reply'] });
       attempt.adjustments.push(...parsed.adjustments.map(message => ({ path: 'response', message })));
-      return normalizeDiscussion(parsed.value, loopSummary || creation.dialogue.summary);
-    } catch { return null; } };
+      const normalized = normalizeDiscussion(parsed.value, loopSummary || creation.dialogue.summary);
+      if (mode === 'loop' && normalized && Array.isArray(parsed.value.commands)) {
+        if (!normalized.reply) normalized.reply = '本轮依据当前场景和空间检查结果提出了局部修改，程序会报告实际提交和复查结果。';
+        if (!normalized.summary) normalized.summary = loopSummary || creation.dialogue.summary || '按检查结果逐项完善当前场景。';
+      }
+      return normalized;
+    } catch (error) { parseFailure = error instanceof Error ? error.message : '模型回复无法安全解析。'; return null; } };
     const commitCandidate = (candidate, iteration = null) => {
       publish({ ...model.progress, phase: 'committing', ...(iteration ? { loopIteration: iteration } : {}) });
       const commitStartedAt = performance.now();
@@ -388,7 +394,15 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           if (controller.signal.aborted) { result = fail('cancelled', '自动建造已取消，已提交的前面几轮保持不变。'); break; }
           if (!basisCurrent()) { result = fail('stale-basis', '场景或讨论已经变化，这次自动建造停止。'); break; }
           if (!r.ok) { result = fail(r.audit.error?.code ?? 'request-failed', '自动建造的这一轮模型请求未完成。'); break; }
-          if (!checkDiscussion(value)) { result = fail('invalid-discussion', '自动建造收到的模型回复格式不完整。', [{ path: 'discussion', message: '需要非空 reply、summary 和布尔 ready；commands 若提供必须是数组。' }]); break; }
+          if (!checkDiscussion(value)) {
+            const diagnostics = [{ path: 'discussion', message: parseFailure || '需要非空 reply、summary 和布尔 ready；commands 若提供必须是数组。' }];
+            attempt.loop.iterations.push({ index: iteration, fromRevision: currentVoxel.revision, toRevision: currentVoxel.revision,
+              outcome: 'failed', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
+            attempt.timings.validationMs += performance.now() - validationStarted;
+            result = fail('invalid-discussion', '自动建造收到的模型回复格式不完整。', diagnostics);
+            if (iteration < loopMax) continue;
+            break;
+          }
           explanation = value.reply.trim();
           if (/commands\s*[:：]|```|["']op["']\s*:/.test(explanation)) explanation = explanation.split(/\n\s*(?:commands\s*[:：]|```|\[?\s*\{)/i)[0].trim() || '模型提供了建造方案，实际执行结果见下方。';
           loopSummary = value.summary.trim();
@@ -427,8 +441,8 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
               prepared = null;
               break;
             }
-            mergeChanges(changes); attempt.changes = { ...loopChanges }; attempt.toRevision = prepared.state.revision;
             commitCandidate(prepared, iteration); prepared = null;
+            mergeChanges(changes); attempt.changes = { ...loopChanges }; attempt.toRevision = voxel.state().revision;
             attempt.outcome = 'committed';
             if (!diagnostics.length) {
               result = { ok: true, message: `自动建造完成，共提交 ${iteration} 轮。新增 ${loopChanges.added}、替换 ${loopChanges.replaced}、移除 ${loopChanges.removed} 个方块；更新 ${loopChanges.objects} 个对象。`, diagnostics: [] };
@@ -441,10 +455,19 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           } catch (error) {
             prepared = null;
             const diagnostics = error.diagnostics ?? [{ path: `loop.${iteration}`, message: error.message }];
-            attempt.loop.iterations.push({ index: iteration, fromRevision: currentVoxel.revision, toRevision: currentVoxel.revision,
-              outcome: 'failed', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
-            attempt.timings.validationMs += performance.now() - validationStarted;
-            result = fail('invalid-building', `自动建造第 ${iteration} 轮未通过检查。`, diagnostics);
+            const prior = attempt.loop.iterations.at(-1);
+            if (prior?.index === iteration && prior.outcome !== 'failed') {
+              Object.assign(prior, { toRevision: currentVoxel.revision, outcome: 'failed',
+                changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
+            } else {
+              attempt.loop.iterations.push({ index: iteration, fromRevision: currentVoxel.revision, toRevision: currentVoxel.revision,
+                outcome: 'failed', changes: { cells: 0, objects: 0, added: 0, removed: 0, replaced: 0 }, diagnostics });
+              attempt.timings.validationMs += performance.now() - validationStarted;
+            }
+            result = error.reason === 'cancelled' ? fail('cancelled', '自动建造已取消，已提交的前面几轮保持不变。')
+              : error.reason === 'stale-basis' ? fail('stale-basis', '场景或讨论已经变化，这次自动建造停止。')
+              : fail('invalid-building', `自动建造第 ${iteration} 轮未通过检查。`, diagnostics);
+            if (!error.reason && iteration < loopMax) continue;
             break;
           }
         }

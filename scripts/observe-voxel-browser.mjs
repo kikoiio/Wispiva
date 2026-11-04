@@ -29,23 +29,30 @@ const options = {
   },
 };
 const visualCommands = [
-  { op: 'fill', from: [-6, 0, -6], to: [6, 0, 6], material: 'grass' },
-  { op: 'fill', from: [-3, 1, -3], to: [3, 4, 3], material: 'wood', objectId: 'house' },
+  { op: 'fill', from: [-6, 0, -6], to: [10, 0, 6], material: 'grass' },
+  { op: 'fill', from: [-3, 1, -3], to: [3, 4, 3], material: 'wood', objectId: 'archive' },
   { op: 'fill', from: [-2, 1, -2], to: [2, 4, 2], material: null },
   { op: 'fill', from: [0, 1, 3], to: [0, 2, 3], material: null },
   { op: 'fill', from: [2, 2, 3], to: [2, 3, 3], material: 'glass', objectId: 'window-front' },
   { op: 'fill', from: [3, 2, 0], to: [3, 3, 1], material: 'glass', objectId: 'window-side' },
-  { op: 'fill', from: [-4, 5, -4], to: [4, 5, 4], material: 'roof', objectId: 'house-roof' },
-  { op: 'fill', from: [-3, 6, -3], to: [3, 6, 3], material: 'roof', objectId: 'house-roof' },
-  { op: 'fill', from: [-2, 7, -2], to: [2, 7, 2], material: 'roof', objectId: 'house-roof' },
-  { op: 'fill', from: [-1, 8, -1], to: [1, 8, 1], material: 'roof', objectId: 'house-roof' },
+  { op: 'fill', from: [-4, 5, -4], to: [4, 5, 4], material: 'roof', objectId: 'archive-roof' },
+  { op: 'fill', from: [-3, 6, -3], to: [3, 6, 3], material: 'roof', objectId: 'archive-roof' },
+  { op: 'fill', from: [-2, 7, -2], to: [2, 7, 2], material: 'roof', objectId: 'archive-roof' },
+  { op: 'fill', from: [-1, 8, -1], to: [1, 8, 1], material: 'roof', objectId: 'archive-roof' },
   { op: 'fill', from: [4, 6, 0], to: [4, 6, 0], material: 'wood' },
   { op: 'fill', from: [5, 1, -4], to: [5, 3, -4], material: 'wood' },
   { op: 'fill', from: [4, 4, -5], to: [6, 5, -3], material: 'leaves' },
-  { op: 'object', id: 'house', name: '木屋', kind: 'building', from: [-3, 0, -3], to: [3, 8, 3] },
-  { op: 'object', id: 'house-roof', name: '屋顶', kind: 'roof', from: [-4, 5, -4], to: [4, 8, 4] },
+  { op: 'fill', from: [7, 1, -3], to: [9, 1, 0], material: 'water', objectId: 'harbor' },
+  { op: 'fill', from: [-1, 1, 0], to: [0, 1, 0], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'fill', from: [-1, 2, 0], to: [0, 2, 0], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'fill', from: [0, 1, 1], to: [0, 1, 1], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'object', id: 'archive', name: '地下星图库', kind: 'building', from: [-3, 0, -3], to: [3, 8, 3] },
+  { op: 'object', id: 'archive-roof', name: '屋顶', kind: 'roof', from: [-4, 5, -4], to: [4, 8, 4] },
   { op: 'object', id: 'window-front', name: '正窗', kind: 'window', from: [2, 2, 3], to: [2, 3, 3] },
   { op: 'object', id: 'window-side', name: '侧窗', kind: 'window', from: [3, 2, 0], to: [3, 3, 1] },
+  { op: 'object', id: 'archive-furniture', name: '室内桌椅', kind: 'furniture', from: [-1, 1, 0], to: [0, 2, 1] },
+  { op: 'object', id: 'observatory', name: '潮汐观测台', kind: 'area', from: [4, 0, 2], to: [5, 0, 3] },
+  { op: 'object', id: 'harbor', name: '风帆码头', kind: 'area', from: [7, 1, -3], to: [9, 1, 0] },
 ];
 const visualOptions = {
   stateFile: join(temporary, 'visual', 'state.json'),
@@ -59,14 +66,17 @@ const visualOptions = {
       assert.deepEqual(input.voxel.cells, []);
     } else {
       assert.equal(input.voxel.revision, 1);
-      assert(input.voxel.objects.find(o => o.id === 'house-roof').memberRegions.length > 0);
+      assert(input.voxel.objects.find(o => o.id === 'archive-roof').memberRegions.length > 0);
     }
-    const value = { reply: '本次方案保留木屋与周围内容。', summary: '草地、带窗户和屋顶的木屋，还有一棵树。', ready: false,
-      commands: visual.syntheticModelCalls === 1 ? visualCommands : [{ op: 'paint-object', id: 'house-roof', material: 'stone' }] };
+    const value = { reply: '本次方案保留木屋与周围内容。', summary: '湖岸草地、带窗户和屋顶的木屋、室内桌椅与树木。', ready: false,
+      commands: visual.syntheticModelCalls === 1 ? visualCommands : [{ op: 'paint-object', id: 'archive-roof', material: 'stone' }] };
     return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(value) }] }] });
   },
 };
 const entryDefinition = createGeneratedFixture();
+const harbor = entryDefinition.world.places.find(place => place.id === 'harbor');
+entryDefinition.world.actors.push({ id: 'boater', name: '湖上访客', role: '划船者', goal: '沿岸停靠。', background: '正在水面上行船。', location: 'harbor', fatigue: 0 });
+entryDefinition.scene.objects.push({ id: 'boater', kind: 'character', name: '湖上访客', position: [...harbor.position] });
 let entryCalls = 0;
 const entryOptions = {
   stateFile: join(temporary, 'entry', 'state.json'),
@@ -79,10 +89,7 @@ const entryOptions = {
       return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
         reply: userTurns < 2 ? '我先把木屋起点搭出来。' : '起点已经清楚，可以生成。',
         summary: '一座带木屋的海边起点。', ready: userTurns >= 2,
-        commands: userTurns === 1 ? [
-          { op: 'walls', from: [0, 0, 0], to: [4, 3, 4], material: 'wood' },
-          { op: 'object', id: 'observatory', name: '观测木屋', kind: 'building', from: [0, 0, 0], to: [4, 3, 4] },
-        ] : [],
+        commands: userTurns === 1 ? visualCommands : [],
       }) }] }] });
     }
     return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(entryDefinition) }] }] });
@@ -224,7 +231,7 @@ export async function createVoxelScene(host, initialWorld) {
   const scene = await state();
   assert.equal(scene.revision, 1);
   const blocks = new Map(scene.cells.map(cell => [cell.position.join(','), cell.material]));
-  for (const [position, material] of [['-6,0,-6', 'grass'], ['-3,1,-3', 'wood'], ['2,2,3', 'glass'], ['0,8,0', 'roof'], ['5,4,-4', 'leaves']]) {
+  for (const [position, material] of [['-6,0,-6', 'grass'], ['-3,1,-3', 'wood'], ['2,2,3', 'glass'], ['0,8,0', 'roof'], ['5,4,-4', 'leaves'], ['8,1,-2', 'water'], ['-1,2,0', 'wood']]) {
     assert.equal(blocks.get(position), material, `Unexpected material at ${position}`);
   }
   assert.equal(blocks.has('0,1,3'), false, 'The doorway should be open');
@@ -238,9 +245,9 @@ export async function createVoxelScene(host, initialWorld) {
   assert.equal(visual.syntheticModelCalls, 1);
   assert.equal(inputs.length, 2);
   assert.deepEqual(errors, []);
-  checks.push('independent grass and roofed cabin fixture renders for visual review');
+  checks.push('island, shoreline, water, furnished cabin, tree and semantic place areas render for visual review');
   assert.deepEqual(inspectVoxelSpaces(scene).issues, []);
-  const originalRoof = scene.objects.find(o => o.id === 'house-roof');
+  const originalRoof = scene.objects.find(o => o.id === 'archive-roof');
   await send('把屋顶换成石色，其余部分保持。');
   const painted = await state(), roofMembers = new Set(originalRoof.members.map(p => p.join(',')));
   assert.deepEqual(painted.objects, scene.objects);
@@ -283,7 +290,7 @@ export async function createVoxelScene(host, initialWorld) {
   ]);
   await page.waitForFunction(() => !document.querySelector('#world-draft').hidden && !document.querySelector('#world-accept').disabled);
   const entryDraft = await state();
-  assert.equal(entryDraft.cells.length, 64);
+  assert.equal(entryDraft.cells.length, scene.cells.length);
   await Promise.all([
     page.waitForResponse(response => response.url().endsWith('/api/control') && response.request().postDataJSON()?.type === 'world-accept'),
     page.locator('#world-accept').click(),
@@ -291,11 +298,15 @@ export async function createVoxelScene(host, initialWorld) {
   await page.waitForFunction(() => document.querySelector('#world-experience').hidden === false && document.querySelector('#scene-host canvas'));
   const entered = await page.request.get('/api/state').then(response => response.json());
   assert.equal(entered.creation.mode, 'world');
-  assert.equal(entered.genesis.voxel.cells.length, 64);
-  assert.equal(entered.genesis.voxelBindings.anchors[0].id, 'observatory');
+  assert.equal(entered.genesis.voxel.cells.length, scene.cells.length);
+  assert(entered.voxelActors.some(actor => actor.id === 'mira'), 'The observatory resident should stand on the supported shore area');
+  assert(entered.voxelActors.some(actor => actor.id === 'sen'), 'The archive resident should stand inside the building');
+  assert(!entered.voxelActors.some(actor => actor.id === 'boater'), 'A resident located on water must not be projected onto an invented standing position');
   await page.locator('#scene-host canvas').screenshot({ path: join(output, '09-confirmed-world.png') });
+  visual.screenshots.push('09-confirmed-world.png');
   assert.equal(entryCalls, 3);
-  checks.push('confirming the origin enters the live world with the same voxel snapshot');
+  checks.push('confirming the origin enters the live world with the same voxel snapshot and projects residents only onto supported places');
+  visual.projectedActors = entered.voxelActors.map(actor => ({ id: actor.id, placeId: actor.placeId }));
   writeFileSync(join(output, 'report.json'), JSON.stringify({ ok: true, checks, syntheticModelCalls: inputs.length, visual, realModelCalls: 0, errors }, null, 2));
 } catch (error) {
   if (page) await shot('failure').catch(() => {});

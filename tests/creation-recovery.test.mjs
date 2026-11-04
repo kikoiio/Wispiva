@@ -50,6 +50,7 @@ test('build prompt requires same-request object registration before using object
   assert(messages[0].content.includes('完整单层建筑优先返回一个 op:"building" 结构方案'));
   const request = JSON.parse(messages.at(-1).content);
   assert.match(request.instruction, /空白场景的自动建造首轮.*必须生成 commands/);
+  assert.match(request.instruction, /必须只返回一个 op:"building" 结构方案，不能同时输出底层/);
 });
 
 test('automatic build loop compiles one model building plan into a checked walkable cabin', async t => {
@@ -65,6 +66,47 @@ test('automatic build loop compiles one model building plan into a checked walka
   assert.deepEqual(result.diagnostics, []);
   assert.equal(result.state.creation.voxel.revision, 1);
   assert.deepEqual(result.state.creation.voxel.objects.map(object => object.kind).sort(), ['building', 'roof']);
+});
+
+test('automatic build loop accepts valid commands when optional prose fields are omitted', async t => {
+  const f = fixture(t, () => ({ commands: [{ op: 'building', id: 'cabin', name: '木屋', from: [0, 0, 0], to: [4, 0, 4],
+    entrance: { wall: 'south' } }] }));
+  const result = await f.experience.discussStep({ message: '自动建一间能走进去的木屋', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, true, JSON.stringify({ message: result.message, reason: result.reason, diagnostics: result.diagnostics }));
+  assert.match(result.reply, /程序会报告实际提交和复查结果/);
+  assert.equal(result.attempt.outcome, 'committed');
+  assert.deepEqual(result.diagnostics, []);
+  assert.equal(result.state.creation.voxel.cells.length, 121);
+});
+
+test('automatic build loop reasks after an invalid response schema within its iteration budget', async t => {
+  const f = fixture(t, (input, n) => {
+    assert.equal(input.loopContext.iteration, n);
+    if (n === 1) return { reply: '本轮修改。', summary: '修复场景。', ready: false, commands: 'not-an-array' };
+    assert.equal(input.voxel.revision, 0);
+    assert(input.loopContext.previousDiagnostics.some(d => /commands 若提供必须是数组/.test(d.message)));
+    return { commands: [{ op: 'fill', from: [0, 0, 0], to: [0, 0, 0], material: 'wood' }] };
+  });
+  const result = await f.experience.discussStep({ message: '自动建一个起点', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, true, result.message);
+  assert.deepEqual(result.attempt.loop.iterations.map(i => i.outcome), ['failed', 'committed']);
+  assert.equal(result.state.creation.voxel.revision, 1);
+  assert.equal(result.state.creation.voxel.cells.length, 1);
+});
+
+test('automatic build loop reasks after object-scope validation errors with exact diagnostics', async t => {
+  const f = fixture(t, (input, n) => {
+    assert.equal(input.loopContext.iteration, n);
+    if (n === 1) return output([{ op: 'fill', from: [0, 0, 0], to: [0, 0, 0], material: 'wood', objectId: 'missing' }]);
+    assert.equal(input.voxel.revision, 0);
+    assert(input.loopContext.previousDiagnostics.some(d => /未登记的对象/.test(d.message)));
+    return output([{ op: 'fill', from: [0, 0, 0], to: [0, 0, 0], material: 'wood' }]);
+  });
+  const result = await f.experience.discussStep({ message: '自动建一个起点', mode: 'loop', maxIterations: 2 });
+  assert.equal(result.ok, true, result.message);
+  assert.deepEqual(result.attempt.loop.iterations.map(i => i.outcome), ['failed', 'committed']);
+  assert.equal(result.state.creation.voxel.revision, 1);
+  assert.equal(result.state.creation.voxel.cells.length, 1);
 });
 
 test('large exact part membership is packed without crashing the next model request', async t => {
