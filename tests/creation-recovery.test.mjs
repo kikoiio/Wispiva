@@ -41,6 +41,12 @@ test('large scene context is losslessly packed without hiding holes, materials o
   assert(JSON.stringify(context).length < JSON.stringify({revision:3,cells,objects}).length / 2);
 });
 
+test('build prompt requires same-request object registration before using objectId', () => {
+  const messages = buildDiscussionMessages({ messages: [], summary: '', ready: false, revision: 0 }, null, null,
+    { revision: 0, cells: [], objects: [] }, { mode: 'loop' });
+  assert(messages[0].content.includes('写入命令带 objectId 时，commands 中必须同时包含 id 完全相同的 op:"object" 定义'));
+});
+
 test('large exact part membership is packed without crashing the next model request', async t => {
   const f = fixture(t, (input, n) => {
     if (n === 2) {
