@@ -42,17 +42,16 @@ const visualCommands = [
   { op: 'fill', from: [4, 6, 0], to: [4, 6, 0], material: 'wood' },
   { op: 'fill', from: [5, 1, -4], to: [5, 3, -4], material: 'wood' },
   { op: 'fill', from: [4, 4, -5], to: [6, 5, -3], material: 'leaves' },
-  { op: 'fill', from: [7, 1, -3], to: [9, 1, 0], material: 'water', objectId: 'harbor' },
-  { op: 'fill', from: [-1, 1, 0], to: [0, 1, 0], material: 'wood', objectId: 'archive-furniture' },
-  { op: 'fill', from: [-1, 2, 0], to: [0, 2, 0], material: 'wood', objectId: 'archive-furniture' },
-  { op: 'fill', from: [0, 1, 1], to: [0, 1, 1], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'fill', from: [6, 1, -3], to: [10, 1, 1], material: 'water', objectId: 'harbor' },
+  { op: 'fill', from: [-1, 2, -1], to: [0, 2, 0], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'walls', from: [-1, 1, -1], to: [0, 1, 0], material: 'wood', objectId: 'archive-furniture' },
   { op: 'object', id: 'archive', name: '地下星图库', kind: 'building', from: [-3, 0, -3], to: [3, 8, 3] },
   { op: 'object', id: 'archive-roof', name: '屋顶', kind: 'roof', from: [-4, 5, -4], to: [4, 8, 4] },
   { op: 'object', id: 'window-front', name: '正窗', kind: 'window', from: [2, 2, 3], to: [2, 3, 3] },
   { op: 'object', id: 'window-side', name: '侧窗', kind: 'window', from: [3, 2, 0], to: [3, 3, 1] },
-  { op: 'object', id: 'archive-furniture', name: '室内桌椅', kind: 'furniture', from: [-1, 1, 0], to: [0, 2, 1] },
+  { op: 'object', id: 'archive-furniture', name: '室内木桌', kind: 'furniture', from: [-1, 1, -1], to: [0, 2, 0] },
   { op: 'object', id: 'observatory', name: '潮汐观测台', kind: 'area', from: [4, 0, 2], to: [5, 0, 3] },
-  { op: 'object', id: 'harbor', name: '风帆码头', kind: 'area', from: [7, 1, -3], to: [9, 1, 0] },
+  { op: 'object', id: 'harbor', name: '风帆码头', kind: 'area', from: [6, 1, -3], to: [10, 1, 1] },
 ];
 const visualOptions = {
   stateFile: join(temporary, 'visual', 'state.json'),
@@ -307,6 +306,12 @@ export async function createVoxelScene(host, initialWorld) {
   const worldCanvas = page.locator('#scene-host canvas');
   const worldExterior = await worldCanvas.screenshot();
   await page.locator('#scene-host').getByRole('button', { name: '查看室内' }).click();
+  const worldCanvasBox = await worldCanvas.boundingBox();
+  assert(worldCanvasBox);
+  await page.mouse.move(worldCanvasBox.x + worldCanvasBox.width / 2, worldCanvasBox.y + worldCanvasBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(worldCanvasBox.x + worldCanvasBox.width / 2 + 98, worldCanvasBox.y + worldCanvasBox.height / 2 + 70, { steps: 8 });
+  await page.mouse.up();
   const worldInterior = await worldCanvas.screenshot({ path: join(output, '13-confirmed-world-interior.png') });
   assert(!worldExterior.equals(worldInterior), 'The live world interior view should reveal a different view without changing its geometry');
   const interiorState = await page.request.get('/api/state').then(response => response.json());
