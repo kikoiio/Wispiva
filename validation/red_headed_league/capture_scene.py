@@ -32,6 +32,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine.luanti.control import send_command
+from engine.luanti.recovery_journal import MARKER_FILE
 from genesis.store import DraftStore
 from genesis.world_create import create_world
 
@@ -76,7 +77,7 @@ def failure_diagnostics(work):
         for line in lines[-12:]:
             print(f"capture diagnostic ({name}): {line[:700]}", file=sys.stderr)
     # Session and checkpoint status only; no actor identity, memories or text.
-    marker = work / "world/wispiva-session.json"
+    marker = work / "world" / MARKER_FILE
     print(f"capture diagnostic: session marker exists={marker.exists()}", file=sys.stderr)
 
 
@@ -141,6 +142,22 @@ class Processes:
                         except ProcessLookupError:
                             pass
                     if not children:
+                        process.terminate()
+                elif name == "product server":
+                    # Let the engine exit normally, then let the launcher
+                    # finish durable verification. The wrapper's TERM trap
+                    # exits 143 and can mask a failed launcher exit status.
+                    engines = []
+                    for pid in self.group_members(process):
+                        try:
+                            if Path(f"/proc/{pid}/comm").read_text().strip() == "luantiserver":
+                                engines.append(pid)
+                        except FileNotFoundError:
+                            pass
+                    if engines:
+                        for pid in engines:
+                            os.kill(pid, signal.SIGTERM)
+                    else:
                         process.terminate()
                 else:
                     # run_product.sh traps TERM and checkpoints its server;
@@ -338,6 +355,7 @@ def capture(output):
     final_log = read_log(product_log)
     require("SOCIETY product-checkpoint commit " in final_log
             and "SOCIETY fail=" not in final_log, "product did not checkpoint cleanly on shutdown")
+    require(not (world / MARKER_FILE).exists(), "launcher retained a recovery marker after capture")
     # Reload the same committed map, rather than treating a successful first
     # projection as proof that furniture/rug orientations survive persistence.
     resumed = Processes(started + 120)
@@ -374,6 +392,7 @@ def capture(output):
         "decisions_paused": True, "real_model_calls": 0, "owned_processes_stopped": True,
         "product_checkpoint_committed": True,
         "saved_room_and_orientations_recovered": True,
+        "mod_storage_backend": "sqlite3" if (world / "mod_storage.sqlite").is_file() else "files",
         "rendering": "Xvfb / Mesa llvmpipe / OpenGL; unmodified root-window captures",
         "people_and_hud_hidden": True, "lighting": "fixed noon daylight; no clouds",
         "reference": {"file": str(REFERENCE.relative_to(ROOT)), "generated": True,

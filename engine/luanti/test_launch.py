@@ -1,6 +1,7 @@
 import subprocess
 import copy
 import json
+import sqlite3
 import sys
 import tempfile
 import time
@@ -112,6 +113,49 @@ class LauncherTests(unittest.TestCase):
             with mock.patch('engine.luanti.launch.validate_world_contract'):
                 with mock.patch('engine.luanti.launch.subprocess.run', return_value=mock.Mock(returncode=1)):
                     self.assertIsNone(recover_committed_checkpoint(world, expected_world_id=world_id))
+
+    def test_sqlite_checkpoint_is_verified_and_incomplete_state_keeps_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            world = Path(tmp)
+            (world / 'world.mt').write_text('mod_storage_backend = sqlite3\n')
+            (world / 'map.sqlite').write_bytes(b'fixture-map')
+            fields = {'product_state': json.dumps({
+                'world_id': 'w', 'phase': 'READY', 'clock': {'logical_time': 7},
+                'components': {'memory': 1, 'events': 1}}),
+                'agent_state': json.dumps({'long_term': {'records': [{}]},
+                                          'world_events': {'events': [{}]}}),
+                'environment_state': json.dumps({'time': 7}), 'product_active_run': ''}
+            database = world / 'mod_storage.sqlite'
+            with sqlite3.connect(database) as db:
+                db.execute('CREATE TABLE entries (modname TEXT, key BLOB, value BLOB, PRIMARY KEY(modname,key))')
+                db.executemany('INSERT INTO entries VALUES (?,?,?)',
+                    [('society', key.encode(), value.encode()) for key, value in fields.items()])
+                db.execute('INSERT INTO entries VALUES (?,?,?)', ('other_mod', b'private', b'ignored'))
+            before = database.read_bytes()
+            _verify_product_checkpoint(world, 'w')
+            self.assertEqual(database.read_bytes(), before, 'verification must be read-only')
+            # A paused fresh world has no events; Luanti encodes its empty
+            # table as JSON null, which must still agree with the zero count.
+            empty = copy.deepcopy(fields)
+            state = json.loads(empty['product_state'])
+            state['components']['events'] = 0
+            empty['product_state'] = json.dumps(state)
+            agents = json.loads(empty['agent_state'])
+            agents['world_events']['events'] = None
+            empty['agent_state'] = json.dumps(agents)
+            with sqlite3.connect(database) as db:
+                db.executemany('UPDATE entries SET value=? WHERE modname=? AND key=?',
+                    [(value.encode(), 'society', key.encode()) for key, value in empty.items()])
+            _verify_product_checkpoint(world, 'w')
+            with sqlite3.connect(database) as db:
+                db.execute('UPDATE entries SET value=? WHERE modname=? AND key=?',
+                           (b'unfinished', 'society', b'product_active_run'))
+            with self.assertRaises(RecoveryRequired):
+                _verify_product_checkpoint(world, 'w')
+            with sqlite3.connect(database) as db:
+                db.execute('DELETE FROM entries WHERE modname=? AND key=?', ('society', b'agent_state'))
+            with self.assertRaises(RecoveryRequired):
+                _verify_product_checkpoint(world, 'w')
 
     def test_recovery_keeps_marker_when_checkpoint_is_active_or_incomplete(self):
         with tempfile.TemporaryDirectory() as tmp:

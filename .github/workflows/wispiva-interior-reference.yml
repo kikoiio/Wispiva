@@ -44,7 +44,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$TMPDIR"
           python3 -B -m unittest -v genesis.test_genesis genesis.test_compiler \
-            genesis.test_world_create validation.red_headed_league.test_moment
+            genesis.test_world_create validation.red_headed_league.test_moment engine.luanti.test_launch
+          (cd cognition && lua5.1 test_persistence.lua)
           lua5.1 engine/luanti/mod/society/test_world_projection.lua
           if [[ -f engine/luanti/mod/society/test_interior_blueprints.lua ]]; then
             lua5.1 engine/luanti/mod/society/test_interior_blueprints.lua

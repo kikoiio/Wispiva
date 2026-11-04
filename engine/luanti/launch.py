@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import signal
+import sqlite3
 import subprocess
 import sys
 
@@ -33,40 +34,93 @@ def _forward(child, signum, _frame):
             pass
 
 
+def _checkpoint_fields(world):
+    """Read society's committed fields without changing either engine backend."""
+    legacy, database = world / 'mod_storage/society', world / 'mod_storage.sqlite'
+    backend = None
+    if (world / 'world.mt').is_file():
+        for line in (world / 'world.mt').read_text().splitlines():
+            key, separator, value = line.partition('=')
+            if separator and key.strip() == 'mod_storage_backend':
+                backend = value.strip()
+    if backend is None:
+        if legacy.is_file() == database.is_file():
+            raise ValueError('ambiguous or missing mod storage')
+        backend = 'files' if legacy.is_file() else 'sqlite3'
+    if backend == 'files':
+        with legacy.open('rb') as source:
+            raw = source.read(32 * 1024 * 1024 + 1)
+        if len(raw) > 32 * 1024 * 1024:
+            raise ValueError('oversized mod storage')
+        return json.loads(raw), [legacy]
+    if backend != 'sqlite3' or database.is_symlink() or not database.is_file():
+        raise ValueError('unsupported mod storage')
+    connection = sqlite3.connect(database.absolute().as_uri() + '?mode=ro', uri=True)
+    try:
+        connection.execute('PRAGMA query_only=ON')
+        fields, total = {}, 0
+        for key in ('product_state', 'agent_state', 'environment_state', 'product_active_run'):
+            row = connection.execute(
+                'SELECT value FROM entries WHERE modname=? AND key IN (?,?)',
+                ('society', key, key.encode())).fetchall()
+            if len(row) != 1:
+                raise ValueError('missing or duplicate checkpoint field')
+            value = row[0][0]
+            if isinstance(value, bytes):
+                value = value.decode('utf-8')
+            if not isinstance(value, str):
+                raise ValueError('invalid checkpoint field')
+            total += len(value.encode('utf-8'))
+            if total > 32 * 1024 * 1024:
+                raise ValueError('oversized checkpoint')
+            fields[key] = value
+    finally:
+        connection.close()
+    stores = [database]
+    if (world / 'mod_storage.sqlite-wal').is_file():
+        stores.append(world / 'mod_storage.sqlite-wal')
+    return fields, stores
+
+
+def _checkpoint_count(value):
+    # Luanti serializes an empty Lua table as null. No nonempty object or
+    # scalar can stand in for the actual stored event/memory array.
+    if value is None or value == {}:
+        return 0
+    if type(value) is not list:
+        raise ValueError('invalid checkpoint collection')
+    return len(value)
+
+
 def _verify_product_checkpoint(world_dir, world_id):
     """Clear the durable session marker only after a clean, matching checkpoint."""
     world = Path(world_dir)
     try:
-        path = world / 'mod_storage/society'
-        with path.open('rb') as source:
-            raw = source.read(32 * 1024 * 1024 + 1)
-        if len(raw) > 32 * 1024 * 1024:
-            raise ValueError
-        fields = json.loads(raw)
+        fields, stores = _checkpoint_fields(world)
         state = json.loads(fields['product_state'])
         agents = json.loads(fields['agent_state'])
         environment = json.loads(fields['environment_state'])
         if (state['world_id'] != world_id or state['phase'] != 'READY' or
                 state.get('pending') is not None or fields.get('product_active_run') or
                 state['clock']['logical_time'] != environment['time'] or
-                state['components']['memory'] != len(agents['long_term']['records']) or
-                state['components']['events'] != len(agents['world_events']['events'])):
+                state['components']['memory'] != _checkpoint_count(agents['long_term']['records']) or
+                state['components']['events'] != _checkpoint_count(agents['world_events']['events'])):
             raise ValueError
         # The engine has exited. Flush its independent stores before removing
         # the fsynced recovery marker; any failure leaves the world fenced.
-        for item in (path, world / 'map.sqlite'):
+        for item in [*stores, world / 'map.sqlite']:
             fd = os.open(item, os.O_RDONLY | os.O_NOFOLLOW)
             try:
                 os.fsync(fd)
             finally:
                 os.close(fd)
-        for directory in (path.parent, world):
+        for directory in {item.parent for item in stores} | {world}:
             fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
             try:
                 os.fsync(fd)
             finally:
                 os.close(fd)
-    except (OSError, ValueError, KeyError, TypeError):
+    except (OSError, ValueError, KeyError, TypeError, sqlite3.Error):
         raise RecoveryRequired('product checkpoint is incomplete; recovery marker retained') from None
 
 

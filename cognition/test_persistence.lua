@@ -115,3 +115,12 @@ a.object.get_pos = function() return nil end
 local missing, reason = persistence.snapshot(a)
 assert(missing == nil and reason == "entity has no position")
 print("persistence tests passed")
+
+local long_term = dofile('long_term_memory.lua')
+local world_events = dofile('world_events.lua')
+local empty_checkpoint = persistence.pack_checkpoint({s},long_term.new(),world_events.new(),false)
+-- Luanti's JSON round trip turns the empty events array into an absent field.
+empty_checkpoint.world_events.events = nil
+local restored, _, empty_events = persistence.unpack_checkpoint(empty_checkpoint,long_term,world_events)
+assert(#restored==1 and empty_events:count()==0)
+print('empty JSON world-event checkpoint restored')

@@ -194,8 +194,13 @@ function M.unpack_checkpoint(checkpoint, long_term_module, world_events_module)
     long_term = checkpoint.long_term and long_term_module.load(checkpoint.long_term)
       or long_term_module.new()
     if world_events_module then
-      world_events = checkpoint.world_events and world_events_module.load(checkpoint.world_events)
-        or world_events_module.new()
+      local snapshot = checkpoint.world_events
+      -- At the JSON boundary an empty Lua array becomes null and parses back
+      -- as an absent field. Keep the module's direct-load validation strict.
+      if type(snapshot) == "table" and snapshot.version == 1 and snapshot.events == nil then
+        snapshot = {version=1, events={}}
+      end
+      world_events = snapshot and world_events_module.load(snapshot) or world_events_module.new()
     end
   end
   local result = {}
