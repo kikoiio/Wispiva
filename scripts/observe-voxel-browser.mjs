@@ -43,7 +43,7 @@ const visualCommands = [
   { op: 'fill', from: [5, 1, -4], to: [5, 3, -4], material: 'wood' },
   { op: 'fill', from: [4, 4, -5], to: [6, 5, -3], material: 'leaves' },
   { op: 'fill', from: [6, 1, -3], to: [10, 1, 1], material: 'water', objectId: 'harbor' },
-  { op: 'fill', from: [-1, 2, -1], to: [0, 2, 0], material: 'wood', objectId: 'archive-furniture' },
+  { op: 'fill', from: [-1, 2, -1], to: [0, 2, 0], material: 'stone', objectId: 'archive-furniture' },
   { op: 'walls', from: [-1, 1, -1], to: [0, 1, 0], material: 'wood', objectId: 'archive-furniture' },
   { op: 'object', id: 'archive', name: '地下星图库', kind: 'building', from: [-3, 0, -3], to: [3, 8, 3] },
   { op: 'object', id: 'archive-roof', name: '屋顶', kind: 'roof', from: [-4, 5, -4], to: [4, 8, 4] },
