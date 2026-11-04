@@ -304,6 +304,15 @@ export async function createVoxelScene(host, initialWorld) {
   assert(!entered.voxelActors.some(actor => actor.id === 'boater'), 'A resident located on water must not be projected onto an invented standing position');
   await page.locator('#scene-host canvas').screenshot({ path: join(output, '09-confirmed-world.png') });
   visual.screenshots.push('09-confirmed-world.png');
+  const worldCanvas = page.locator('#scene-host canvas');
+  const worldExterior = await worldCanvas.screenshot();
+  await page.locator('#scene-host').getByRole('button', { name: '查看室内' }).click();
+  const worldInterior = await worldCanvas.screenshot({ path: join(output, '13-confirmed-world-interior.png') });
+  assert(!worldExterior.equals(worldInterior), 'The live world interior view should reveal a different view without changing its geometry');
+  const interiorState = await page.request.get('/api/state').then(response => response.json());
+  assert.deepEqual(interiorState.genesis.voxel, entered.genesis.voxel, 'Switching to the live world interior view must not mutate the accepted geometry');
+  assert.deepEqual(interiorState.voxelActors, entered.voxelActors, 'Switching view must keep the same supported resident placements');
+  visual.screenshots.push('13-confirmed-world-interior.png');
   assert.equal(entryCalls, 3);
   checks.push('confirming the origin enters the live world with the same voxel snapshot and projects residents only onto supported places');
   visual.projectedActors = entered.voxelActors.map(actor => ({ id: actor.id, placeId: actor.placeId }));

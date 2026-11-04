@@ -241,7 +241,7 @@ export async function createVoxelScene(host, initialWorld) {
       const ctx = label.getContext('2d');
       ctx.fillStyle = '#13242be6'; ctx.fillRect(0, 0, 256, 64); ctx.fillStyle = '#eaf8ff'; ctx.textAlign = 'center'; ctx.font = '24px sans-serif'; ctx.fillText(String(actor.name || '').slice(0, 10), 128, 42);
       const texture = new THREE.CanvasTexture(label); texture.colorSpace = THREE.SRGBColorSpace;
-      const name = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: false })); name.position.y = 1.9; name.scale.set(2.6, 0.65, 1); person.add(name);
+      const name = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, depthTest: true })); name.position.y = 1.9; name.scale.set(2.6, 0.65, 1); person.add(name);
       people.add(person);
     }
     requestRender();
