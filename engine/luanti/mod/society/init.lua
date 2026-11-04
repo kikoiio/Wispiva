@@ -411,6 +411,7 @@ minetest.register_node("society:resource", {
 	description = "society resource", tiles = {"default_stone.png^[colorize:#33aa66:180"},
 	groups = {cracky = 3},
 })
+dofile(minetest.get_modpath("society") .. "/interior_nodes.lua").register(minetest)
 
 local function view_send(player, message)
 	if player and player:is_player() then
@@ -599,8 +600,9 @@ minetest.register_entity("society:view_guide", {
 	})
 
 local function view_landmark_position(place)
-	local radius = place.space == "indoor" and 3 or 2
-	return {x = place.anchor.x + radius + 1, y = 1.5, z = place.anchor.z}
+	local radius = place.blueprint and 6 or (place.space == "indoor" and 3 or 2)
+	return {x = place.anchor.x + radius + 1, y = 1.5,
+		z = place.anchor.z + (place.blueprint and -3 or 0)}
 end
 
 local function spawn_view_scene()
@@ -1014,7 +1016,19 @@ if minetest.register_on_joinplayer then
 	minetest.register_on_joinplayer(function(player)
 		free_blocked_agents()
 		set_body_solid(true)
-		if VIEW_SPAWN then player:set_pos({x = 0, y = 1, z = -20}) end
+		if VIEW_SPAWN then
+			local room
+			for _, place in ipairs(genesis_manifest and genesis_manifest.public.places or {}) do
+				if place.blueprint == "victorian_sitting_room_v1" then room = place; break end
+			end
+			if room then
+				player:set_pos({x=room.anchor.x+3.7, y=1, z=room.anchor.z-3.7})
+				player:set_look_horizontal(0.45)
+				player:set_look_vertical(0.12)
+			else
+				player:set_pos({x = 0, y = 1, z = -20})
+			end
+		end
 		reader.refresh()
 		if WORLD_PRODUCT and not VIEW_ACCEPTANCE then
 			local name = player:get_player_name()
@@ -2044,7 +2058,7 @@ local function apply_product_projection()
 				-- later interactions, so they must not freeze a valid world.
 				if expected ~= "air" then
 					local actual = minetest.get_node_or_nil(operation.position)
-					if not actual or not world_projection.node_matches_origin(operation, actual.name) then
+					if not actual or not world_projection.node_matches_origin(operation, actual.name, actual.param2) then
 						freeze_product_state("origin projection differs from committed map")
 						fail("product-reconcile", "map=%s expected=%s actual=%s", operation.key, expected,
 							actual and actual.name or "unknown")
@@ -2062,15 +2076,19 @@ local function apply_product_projection()
 	target.map = 1
 	product_state:prepare("origin-projection:" .. genesis_manifest.origin_event_id, target)
 	save_product_state()
+	local projection_height = 4
 	for _, operation in ipairs(plan.operations) do
 		if operation.kind == "node" then
+			projection_height = math.max(projection_height, operation.position.y)
 			local desired = operation.value
 			local name = desired and desired.name or "air"
-			local current = minetest.get_node(operation.position).name
-			if current ~= name then
-				minetest.set_node(operation.position, {name = name})
+			local param2 = desired and desired.param2 or 0
+			local current = minetest.get_node(operation.position)
+			if current.name ~= name or current.param2 ~= param2 then
+				minetest.set_node(operation.position, {name = name, param2 = param2})
 			end
-			if minetest.get_node(operation.position).name ~= name then
+			current = minetest.get_node(operation.position)
+			if current.name ~= name or current.param2 ~= param2 then
 				fail("world-projection", "node=%s expected=%s", operation.key, name)
 				return false
 			end
@@ -2080,10 +2098,11 @@ local function apply_product_projection()
 	-- origin region through VoxelManip before publishing the product commit,
 	-- so a restart cannot observe a committed projection with an old map.
 	local vm = minetest.get_voxel_manip(
-		{x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = 4, z = BOUND})
+		{x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = projection_height, z = BOUND})
 	local minp, maxp = vm:get_emerged_area()
 	local sx, sy = maxp.x - minp.x + 1, maxp.y - minp.y + 1
 	local map_data = vm:get_data()
+	local map_param2 = vm:get_param2_data()
 	for _, operation in ipairs(plan.operations) do
 		if operation.kind == "node" then
 			local p = operation.position
@@ -2091,9 +2110,11 @@ local function apply_product_projection()
 			local index = (p.z - minp.z) * sy * sx + (p.y - minp.y) * sx + (p.x - minp.x) + 1
 			assert(index >= 1 and index <= #map_data, "origin projection outside emerged map")
 			map_data[index] = minetest.get_content_id(name)
+			map_param2[index] = operation.value and operation.value.param2 or 0
 		end
 	end
 	vm:set_data(map_data)
+	vm:set_param2_data(map_param2)
 	vm:write_to_map()
 	injected_fault("after_map")
 	local committed = product_state:commit("origin-projection:" .. genesis_manifest.origin_event_id, target)

@@ -1,0 +1,20 @@
+{
+  "title": "221B Baker Street sitting room — Red-Headed League reference",
+  "kind": "generated interpretive visual reference, not a historical photograph or game screenshot",
+  "tool": "built-in image_gen",
+  "literary_source": "docs/source-texts/sherlock-holmes/the-red-headed-league.txt",
+  "illustration_source": "https://commons.wikimedia.org/wiki/File:Redh-02.jpg",
+  "illustration_author": "Sidney Paget",
+  "illustration_date": "1891-08",
+  "scene_features": [
+    "green patterned wallpaper and walnut wainscot",
+    "central walnut fireplace and mantel clock",
+    "left sash window with burgundy curtains",
+    "two oxblood armchairs with table newspaper and tea",
+    "red and cream rug",
+    "ochre settee and leatherbound books",
+    "writing desk and green lamp"
+  ],
+  "implementation": "layout.places[].blueprint = victorian_sitting_room_v1",
+  "interpretation": "Full layout, colors and decorative details are a period interpretation. The original passage establishes the consultation, armchair, settee and newspaper."
+}

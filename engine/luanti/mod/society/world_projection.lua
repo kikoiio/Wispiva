@@ -75,6 +75,75 @@ local function copy(v)
   return out
 end
 
+-- A reusable, versioned furnished-room blueprint. Coordinates are relative to
+-- the public anchor; the story chooses it in its draft, never by place name.
+local function sitting_room(p, node)
+  local function put(x,y,z,name,rotation)
+    node(point(p.x+x,y,p.z+z), 'society:' .. name, rotation)
+  end
+  for x=-6,6 do
+    for z=-5,5 do
+      put(x,0,z,'parquet')
+      for y=1,5 do
+        local wall = math.abs(x)==6 or math.abs(z)==5
+        local door = x==6 and z==-3 and y<=2
+        if wall and not door then
+          put(x,y,z,y==1 and 'panelling' or (y==5 and 'cornice' or 'wallpaper'))
+        else
+          node(point(p.x+x,y,p.z+z),nil)
+        end
+      end
+      put(x,6,z,'plaster')
+    end
+  end
+  for x=-4,4 do
+    for z=-3,2 do
+      local side_x, side_z = math.abs(x)==4, z==-3 or z==2
+      local name, rotation = 'rug_center', 0
+      if side_x and side_z then
+        name = 'rug_corner'
+        if x==-4 and z==-3 then rotation=0
+        elseif x==-4 then rotation=1
+        elseif z==2 then rotation=2 else rotation=3 end
+      elseif side_x or side_z then
+        name = 'rug_edge'
+        rotation = z==-3 and 0 or (x==-4 and 1 or (z==2 and 2 or 3))
+      end
+      put(x,0,z,name,rotation)
+    end
+  end
+  for z=-2,0 do
+    for y=2,4 do put(-6,y,z,'sash_window',1) end
+  end
+  for _,z in ipairs({-3,1}) do
+    for y=1,4 do put(-5,y,z,'curtain',3) end
+  end
+  for z=-3,1 do put(-5,5,z,'curtain_valance',3) end
+  for x=-1,1 do
+    for z=3,4 do put(x,0,z,'hearth_stone') end
+    put(x,3,4,'mantel')
+  end
+  for _,x in ipairs({-1,1}) do
+    put(x,1,4,'walnut'); put(x,2,4,'walnut')
+  end
+  put(0,1,4,'hearth_fire')
+  put(0,2,4,'hearth_stone')
+  put(0,4,4,'clock')
+  put(0,5,4,'painting')
+  for x=-1,1 do put(x,1,-1,'coffee_table') end
+  put(-1,1,-1,'coffee_table_paper'); put(1,1,-1,'coffee_table_tea')
+  put(-3,1,0,'armchair',3); put(3,1,0,'armchair',1)
+  for x=4,5 do
+    for y=1,3 do put(x,y,4,'bookcase') end
+    put(x,4,4,'bookcase_crown')
+  end
+  put(-4,1,3,'desk'); put(-3,1,3,'desk')
+  put(-4,2,3,'green_lamp'); put(-3,2,3,'papers')
+  put(-4,1,2,'desk_chair',2)
+  put(5,1,1,'settee_left',1); put(5,1,0,'settee_middle',1); put(5,1,-1,'settee_right',1)
+  put(-5,1,-1,'side_table')
+end
+
 function M.accept_binding(manifest)
   if type(manifest) ~= 'table' or manifest.format ~= 'wispiva-world-manifest' then return false end
   if manifest.version == 1 then
@@ -98,18 +167,28 @@ function M.plan(manifest)
   local places, ordered, nodes, actors, occupied = {}, {}, {}, {}, {}
   check(array(view.places, 16) > 0, 'no places')
   array(view.semantic_connections, 64); array(view.actors, 64); array(objects, 64)
-  local function node(p, name)
+  local function node(p, name, param2)
     nodes[key(p)] = {kind='node', key='node:' .. key(p), position=p,
-      value=name and {name=name, param2=0} or false}
+      value=name and {name=name, param2=param2 or 0} or false}
   end
   for _, place in ipairs(view.places) do
     check(type(place) == 'table' and id(place.id) and not places[place.id], 'duplicate/invalid place')
     check(place.space == 'indoor' or place.space == 'outdoor', 'unsupported space')
     local p = position(place.anchor)
-    local radius = place.space == 'indoor' and 3 or 2
+    local detailed = place.blueprint ~= nil
+    check(not detailed or (place.blueprint == 'victorian_sitting_room_v1' and place.space == 'indoor'),
+      'unsupported blueprint')
+    if detailed then
+      for _,field in ipairs({'floor','wall','ceiling','apron','windows'}) do
+        check(place[field] == nil, 'blueprint material override')
+      end
+    end
+    local radius = detailed and 6 or (place.space == 'indoor' and 3 or 2)
+    local depth = detailed and 5 or radius
+    if detailed then check(math.abs(p.x)+radius <= 32 and math.abs(p.z)+depth <= 32, 'blueprint outside bounds') end
     for _, other in ipairs(ordered) do
       check(math.abs(p.x-other.anchor.x) > radius+other.radius
-        or math.abs(p.z-other.anchor.z) > radius+other.radius, 'overlapping places')
+        or math.abs(p.z-other.anchor.z) > depth+other.depth, 'overlapping places')
     end
     if place.windows ~= nil then check(type(place.windows) == 'boolean', 'invalid windows') end
     local function build_node(field)
@@ -118,7 +197,8 @@ function M.plan(manifest)
       check(type(name) == 'string' and build_nodes[name] == true, 'unsupported material')
       return name
     end
-    local item = {id=place.id, anchor=p, radius=radius, space=place.space,
+    local item = {id=place.id, anchor=p, radius=radius, depth=depth, space=place.space,
+      blueprint=place.blueprint,
       floor=build_node('floor'), wall=build_node('wall'), ceiling=build_node('ceiling'),
       apron=build_node('apron'), windows=place.windows == true}
     places[place.id] = item; ordered[#ordered+1] = item
@@ -126,23 +206,27 @@ function M.plan(manifest)
   table.sort(ordered, function(a,b) return a.id < b.id end)
   for _, place in ipairs(ordered) do
     local p, r = place.anchor, place.radius
-    local floor_name = place.floor or (place.space == 'indoor' and 'default:wood' or 'default:dirt_with_grass')
-    local wall_name = place.wall or 'default:wood'
-    local ceiling_name = place.ceiling or 'default:wood'
-    for x = p.x-r, p.x+r do
-      for z = p.z-r, p.z+r do
-        node(point(x,0,z), floor_name)
-        for y = 1, 3 do
-          local wall = place.space == 'indoor' and (math.abs(x-p.x)==r or math.abs(z-p.z)==r)
-          -- East doorway, feet and head. A lintel stays at y=3. Other walls stay shut.
-          local door = wall and x == p.x + r and z == p.z and y <= 2
-          local corner = math.abs(x-p.x)==r and math.abs(z-p.z)==r
-          local window = place.windows and wall and not door and not corner and y == 2
-          local name = nil
-          if wall and not door then name = window and 'default:glass' or wall_name end
-          node(point(x,y,z), name)
+    if place.blueprint then
+      sitting_room(p,node)
+    else
+      local floor_name = place.floor or (place.space == 'indoor' and 'default:wood' or 'default:dirt_with_grass')
+      local wall_name = place.wall or 'default:wood'
+      local ceiling_name = place.ceiling or 'default:wood'
+      for x = p.x-r, p.x+r do
+        for z = p.z-r, p.z+r do
+          node(point(x,0,z), floor_name)
+          for y = 1, 3 do
+            local wall = place.space == 'indoor' and (math.abs(x-p.x)==r or math.abs(z-p.z)==r)
+            -- East doorway, feet and head. A lintel stays at y=3. Other walls stay shut.
+            local door = wall and x == p.x + r and z == p.z and y <= 2
+            local corner = math.abs(x-p.x)==r and math.abs(z-p.z)==r
+            local window = place.windows and wall and not door and not corner and y == 2
+            local name = nil
+            if wall and not door then name = window and 'default:glass' or wall_name end
+            node(point(x,y,z), name)
+          end
+          if place.space == 'indoor' then node(point(x,4,z), ceiling_name) end
         end
-        if place.space == 'indoor' then node(point(x,4,z), ceiling_name) end
       end
     end
   end
@@ -160,10 +244,15 @@ function M.plan(manifest)
     local function route_key(x, z) return x .. ',' .. z end
     local function blocked(x, z)
       for _, other in ipairs(ordered) do
-        if other.id ~= from and other.id ~= to
-          and math.abs(x-other.anchor.x) <= other.radius
-          and math.abs(z-other.anchor.z) <= other.radius then
-          return true
+        if math.abs(x-other.anchor.x) <= other.radius
+          and math.abs(z-other.anchor.z) <= other.depth then
+          if other.id ~= from and other.id ~= to then return true end
+          if other.blueprint then
+            for y=1,2 do
+              local cell = nodes[key(point(x,y,z))]
+              if cell and cell.value ~= false then return true end
+            end
+          end
         end
       end
       return false
@@ -203,8 +292,12 @@ function M.plan(manifest)
   for _, c in ipairs(connections) do
     local a,b = places[c.from].anchor, places[c.to].anchor
     local function path(x,z)
-      node(point(x,0,z), 'default:stone')
       path_cells[key(point(x,1,z))] = true
+      for _,place in ipairs(ordered) do
+        if place.blueprint and math.abs(x-place.anchor.x)<=place.radius
+          and math.abs(z-place.anchor.z)<=place.depth then return end
+      end
+      node(point(x,0,z), 'default:stone')
       for y=1,3 do node(point(x,y,z), nil) end
     end
     for _, p in ipairs(route(a, b, c.from, c.to)) do path(p.x,p.z) end
@@ -227,8 +320,13 @@ function M.plan(manifest)
   end
   local function interior(place_id, p)
     local place = places[place_id]
-    check(place and math.abs(p.x-place.anchor.x) <= 2
-      and math.abs(p.z-place.anchor.z) <= 2, 'start/object outside place interior')
+    check(place and math.abs(p.x-place.anchor.x) <= (place.blueprint and 5 or 2)
+      and math.abs(p.z-place.anchor.z) <= (place.blueprint and 4 or 2), 'start/object outside place interior')
+    if place.blueprint then
+      for y=1,2 do
+        check(nodes[key(point(p.x,y,p.z))].value == false, 'start/object blocked by furnishing')
+      end
+    end
     check(not occupied[key(p)], 'start/object collision'); occupied[key(p)] = true
   end
   local actor_ids, ordinals = {}, {}
@@ -269,12 +367,14 @@ end
 -- light conditions change (for example, after a resource or structure is
 -- placed above it). This is a valid world evolution, not a changed origin
 -- structure. Keep all other projected nodes exact during product recovery.
-function M.node_matches_origin(operation, actual_name)
+function M.node_matches_origin(operation, actual_name, actual_param2)
   if type(operation) ~= 'table' or operation.kind ~= 'node'
     or type(actual_name) ~= 'string' then return false end
   local expected = operation.value and operation.value.name or 'air'
-  return actual_name == expected
-    or (expected == 'default:dirt_with_grass' and actual_name == 'default:dirt')
+  local expected_param2 = operation.value and operation.value.param2 or 0
+  return (actual_param2 == expected_param2 or (actual_param2 == nil and expected_param2 == 0))
+    and (actual_name == expected
+      or (expected == 'default:dirt_with_grass' and actual_name == 'default:dirt'))
 end
 
 function M.apply(manifest, adapter)

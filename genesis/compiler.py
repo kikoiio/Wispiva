@@ -12,6 +12,7 @@ BOUND = 32
 GRID_SPACING = 8
 SPAWN_Y = 1
 SLOT_OFFSETS = tuple((x, z) for z in (-2, -1, 0, 1, 2) for x in (-2, -1, 0, 1, 2))
+SITTING_ROOM_SLOTS = tuple((x, z) for z in (-3, -2, 2, 3) for x in (-2, -1, 0, 1, 2))
 
 
 class CompileError(ValueError):
@@ -51,7 +52,24 @@ def compile_plan(draft):
                 public_place[field] = item[field]
         if item.get('windows') is True:
             public_place['windows'] = True
+        if 'blueprint' in item:
+            if abs(x) + 6 > BOUND or abs(z) + 5 > BOUND:
+                raise CompileError('out_of_bounds', [{'path': '$.layout.places', 'code': 'blueprint_out_of_bounds'}])
+            public_place['blueprint'] = item['blueprint']
         places.append(public_place)
+    # Existing box layouts retain their contract; detailed rooms reserve their
+    # whole footprint rather than merely checking anchor-grid uniqueness.
+    for i, place in enumerate(places):
+        for other in places[:i]:
+            if not (place.get('blueprint') or other.get('blueprint')):
+                continue
+            def footprint(p):
+                return (6, 5) if p.get('blueprint') else ((3, 3) if p['space'] == 'indoor' else (2, 2))
+            ax, az = footprint(place)
+            bx, bz = footprint(other)
+            if (abs(place['anchor']['x'] - other['anchor']['x']) <= ax + bx
+                    and abs(place['anchor']['z'] - other['anchor']['z']) <= az + bz):
+                raise CompileError('spatial_conflict', [{'path': '$.layout.places', 'code': 'blueprint_overlap'}])
     by_place = {p['id']: p for p in places}
     actors = sorted(source['actors'], key=lambda a: a['id'])
     occupants = {}
@@ -60,9 +78,10 @@ def compile_plan(draft):
         place = by_place[actor['placeId']]
         slot = occupants.get(place['id'], 0)
         occupants[place['id']] = slot + 1
-        if slot >= len(SLOT_OFFSETS):
+        slots = SITTING_ROOM_SLOTS if place.get('blueprint') else SLOT_OFFSETS
+        if slot >= len(slots):
             raise CompileError('place_actor_capacity', [{'path': '$.actors', 'code': 'too_many_actors_at_place'}])
-        dx, dz = SLOT_OFFSETS[slot]
+        dx, dz = slots[slot]
         position = {'x': place['anchor']['x'] + dx, 'y': SPAWN_Y, 'z': place['anchor']['z'] + dz}
         if abs(position['x']) > BOUND or abs(position['z']) > BOUND:
             raise CompileError('out_of_bounds', [{'path': '$.actors', 'code': 'spawn_out_of_bounds'}])

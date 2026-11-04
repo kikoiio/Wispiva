@@ -151,6 +151,11 @@ PY
   if compgen -G "$MOD_SRC/textures/*.png" >/dev/null; then
     mkdir -p "$world/worldmods/society/textures"
     cp "$MOD_SRC/textures/"*.png "$world/worldmods/society/textures/"
+    for license in LICENSE INTERIOR-LICENSE.txt; do
+      if [[ -f "$MOD_SRC/textures/$license" ]]; then
+        cp "$MOD_SRC/textures/$license" "$world/worldmods/society/textures/"
+      fi
+    done
   fi
 
   {

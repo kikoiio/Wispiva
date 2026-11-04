@@ -113,8 +113,9 @@ def launch(world, count, *, engine, runtime_home, libdir, port, seconds, fixture
     if skin_dir.is_dir():
         target = mod / 'textures'
         target.mkdir(mode=0o700)
-        for source in skin_dir.glob('*.png'):
-            shutil.copyfile(source, target / source.name)
+        for source in skin_dir.iterdir():
+            if source.suffix == '.png' or source.name in ('LICENSE', 'INTERIOR-LICENSE.txt'):
+                shutil.copyfile(source, target / source.name)
     for name in MODULES:
         shutil.copyfile(COGNITION / name, mod / name)
     shutil.copyfile(GENESIS / 'preview.lua', mod / 'genesis_preview.lua')

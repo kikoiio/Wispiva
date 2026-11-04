@@ -45,18 +45,18 @@ class RedHeadedLeagueMomentTests(unittest.TestCase):
         self.assertIn("银行", hidden)
         self.assertNotIn(hidden, json.dumps(self.public, ensure_ascii=False))
 
-    def test_places_keep_public_descriptions_and_distinct_materials(self):
+    def test_places_keep_public_descriptions_and_reference_room(self):
         by_id = {place["id"]: place for place in self.public["places"]}
         self.assertEqual(by_id["baker"]["description"], "Holmes 见客人的起居室。")
         self.assertEqual(by_id["pawnshop"]["description"], "萨克斯-科堡广场上的一家小当铺。")
-        self.assertEqual(by_id["baker"]["wall"], "default:bookshelf")
+        self.assertEqual(by_id["baker"]["blueprint"], "victorian_sitting_room_v1")
+        self.assertNotIn("wall", by_id["baker"])
         self.assertEqual(by_id["pawnshop"]["wall"], "default:brick")
         self.assertEqual(by_id["cellar"]["wall"], "default:cobble")
         self.assertEqual(by_id["cellar"]["floor"], "default:stone")
         self.assertNotIn("windows", by_id["cellar"])
         self.assertEqual(by_id["bank"]["wall"], "default:stonebrick")
         self.assertIs(by_id["bank"]["windows"], True)
-        self.assertGreaterEqual(len({place["wall"] for place in by_id.values()}), 4)
 
     def test_cellar_is_not_already_connected_to_the_bank(self):
         links = {(item["from"], item["to"]) for item in self.public["semantic_connections"]}

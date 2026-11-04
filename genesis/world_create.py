@@ -200,8 +200,9 @@ def _install_runtime(stage: Path, manifest_path: Path) -> None:
     if textures.is_dir():
         target = world / "worldmods" / "society" / "textures"
         target.mkdir(parents=True, exist_ok=True)
-        for source in textures.glob("*.png"):
-            shutil.copyfile(source, target / source.name)
+        for source in textures.iterdir():
+            if source.suffix == ".png" or source.name in ("LICENSE", "INTERIOR-LICENSE.txt"):
+                shutil.copyfile(source, target / source.name)
     _write_private(private / "wispiva-origin.json", json.loads(manifest_path.read_text(encoding="utf-8")))
     (world / "world.mt").write_text(
         "gameid = minetest_game\nbackend = sqlite3\nload_mod_society = true\n",

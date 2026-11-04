@@ -75,13 +75,59 @@
   "rules": [],
   "layout": {
     "places": [
-      {"placeId": "baker", "space": "indoor", "grid": [0, 0], "floor": "default:wood", "wall": "default:bookshelf", "ceiling": "default:wood", "windows": true, "apron": "default:cobble"},
-      {"placeId": "pawnshop", "space": "indoor", "grid": [2, 0], "floor": "default:cobble", "wall": "default:brick", "ceiling": "default:wood", "windows": true, "apron": "default:cobble"},
-      {"placeId": "cellar", "space": "indoor", "grid": [2, 1], "floor": "default:stone", "wall": "default:cobble", "ceiling": "default:stone", "apron": "default:cobble"},
-      {"placeId": "bank", "space": "indoor", "grid": [3, 0], "floor": "default:stonebrick", "wall": "default:stonebrick", "ceiling": "default:stone", "windows": true, "apron": "default:cobble"}
+      {
+        "placeId": "baker",
+        "space": "indoor",
+        "grid": [
+          0,
+          0
+        ],
+        "blueprint": "victorian_sitting_room_v1"
+      },
+      {
+        "placeId": "pawnshop",
+        "space": "indoor",
+        "grid": [
+          2,
+          0
+        ],
+        "floor": "default:cobble",
+        "wall": "default:brick",
+        "ceiling": "default:wood",
+        "windows": true,
+        "apron": "default:cobble"
+      },
+      {
+        "placeId": "cellar",
+        "space": "indoor",
+        "grid": [
+          2,
+          1
+        ],
+        "floor": "default:stone",
+        "wall": "default:cobble",
+        "ceiling": "default:stone",
+        "apron": "default:cobble"
+      },
+      {
+        "placeId": "bank",
+        "space": "indoor",
+        "grid": [
+          3,
+          0
+        ],
+        "floor": "default:stonebrick",
+        "wall": "default:stonebrick",
+        "ceiling": "default:stone",
+        "windows": true,
+        "apron": "default:cobble"
+      }
     ],
     "connections": [
-      {"from": "pawnshop", "to": "cellar"}
+      {
+        "from": "pawnshop",
+        "to": "cellar"
+      }
     ]
   }
 }

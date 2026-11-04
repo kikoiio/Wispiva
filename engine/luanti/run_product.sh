@@ -111,6 +111,11 @@ done
 if compgen -G "$HERE/mod/society/textures/*.png" >/dev/null; then
   mkdir -p "$WORLD/worldmods/society/textures"
   cp "$HERE/mod/society/textures/"*.png "$WORLD/worldmods/society/textures/"
+  for license in LICENSE INTERIOR-LICENSE.txt; do
+    if [[ -f "$HERE/mod/society/textures/$license" ]]; then
+      cp "$HERE/mod/society/textures/$license" "$WORLD/worldmods/society/textures/"
+    fi
+  done
 fi
 
 conf="$WORLD/private/.runtime.conf"

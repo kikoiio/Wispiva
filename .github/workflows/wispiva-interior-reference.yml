@@ -1,0 +1,85 @@
+name: Wispiva interior reference capture
+
+on:
+  push:
+    branches: ['validation/interior-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wispiva-interior-reference-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp
+      PYTHONDONTWRITEBYTECODE: '1'
+      OMP_NUM_THREADS: '1'
+      LP_NUM_THREADS: '1'
+      WISPIVA_PROVIDER_FORM: '0'
+    steps:
+      - name: Install packaged runtime (one capture worker, no build)
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR"
+          df -h /tmp "$TMPDIR"
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git procps python3 lua5.1 luanti luanti-server \
+            luanti-game-minetest xvfb imagemagick libgl1-mesa-dri libglx-mesa0
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Targeted genesis, compiler and Red-Headed League checks
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR"
+          python3 -B -m unittest -v genesis.test_genesis genesis.test_compiler \
+            genesis.test_world_create validation.red_headed_league.test_moment
+          lua5.1 engine/luanti/mod/society/test_world_projection.lua
+          if [[ -f engine/luanti/mod/society/test_interior_blueprints.lua ]]; then
+            lua5.1 engine/luanti/mod/society/test_interior_blueprints.lua
+          fi
+      - name: Prepare packaged product runtime
+        run: |
+          set -euo pipefail
+          free -h
+          cat /proc/pressure/memory
+          for path in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current; do
+            if [[ -f "$path" ]]; then cat "$path"; fi
+          done
+          rt="$GITHUB_WORKSPACE/engine/luanti/.runtime"
+          test -x /usr/libexec/luanti/luantiserver
+          test -x /usr/games/luanti
+          mkdir -p "$rt/root/usr/libexec/luanti" "$rt/root/usr/lib/x86_64-linux-gnu" \
+            "$rt/home/.luanti/games" "$rt/home/.minetest"
+          ln -s /usr/libexec/luanti/luantiserver "$rt/root/usr/libexec/luanti/luantiserver"
+          ln -s /usr/games/luanti "$rt/root/usr/libexec/luanti/luanti"
+          cp -a /usr/share/luanti/games/minetest_game "$rt/home/.luanti/games/"
+          ln -s ../.luanti/games "$rt/home/.minetest/games"
+      - name: Capture the actual Luanti room from two cameras
+        run: |
+          set -euo pipefail
+          python3 -B validation/red_headed_league/capture_scene.py \
+            --output "$GITHUB_WORKSPACE/.tmp/interior/artifacts"
+      # Deliberately no always(): incomplete captures are not published. Never
+      # upload world directories, manifests, private seeds, spools or logs.
+      - name: Upload room views and public capture summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wispiva-baker-interior-reference
+          path: |
+            .tmp/interior/artifacts/baker-reference-view.png
+            .tmp/interior/artifacts/baker-reverse-view.png
+            .tmp/interior/artifacts/capture-summary.json
+          if-no-files-found: error
+          retention-days: 14

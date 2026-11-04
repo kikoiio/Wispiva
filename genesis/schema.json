@@ -225,6 +225,11 @@
               },
               "windows": {
                 "type": "boolean"
+              },
+              "blueprint": {
+                "enum": [
+                  "victorian_sitting_room_v1"
+                ]
               }
             },
             "required": [
@@ -232,7 +237,52 @@
               "space",
               "grid"
             ],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "required": [
+                    "blueprint"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "space": {
+                      "const": "indoor"
+                    }
+                  },
+                  "not": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "floor"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "wall"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "ceiling"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "apron"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "windows"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
           },
           "minItems": 1,
           "maxItems": 16

@@ -126,6 +126,20 @@ class GenesisTests(unittest.TestCase):
         d = draft(); d['memories'][0]['actorId'] = 'missing'
         self.assertIn('reference', {e['code'] for e in validate(d)})
 
+    def test_blueprint_requires_indoor_and_owns_its_materials(self):
+        d = draft()
+        place = d['layout']['places'][0]
+        place.update(space='indoor', blueprint='victorian_sitting_room_v1')
+        self.assertEqual(validate(d), [])
+        place['space'] = 'outdoor'
+        self.assertIn('blueprint', {e['code'] for e in validate(d)})
+        place['space'] = 'indoor'
+        place['floor'] = 'default:wood'
+        self.assertIn('blueprint_material_override', {e['code'] for e in validate(d)})
+        del place['floor']
+        place['blueprint'] = 'arbitrary-code'
+        self.assertIn('blueprint', {e['code'] for e in validate(d)})
+
     def test_existing_transport_without_network(self):
         calls = []
         usages = []

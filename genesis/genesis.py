@@ -102,7 +102,7 @@ def validate(draft):
         for i, item in enumerate(array(layout['places'], '$.layout.places', 1, 16)):
             p = f'$.layout.places[{i}]'
             required = {'placeId', 'space', 'grid'}
-            optional = {'floor', 'wall', 'ceiling', 'apron', 'windows'}
+            optional = {'floor', 'wall', 'ceiling', 'apron', 'windows', 'blueprint'}
             if not isinstance(item, dict) or not required <= set(item) or not set(item) <= required | optional:
                 error(p, 'fields'); continue
             for field in ('floor', 'wall', 'ceiling', 'apron'):
@@ -110,6 +110,11 @@ def validate(draft):
                     error(p + '.' + field, 'material')
             if 'windows' in item and type(item['windows']) is not bool:
                 error(p + '.windows', 'enum')
+            if 'blueprint' in item:
+                if item['blueprint'] != 'victorian_sitting_room_v1' or item['space'] != 'indoor':
+                    error(p + '.blueprint', 'blueprint')
+                if set(item) & {'floor', 'wall', 'ceiling', 'apron', 'windows'}:
+                    error(p + '.blueprint', 'blueprint_material_override')
             place = item['placeId']
             if not isinstance(place, str) or place not in ids['places']: error(p+'.placeId', 'reference')
             elif place in seen: error(p+'.placeId', 'duplicate')

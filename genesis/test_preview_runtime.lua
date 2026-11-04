@@ -8,8 +8,10 @@ end
 function dofile(path)
   local name = path:match('([^/]+)$')
   if name == 'genesis_preview.lua' then return original_dofile('genesis/preview.lua') end
-  if name == 'policy.lua' then return original_dofile('engine/luanti/mod/society/policy.lua') end
-  if name == 'world_projection.lua' then return original_dofile('engine/luanti/mod/society/world_projection.lua') end
+  if name == 'policy.lua' or name == 'world_projection.lua' or name == 'genesis_context.lua'
+    or name == 'providers_form.lua' or name == 'interior_nodes.lua' then
+    return original_dofile('engine/luanti/mod/society/' .. name)
+  end
   return original_dofile('cognition/' .. name)
 end
 function io.open(path, mode)
