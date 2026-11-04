@@ -42,7 +42,7 @@
 
 ## 检查
 
-`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。提交 `3c0f129` 的 [Actions run 41686136190](https://github.com/kikoiio/Wispiva/actions/runs/41686136190) 已通过离线检查和三段合成浏览器流程，截图经人工检查；这只证明该固定样本可渲染，不代表真实模型输出稳定。
+`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。提交 `3c0f129` 的 [Actions run 41686136190](https://github.com/kikoiio/Wispiva/actions/runs/41686136190) 已通过离线检查和三段合成浏览器流程，截图经人工检查；提示修复提交 `8f76da3` 的 [run 41765886873](https://github.com/kikoiio/Wispiva/actions/runs/41765886873) 也通过全部离线与浏览器步骤。它们验证固定合成样本和当前代码流程，不代表真实模型输出稳定或完整场景已通过。
 
 `npm run benchmark:voxel` 用 756 和 5,000 方块的确定性样本输出上下文字节数、快照文件大小、重载后的方块数，以及样本写入、上下文生成和重载的总耗时；它不单独测磁盘读取延迟，不测浏览器／GPU 渲染，也不替代真实场景验收。
 

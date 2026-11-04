@@ -94,7 +94,7 @@ GitHub Actions 的既有验证记录（运行 `40999695061`）在独立验证分
 
 1. **已完成：** A 的确定性 loop 回归、C 的一天级存档回放和记忆重载核对、D 的离线协议检查、B 的合成木屋多视角浏览器复核，以及 E 的 756／5,000 格规模基准和 7 日合成 soak。soak 报告只含指标。
 2. **仍待通过：** A 的当前模型完整回路；B 的真实生成场景（湖岸、水面、家具和人物同场景）；C 的真实场景近期行为与角色位置投影。当前模型已在隔离样例提交 82 个方块和 2 个对象，但 4 轮后仍有 6 项空间诊断；此前真实场景一天回放没有近期动态，湖面地点也无可站立投影。不得用离线检查或合成视觉样本替代这些证据。
-3. GitHub Actions 最终浏览器 run [41686136190](https://github.com/kikoiio/Wispiva/actions/runs/41686136190) 在提交 `3c0f129` 上通过离线检查、对话／动态、体素建造、创建恢复和三项 artifact 上传；截图已下载并目视检查。7 日合成 soak run [41683058142](https://github.com/kikoiio/Wispiva/actions/runs/41683058142) 通过，报告在本轮 `.tmp/plan-closeout-20261103/soak/`。临时分支未创建 PR 或合并。
+3. GitHub Actions 浏览器视觉 run [41686136190](https://github.com/kikoiio/Wispiva/actions/runs/41686136190) 在提交 `3c0f129` 上通过离线检查、对话／动态、体素建造、创建恢复和三项 artifact 上传；截图已下载并目视检查。提示修复后的提交 `8f76da3` 由 [41765886873](https://github.com/kikoiio/Wispiva/actions/runs/41765886873) 再次通过离线检查、三段浏览器流程及截图产物步骤；这是合成浏览器验收，不替代真实模型场景验收。7 日合成 soak run [41683058142](https://github.com/kikoiio/Wispiva/actions/runs/41683058142) 通过，报告在本轮 `.tmp/plan-closeout-20261103/soak/`。临时分支未创建 PR 或合并。
 
 本轮由主 agent 负责整合。自动建造回归集中在 `tests/creation-recovery.test.mjs`；行为轨迹、模型观察和规模基准分别位于独立文件，可并行核对。共享验证入口、`package.json`、`docs/PLAN.md` 与文档索引由主 agent 串行整合。当前已完成的离线项目按证据勾选；需要真实模型、浏览器画面或长期运行的项目继续标为未验证。
 
