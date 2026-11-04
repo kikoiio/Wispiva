@@ -45,6 +45,8 @@ test('build prompt requires same-request object registration before using object
   const messages = buildDiscussionMessages({ messages: [], summary: '', ready: false, revision: 0 }, null, null,
     { revision: 0, cells: [], objects: [] }, { mode: 'loop' });
   assert(messages[0].content.includes('写入命令带 objectId 时，commands 中必须同时包含 id 完全相同的 op:"object" 定义'));
+  assert(messages[0].content.includes('完整建筑只登记一个 kind:"building" 对象'));
+  assert(messages[0].content.includes('恰好清空地板上方两格'));
 });
 
 test('large exact part membership is packed without crashing the next model request', async t => {

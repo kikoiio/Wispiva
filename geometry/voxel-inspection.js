@@ -22,7 +22,8 @@ export function inspectVoxelSpaces(world) {
     const [x0, floor, z0] = object.from, [x1, top, z1] = object.to;
     const area = (x1 - x0 + 3) * (z1 - z0 + 3);
     if (x1 - x0 < 2 || z1 - z0 < 2 || top - floor < 3 || area * (top - floor + 1) > 32768) {
-      add(object, 'unsupported-building', '当前范围不适合单层矩形建筑检查，尚未验证可进入空间。');
+      const spanX = x1 - x0 + 1, spanY = top - floor + 1, spanZ = z1 - z0 + 1;
+      add(object, 'unsupported-building', `对象跨度为 ${spanX}×${spanZ}×${spanY}（x×z×y），单层矩形检查要求平面至少 3×3 格、垂直至少 4 层。若这是门、墙、地板等局部部件，不要登记为 building；若是完整建筑，请让 building 对象范围覆盖整座建筑。当前尚未验证可进入空间。`);
       continue;
     }
     let walkableCells = 0, entrances = 0, roofGaps = 0, wallGaps = 0, floorGaps = 0, doorHint = null;

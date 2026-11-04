@@ -69,3 +69,13 @@ test('inspection remains bounded and reports unsupported shapes instead of claim
   assert.equal(report.issues[0].code, 'unsupported-building');
   assert.equal(report.buildings.length, 0);
 });
+
+test('unsupported building diagnostic explains the supported size and part classification', () => {
+  const report = inspectVoxelSpaces({ cells: [], objects: [
+    { id: 'door', name: '门洞', kind: 'building', from: [-1, 1, 0], to: [-1, 3, 0] },
+  ] });
+  assert.equal(report.issues[0].code, 'unsupported-building');
+  assert.match(report.issues[0].message, /跨度.*1×1×3/);
+  assert.match(report.issues[0].message, /至少 3×3.*4 层/);
+  assert.match(report.issues[0].message, /门、墙、地板.*不要登记为 building/);
+});
