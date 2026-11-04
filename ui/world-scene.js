@@ -498,10 +498,14 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
     // only: the island remains the world's landform, this keeps the camera from
     // looking off the edge of a small island into the void.
     let ground = null;
-    const fitGround = (nextBounds, weather, palette) => {
+    const fitGround = (nextBounds, weather, palette, regions = []) => {
       if (!nextBounds) return;
       const [x, y, z] = nextBounds.center;
       const extent = (nextBounds.reach ?? nextBounds.span) * 6 + 60;
+      const regionFloors = regions.map(region => region?.elevation).filter(Number.isFinite);
+      // bounds.center is the camera target, not the terrain height. Keep the
+      // presentation ground below both land and water so it cannot cover them.
+      const groundY = regionFloors.length ? Math.min(...regionFloors) - 0.42 : y - 0.42;
       const rainy = /rain|雨|storm/i.test(weather || '');
       if (!ground) {
         ground = new THREE.Mesh(new THREE.CircleGeometry(1, 64),
@@ -509,7 +513,7 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
         ground.name = 'ground'; ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
         scene.add(ground);
       }
-      ground.position.set(x, y - 0.42, z);      ground.scale.setScalar(extent);
+      ground.position.set(x, groundY, z); ground.scale.setScalar(extent);
       ground.material.color.set(palette === 'victorian-archive' ? '#34383b' : rainy ? '#3e5148' : '#353c40');
       ground.material.needsUpdate = true;
     };
@@ -578,7 +582,7 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
       // The compiled terrain only covers the island the world was built on.
       // Extend the ground under the content so the frame never ends in a cut
       // plane, and let the fog dissolve its rim into the horizon colour.
-      fitGround(bounds, state.world.environment?.weather, state.scene?.document?.style?.palette);
+      fitGround(bounds, state.world.environment?.weather, state.scene?.document?.style?.palette, state.scene?.document?.regions);
       syncConnections(state);
       canvas.setAttribute('aria-label', description(state));
       syncOverlay(state);
