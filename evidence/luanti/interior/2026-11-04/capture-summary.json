@@ -1,0 +1,44 @@
+{
+  "format": "wispiva-interior-capture",
+  "version": 1,
+  "fixture": "empty-room visual comparison; no AI behavior evidence",
+  "blueprint": "victorian_sitting_room_v1",
+  "actual_luanti_client_connected": true,
+  "camera_ready": [
+    "reference",
+    "reverse"
+  ],
+  "world_created_from_confirmed_moment": true,
+  "decisions_paused": true,
+  "real_model_calls": 0,
+  "owned_processes_stopped": true,
+  "product_checkpoint_committed": true,
+  "saved_room_and_orientations_recovered": true,
+  "mod_storage_backend": "files",
+  "rendering": "Xvfb / Mesa llvmpipe / OpenGL; unmodified root-window captures",
+  "people_and_hud_hidden": true,
+  "lighting": "fixed noon daylight; no clouds",
+  "reference": {
+    "file": "docs/references/red-headed-league/baker-sitting-room-reference.png",
+    "generated": true,
+    "sha256": "ecf0829aa45eb31b7c33126b2e5efa1ba7a8aced25576661aac1e1e733301be7"
+  },
+  "scene_capture_sha256": "a868c63eeb946ee586ff2a629da5f4af01cb33bb0d92e7cac97c4a105f92fc3d",
+  "git_sha": "7b0add2a1ae64af66788b3fb09524fc7ddfe1acc",
+  "screenshots": [
+    {
+      "file": "baker-reference-view.png",
+      "width": 1536,
+      "height": 960,
+      "bytes": 752101,
+      "sha256": "0514d1c3a33f39367391c097163cb1c385e07e8d2af4a3668dd89d44a0c6d82f"
+    },
+    {
+      "file": "baker-reverse-view.png",
+      "width": 1536,
+      "height": 960,
+      "bytes": 859226,
+      "sha256": "9dd97c59fa837ef60ab3bd742e3b7be821d54447f08f2c228ef44e02e6e8e386"
+    }
+  ]
+}
