@@ -71,10 +71,13 @@ def failure_diagnostics(work):
         lines = [line for line in read_log(work / name).splitlines()
                  if ("ERROR[" in line or "Error:" in line or "error:" in line
                      or "Error " in line or "SOCIETY fail=" in line
-                     or "launch:" in line or "launch.py:" in line
+                     or "launch:" in line or "launch.py:" in line or "wispiva launcher:" in line
                      or "run_product.sh:" in line or "product-world frozen" in line)]
         for line in lines[-12:]:
             print(f"capture diagnostic ({name}): {line[:700]}", file=sys.stderr)
+    # Session and checkpoint status only; no actor identity, memories or text.
+    marker = work / "world/wispiva-session.json"
+    print(f"capture diagnostic: session marker exists={marker.exists()}", file=sys.stderr)
 
 
 class Processes:
