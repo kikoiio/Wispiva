@@ -116,7 +116,7 @@ class CompilerTests(unittest.TestCase):
         plan = compile_plan(d)
         self.assertEqual(plan['public']['places'][0]['blueprint'], 'victorian_sitting_room_v1')
         self.assertEqual(len({tuple(a['position'].values()) for a in plan['public']['actors']}), 20)
-        self.assertTrue(all(a['position']['z'] in (-3, -2, 2, 3) for a in plan['public']['actors']))
+        self.assertTrue(all(a['position']['z'] in (-2, 0, 1, 2) for a in plan['public']['actors']))
         d = with_actors(1)
         d['layout']['places'][0].update(space='indoor', blueprint='victorian_sitting_room_v1', grid=[4, 0])
         with self.assertRaises(CompileError) as error:
@@ -124,7 +124,7 @@ class CompilerTests(unittest.TestCase):
         self.assertEqual(error.exception.diagnostics[0]['code'], 'blueprint_out_of_bounds')
         d['layout']['places'][0]['grid'] = [0, 0]
         d['places'].append({'id':'yard', 'name':'Yard', 'description':'A yard'})
-        d['layout']['places'].append({'placeId':'yard', 'space':'outdoor', 'grid':[1, 0]})
+        d['layout']['places'].append({'placeId':'yard', 'space':'indoor', 'grid':[1, 0]})
         with self.assertRaises(CompileError) as error:
             compile_plan(d)
         self.assertEqual(error.exception.diagnostics[0]['code'], 'blueprint_overlap')

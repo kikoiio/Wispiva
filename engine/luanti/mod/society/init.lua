@@ -600,9 +600,9 @@ minetest.register_entity("society:view_guide", {
 	})
 
 local function view_landmark_position(place)
-	local radius = place.blueprint and 6 or (place.space == "indoor" and 3 or 2)
+	local radius = place.blueprint and 5 or (place.space == "indoor" and 3 or 2)
 	return {x = place.anchor.x + radius + 1, y = 1.5,
-		z = place.anchor.z + (place.blueprint and -3 or 0)}
+		z = place.anchor.z + (place.blueprint and -2 or 0)}
 end
 
 local function spawn_view_scene()
@@ -1022,8 +1022,8 @@ if minetest.register_on_joinplayer then
 				if place.blueprint == "victorian_sitting_room_v1" then room = place; break end
 			end
 			if room then
-				player:set_pos({x=room.anchor.x+3.7, y=1, z=room.anchor.z-3.7})
-				player:set_look_horizontal(0.45)
+				player:set_pos({x=room.anchor.x+1.5, y=0.6, z=room.anchor.z-2.8})
+				player:set_look_horizontal(0.25)
 				player:set_look_vertical(0.12)
 			else
 				player:set_pos({x = 0, y = 1, z = -20})

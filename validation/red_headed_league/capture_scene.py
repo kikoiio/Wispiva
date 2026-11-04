@@ -333,6 +333,30 @@ def capture(output):
     final_log = read_log(product_log)
     require("SOCIETY product-checkpoint commit " in final_log
             and "SOCIETY fail=" not in final_log, "product did not checkpoint cleanly on shutdown")
+    # Reload the same committed map, rather than treating a successful first
+    # projection as proof that furniture/rug orientations survive persistence.
+    resumed = Processes(started + 120)
+    try:
+        resumed.start("product server", [str(ROOT / "engine/luanti/run_product.sh"),
+                      "--world", str(world), "--serve", "--resume", "--fake-model",
+                      "--no-view-guide", "--no-resource-nodes", "--speed", "0",
+                      "--reflection-every", "0", "--port", str(PORT)],
+                      env=env, cwd=ROOT, log=work / "resume.log")
+        wait_for(lambda: "SOCIETY origin projection verified " in read_log(product_log)
+                 and "SOCIETY spawn count=" in read_log(product_log), processes=resumed,
+                 deadline=deadline, product_log=product_log, description="saved room recovery")
+        status = send_command(world, "status", timeout=min(5, remaining(deadline)))
+        require(status["ok"] and status["status"]["paused"]
+                and status["status"]["logical_time"] == frozen_time
+                and status["status"]["pending_models"] == 0, "saved room time changed on recovery")
+    except BaseException:
+        failure_diagnostics(work)
+        raise
+    finally:
+        resumed.close()
+    final_log = read_log(product_log)
+    require("SOCIETY product-checkpoint commit " in final_log
+            and "SOCIETY fail=" not in final_log, "recovered room did not checkpoint cleanly")
     summary = {
         "format": "wispiva-interior-capture", "version": 1,
         "fixture": "empty-room visual comparison; no AI behavior evidence",
@@ -340,6 +364,7 @@ def capture(output):
         "camera_ready": list(VIEWS), "world_created_from_confirmed_moment": True,
         "decisions_paused": True, "real_model_calls": 0, "owned_processes_stopped": True,
         "product_checkpoint_committed": True,
+        "saved_room_and_orientations_recovered": True,
         "rendering": "Xvfb / Mesa llvmpipe / OpenGL; unmodified root-window captures",
         "people_and_hud_hidden": True, "lighting": "fixed noon daylight; no clouds",
         "reference": {"file": str(REFERENCE.relative_to(ROOT)), "generated": True,

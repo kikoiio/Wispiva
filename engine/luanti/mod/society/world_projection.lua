@@ -81,67 +81,70 @@ local function sitting_room(p, node)
   local function put(x,y,z,name,rotation)
     node(point(p.x+x,y,p.z+z), 'society:' .. name, rotation)
   end
-  for x=-6,6 do
-    for z=-5,5 do
+  for x=-5,5 do
+    for z=-4,4 do
       put(x,0,z,'parquet')
-      for y=1,5 do
-        local wall = math.abs(x)==6 or math.abs(z)==5
-        local door = x==6 and z==-3 and y<=2
+      for y=1,4 do
+        local wall = math.abs(x)==5 or math.abs(z)==4
+        local door = x==5 and z==-2 and y<=2
         if wall and not door then
-          put(x,y,z,y==1 and 'panelling' or (y==5 and 'cornice' or 'wallpaper'))
+          put(x,y,z,y==1 and 'panelling' or (y==4 and 'cornice' or 'wallpaper'))
         else
           node(point(p.x+x,y,p.z+z),nil)
         end
       end
-      put(x,6,z,'plaster')
+      put(x,5,z,'plaster')
     end
   end
-  for x=-4,4 do
-    for z=-3,2 do
-      local side_x, side_z = math.abs(x)==4, z==-3 or z==2
+  for x=-3,3 do
+    for z=-2,1 do
+      local side_x, side_z = math.abs(x)==3, z==-2 or z==1
       local name, rotation = 'rug_center', 0
       if side_x and side_z then
         name = 'rug_corner'
-        if x==-4 and z==-3 then rotation=0
-        elseif x==-4 then rotation=1
-        elseif z==2 then rotation=2 else rotation=3 end
+        if x==-3 and z==-2 then rotation=0
+        elseif x==-3 then rotation=1
+        elseif z==1 then rotation=2 else rotation=3 end
       elseif side_x or side_z then
         name = 'rug_edge'
-        rotation = z==-3 and 0 or (x==-4 and 1 or (z==2 and 2 or 3))
+        rotation = z==-2 and 0 or (x==-3 and 1 or (z==1 and 2 or 3))
       end
       put(x,0,z,name,rotation)
     end
   end
-  for z=-2,0 do
-    for y=2,4 do put(-6,y,z,'sash_window',1) end
+  for z=-1,0 do
+    for y=2,3 do put(-5,y,z,'sash_window',1) end
   end
-  for _,z in ipairs({-3,1}) do
-    for y=1,4 do put(-5,y,z,'curtain',3) end
+  for _,z in ipairs({-2,1}) do
+    for y=1,3 do put(-4,y,z,'curtain',3) end
   end
-  for z=-3,1 do put(-5,5,z,'curtain_valance',3) end
+  for z=-2,1 do put(-4,4,z,(z==-2 or z==1) and 'curtain_header' or 'curtain_valance',3) end
   for x=-1,1 do
-    for z=3,4 do put(x,0,z,'hearth_stone') end
-    put(x,3,4,'mantel')
+    put(x,0,3,'hearth_stone')
+    put(x,2,3,'mantel')
   end
   for _,x in ipairs({-1,1}) do
-    put(x,1,4,'walnut'); put(x,2,4,'walnut')
+    put(x,1,3,'fireplace_pier')
   end
-  put(0,1,4,'hearth_fire')
-  put(0,2,4,'hearth_stone')
-  put(0,4,4,'clock')
-  put(0,5,4,'painting')
-  for x=-1,1 do put(x,1,-1,'coffee_table') end
+  put(0,1,3,'hearth_fire')
+  put(0,3,3,'clock')
+  put(0,4,3,'large_painting')
   put(-1,1,-1,'coffee_table_paper'); put(1,1,-1,'coffee_table_tea')
-  put(-3,1,0,'armchair',3); put(3,1,0,'armchair',1)
-  for x=4,5 do
-    for y=1,3 do put(x,y,4,'bookcase') end
-    put(x,4,4,'bookcase_crown')
+  put(0,1,-1,'coffee_table')
+  put(-2,1,0,'armchair',3); put(2,1,0,'armchair',1)
+  for x=3,4 do
+    for y=1,3 do put(x,y,3,'bookcase') end
+    put(x,4,3,'bookcase_crown')
   end
-  put(-4,1,3,'desk'); put(-3,1,3,'desk')
-  put(-4,2,3,'green_lamp'); put(-3,2,3,'papers')
-  put(-4,1,2,'desk_chair',2)
-  put(5,1,1,'settee_left',1); put(5,1,0,'settee_middle',1); put(5,1,-1,'settee_right',1)
-  put(-5,1,-1,'side_table')
+  put(-3,1,3,'desk'); put(-2,1,3,'desk')
+  put(-3,2,3,'green_lamp'); put(-2,2,3,'papers')
+  put(-3,1,2,'desk_chair',2)
+  put(4,1,1,'settee_left',1); put(4,1,0,'settee_middle',1); put(4,1,-1,'settee_right',1)
+  put(-4,1,-1,'side_table')
+  put(0,4,0,'ceiling_lamp')
+  put(-2,3,3,'wall_lamp'); put(2,3,3,'wall_lamp')
+  put(-4,3,2,'painting',3)
+  put(4,3,-2,'painting',1)
 end
 
 function M.accept_binding(manifest)
@@ -183,8 +186,8 @@ function M.plan(manifest)
         check(place[field] == nil, 'blueprint material override')
       end
     end
-    local radius = detailed and 6 or (place.space == 'indoor' and 3 or 2)
-    local depth = detailed and 5 or radius
+    local radius = detailed and 5 or (place.space == 'indoor' and 3 or 2)
+    local depth = detailed and 4 or radius
     if detailed then check(math.abs(p.x)+radius <= 32 and math.abs(p.z)+depth <= 32, 'blueprint outside bounds') end
     for _, other in ipairs(ordered) do
       check(math.abs(p.x-other.anchor.x) > radius+other.radius
@@ -320,8 +323,8 @@ function M.plan(manifest)
   end
   local function interior(place_id, p)
     local place = places[place_id]
-    check(place and math.abs(p.x-place.anchor.x) <= (place.blueprint and 5 or 2)
-      and math.abs(p.z-place.anchor.z) <= (place.blueprint and 4 or 2), 'start/object outside place interior')
+    check(place and math.abs(p.x-place.anchor.x) <= (place.blueprint and 4 or 2)
+      and math.abs(p.z-place.anchor.z) <= (place.blueprint and 3 or 2), 'start/object outside place interior')
     if place.blueprint then
       for y=1,2 do
         check(nodes[key(point(p.x,y,p.z))].value == false, 'start/object blocked by furnishing')

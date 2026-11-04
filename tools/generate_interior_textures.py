@@ -128,6 +128,11 @@ def cornice():
     for x in range(1, 64, 8):
         draw.rectangle((x, 22, x + 5, 37), fill=(216, 201, 172))
         draw.line((x + 5, 23, x + 5, 38), fill=(130, 115, 95))
+    # The moulding occupies only the top of the upper wall cell, keeping a
+    # human-scale cornice instead of a metre-high cream stripe.
+    band = image.resize((64, 18), Image.Resampling.NEAREST)
+    image = wallpaper()
+    image.paste(band, (0, 0))
     return image
 
 

@@ -10,13 +10,13 @@ assert(fixture == "wispiva-interior-reference-v1\n", "capture fixture marker inv
 local player_name = "rhl_capture"
 local cameras = {
     reference = {
-        position = {x=3.7, y=1, z=-3.7},
-        target = {x=0, y=2.2, z=3.6},
-        fov = 80,
+        position = {x=1.5, y=0.6, z=-2.8},
+        target = {x=0, y=1.9, z=2.8},
+        fov = 78,
     },
     reverse = {
-        position = {x=-4, y=1.2, z=3.3},
-        target = {x=0, y=2.1, z=-2.6},
+        position = {x=-3.7, y=0.65, z=1.7},
+        target = {x=0, y=1.7, z=-2.2},
         fov = 85,
     },
 }

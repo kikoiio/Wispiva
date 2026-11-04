@@ -12,7 +12,8 @@ BOUND = 32
 GRID_SPACING = 8
 SPAWN_Y = 1
 SLOT_OFFSETS = tuple((x, z) for z in (-2, -1, 0, 1, 2) for x in (-2, -1, 0, 1, 2))
-SITTING_ROOM_SLOTS = tuple((x, z) for z in (-3, -2, 2, 3) for x in (-2, -1, 0, 1, 2))
+SITTING_ROOM_SLOTS = (tuple((x, z) for z in (-2, 1) for x in range(-3, 4))
+                      + tuple((x, 2) for x in range(-2, 3)) + ((0, 0),))
 
 
 class CompileError(ValueError):
@@ -53,7 +54,7 @@ def compile_plan(draft):
         if item.get('windows') is True:
             public_place['windows'] = True
         if 'blueprint' in item:
-            if abs(x) + 6 > BOUND or abs(z) + 5 > BOUND:
+            if abs(x) + 5 > BOUND or abs(z) + 4 > BOUND:
                 raise CompileError('out_of_bounds', [{'path': '$.layout.places', 'code': 'blueprint_out_of_bounds'}])
             public_place['blueprint'] = item['blueprint']
         places.append(public_place)
@@ -64,7 +65,7 @@ def compile_plan(draft):
             if not (place.get('blueprint') or other.get('blueprint')):
                 continue
             def footprint(p):
-                return (6, 5) if p.get('blueprint') else ((3, 3) if p['space'] == 'indoor' else (2, 2))
+                return (5, 4) if p.get('blueprint') else ((3, 3) if p['space'] == 'indoor' else (2, 2))
             ax, az = footprint(place)
             bx, bz = footprint(other)
             if (abs(place['anchor']['x'] - other['anchor']['x']) <= ax + bx

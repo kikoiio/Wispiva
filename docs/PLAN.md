@@ -155,3 +155,5 @@ Wispiva 是一个独立产品：用户用自然语言或素材描述想要的世
 ## 最新自由社会长场景与 marker 恢复
 
 四角色每人 24 次真实决策预算的长场景完成 91/96 次决策，出现 32 条对白事件和 2 次资源转移，没有 meeting。最后一个响应在三次重试后仍失败，因此世界没有 checkpoint，启动器保留 recovery marker；这不是完成世界的证据。产品证据见 [Actions 41113101332](https://github.com/kikoiio/Wispiva/actions/runs/41113101332)。恢复命令只清理完整 checkpoint 已提交后的遗留 marker，不会修复这个未完成世界。恢复测试夹具首次失败于身份初始化顺序（Actions 41115517669），修正后的 [Actions 41116220558](https://github.com/kikoiio/Wispiva/actions/runs/41116220558) 已通过。
+
+2026-11-04 用户已授权将本次场景代码和公开参考图推送到专用分支并使用 GitHub Actions。第一轮 [Actions 41778766260](https://github.com/kikoiio/Wispiva/actions/runs/41778766260) 完成实际 Luanti 双视角截图、检查和正常 checkpoint，未调用真实模型。画面检查发现会客区过大、壁炉块状且照明偏暗；已收紧房间、降低壁炉、修复窗帘与帘楣间隙并加入真实灯具，下一轮截图和保存恢复验证待执行。

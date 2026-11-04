@@ -295,6 +295,11 @@ function M.definitions()
       {-0.25, 0.09, 0.15, 0.25, 0.20, 0.42},
       {0.25, 0.13, 0.15, 0.5, 0.20, 0.42},
     }))
+  local header_boxes = copy(curtain_boxes)
+  for _,box in ipairs(definitions['society:curtain_valance'].node_box.fixed) do
+    header_boxes[#header_boxes+1]=copy(box)
+  end
+  add('curtain_header', shaped('Continuous curtain and pelmet end', {texture('curtain')}, header_boxes))
 
   add('mantel', shaped('Carved walnut mantel shelf',
     faces('walnut', 'walnut', 'walnut', 'walnut', 'panelling'), {
@@ -306,8 +311,16 @@ function M.definitions()
       {-0.43, -0.20, -0.02, -0.34, 0.24, 0.22},
       {0.34, -0.20, -0.02, 0.43, 0.24, 0.22},
     }))
+  add('fireplace_pier', shaped('Carved walnut fireplace jamb',
+    faces('walnut','walnut','panelling','walnut','panelling'), {
+      {-0.33,-0.5,-0.22,0.33,-0.30,0.49},
+      {-0.25,-0.30,-0.13,0.25,0.63,0.49},
+      {-0.30,0.63,-0.19,0.30,0.78,0.49},
+      {-0.35,0.78,-0.24,0.35,0.92,0.49},
+    }))
   add('hearth_fire', shaped('Ember fire in iron grate',
     faces('iron', 'iron', 'iron', 'fire', 'fire'), {
+      {-0.5,-0.49,0.42,0.5,0.70,0.49}, -- black firebox backing
       {-0.39, -0.49, -0.28, 0.39, -0.40, 0.32}, -- grate foot
       {-0.32, -0.40, -0.12, -0.08, -0.02, 0.12}, -- three stepped flame volumes
       {-0.10, -0.40, -0.06, 0.10, 0.23, 0.15},
@@ -317,7 +330,7 @@ function M.definitions()
       {-0.16, -0.40, -0.29, -0.12, -0.09, -0.24},
       {0.12, -0.40, -0.29, 0.16, -0.09, -0.24},
       {0.30, -0.40, -0.29, 0.34, -0.09, -0.24},
-    }, {light_source = 10, walkable = false,
+    }, {light_source = 12, walkable = false,
       collision_box = {type = 'fixed', fixed = {}}, groups = {cracky = 3}}))
 
   add('clock', shaped('Brass mantel clock',
@@ -336,6 +349,31 @@ function M.definitions()
       {-0.375, 0.375, 0.36, 0.375, 0.5, 0.495},
       {-0.375, -0.375, 0.435, 0.375, 0.375, 0.49}, -- inset canvas
     }))
+  add('large_painting', shaped('Gilt landscape above the mantel',
+    faces('brass','brass','brass','walnut','landscape'), {
+      {-0.90,-0.80,0.36,-0.76,0.30,0.495},
+      {0.76,-0.80,0.36,0.90,0.30,0.495},
+      {-0.76,-0.80,0.36,0.76,-0.66,0.495},
+      {-0.76,0.16,0.36,0.76,0.30,0.495},
+      {-0.76,-0.66,0.435,0.76,0.16,0.49},
+    }))
+  add('wall_lamp', shaped('Brass wall sconce with opal glass',
+    faces('plaster','brass','brass'), {
+      {-0.10,-0.30,0.36,0.10,0.24,0.49},
+      {-0.035,-0.22,-0.03,0.035,-0.15,0.40},
+      {-0.16,-0.16,-0.16,0.16,-0.09,0.16},
+      {-0.13,-0.09,-0.13,0.13,0.18,0.13},
+      {-0.08,0.18,-0.08,0.08,0.24,0.08},
+    }, {light_source=13,walkable=false,collision_box={type='fixed',fixed={}}}))
+  add('ceiling_lamp', shaped('Brass pendant with ivory glass shade',
+    faces('brass','plaster','plaster'), {
+      {-0.12,0.39,-0.12,0.12,0.5,0.12},
+      {-0.025,0.04,-0.025,0.025,0.39,0.025},
+      {-0.26,-0.02,-0.26,0.26,0.06,0.26},
+      {-0.34,-0.18,-0.34,0.34,-0.02,0.34},
+      {-0.26,-0.28,-0.26,0.26,-0.18,0.26},
+      {-0.12,-0.32,-0.12,0.12,-0.28,0.12},
+    }, {light_source=14,walkable=false,collision_box={type='fixed',fixed={}}}))
   add('side_table', shaped('Walnut pedestal side table',
     faces('table_top', 'walnut', 'walnut'), {
       {-0.37, 0.25, -0.35, 0.37, 0.35, 0.35},
