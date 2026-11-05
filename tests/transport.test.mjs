@@ -77,7 +77,7 @@ test('canonical browser module imports and import-map targets are served with sa
   assert.match(html.text, /src="\/ui\/app\.js"/);
   assert.match(html.text, /href="\/ui\/style\.css"/);
   const importMap = JSON.parse(/<script type="importmap">(.*?)<\/script>/s.exec(html.text)[1]).imports;
-  const pending = ['/ui/app.js', '/ui/style.css', ...Object.values(importMap)];
+  const pending = ['/ui/app.js', '/app.js', '/scene.js', '/ui/style.css', ...Object.values(importMap)];
   const visited = new Set();
   for (const path of pending) {
     if (visited.has(path)) continue;

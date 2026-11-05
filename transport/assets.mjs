@@ -38,6 +38,7 @@ const assets = {
 // Preserve the previous public URLs through explicit aliases only.
 const aliases = {
   '/app.js': '/ui/app.js',
+  '/transport.js': '/ui/transport.js',
   '/style.css': '/ui/style.css',
   '/actor-location-summary.mjs': '/residents/actor-location-summary.mjs',
   '/scene.js': '/rendering/scene.js',
