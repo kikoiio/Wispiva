@@ -17,7 +17,7 @@ jobs:
           SOURCE_BRANCH: ${{ github.head_ref }}
         run: |
           case "$SOURCE_BRANCH" in
-            prototype|proto/*|prototype/*|experiment/*|wispiva/luanti|wispiva/world-product|wispiva/luanti-world)
+            prototype|proto/*|prototype/*|experiment/*|wispiva/*)
               echo "This branch must not be merged into main."
               exit 1
               ;;

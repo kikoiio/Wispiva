@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-- GitHub `main` 已启用规则集，要求 PR 和 GitHub Actions `branch-origin-guard` 检查，拦截 `prototype`、`proto/*`、`prototype/*`、`experiment/*` 和 `wispiva/luanti`（兼容旧 Luanti 分支名） 直接合入；规则与检查文件已通过 API 读取核对，并已用实际 PR 运行验证（PR #3 通过检查后合并）。
+- GitHub `main` 已启用规则集，要求 PR 和 GitHub Actions `branch-origin-guard` 检查，拦截 `prototype`、`proto/*`、`prototype/*`、`experiment/*` 和 所有 `wispiva/*` 分支直接合入；规则与检查文件已通过 API 读取核对，并已用实际 PR 运行验证（PR #3 通过检查后合并）。
 - 主线基线已提交（`b801bf1`，经 PR #3 合并为 `ceb952d`）：移除被替代的 v1 实现，重组 `docs/`。基线曾加入 `AGENTS.md`，其后删除，项目规则以 `docs/` 为准。删除的代码仍保存在 `prototype`。
 - 产品文案使用“创建世界”描述从文本建立世界的过程。
 - 产品目标见[项目意图](intent.md)；[当前架构](architecture.md)描述现有证据和分支边界，[目标架构](design/2026-10-27-target-architecture.md)仍是方案。
