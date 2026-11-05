@@ -30,7 +30,7 @@
 
 `WISPIVA_LLM_REASONING_EFFORT` 是可选的服务参数，留空沿用供应商默认；兼容性和输出质量需实测，不设通用推荐值。起点使用 NDJSON，不强制与之冲突的 JSON object 输出模式。
 
-当前 `model-client.mjs` 支持 OpenAI Responses 和 OpenAI 兼容 Chat Completions。默认协议是 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择 Chat Completions，也可从以 `/chat/completions` 结尾的基址推断。两种协议都记录请求、流式响应、首段正文、空正文、截断、取消和供应商错误；Anthropic Messages 仍不支持。真实供应商是否完整兼容，需要用对应端点和模型 ID 实测，离线协议检查不构成供应商可用性证明。
+当前 `model-client.mjs` 支持 OpenAI Responses、OpenAI 兼容 Chat Completions，以及 Anthropic Messages。默认协议是 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择，也可从 `/chat/completions` 或 `/anthropic` 基址推断。三种协议都会记录请求、流式响应、首段正文、空正文、截断、取消和供应商错误；Anthropic Messages 将 system 提示分离，并使用 JSON 指令提示而不依赖供应商专有 JSON 模式。真实供应商是否完整兼容，仍需用对应端点和模型 ID 实测，离线协议检查不构成供应商可用性证明。
 
 ## 保存与边界
 
