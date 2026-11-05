@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createVoxelWorldStore } from '../voxel-world.mjs';
+import { createVoxelWorldStore } from '../voxel/voxel-world.mjs';
 
 function setup(t) {
   const dir = mkdtempSync(join(tmpdir(), 'voxel-parts-'));

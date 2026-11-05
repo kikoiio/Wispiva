@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdirSync,mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
 import {join,resolve} from 'node:path';
 import {createCampExperience} from '../server.mjs';
-import {createCampSceneDocument,checkSceneCandidate} from '../scene-workshop.mjs';
+import {createCampSceneDocument,checkSceneCandidate} from '../creation/scene-workshop.mjs';
 const base=resolve('.tmp/prototype');mkdirSync(base,{recursive:true});const dir=mkdtempSync(join(base,'workshop-'));
 const checks=[],active=new Set();let realRequests=0;
 const llm={baseUrl:'https://fixture.invalid/v1',model:'fixture',apiKey:'synthetic-secret'};

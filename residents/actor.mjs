@@ -1,4 +1,4 @@
-import { GENERATED_ACTION_FIELDS, observeGeneratedResident } from './world-definition.mjs';
+import { GENERATED_ACTION_FIELDS, observeGeneratedResident } from '../simulation/world-definition.mjs';
 
 const PLACES = ['cabin', 'terrace', 'garden', 'tank', 'lookout'];
 const clone = (value) => structuredClone(value);

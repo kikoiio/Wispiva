@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createPlainMaterials } from '../geometry/materials.js';
-import { compileScene, prepareSceneUpdate, disposeWorld } from '../geometry/scene-compiler.js';
-import * as compiler from '../geometry/scene-compiler.js';
-import { validateSceneDocument, validateSpatialLayout } from '../geometry/scene-validation.js';
-import { validateCompiledSpatial } from '../geometry/compiled-spatial.js';
-import { libraryScene } from '../geometry/scene-document.js';
-import { buildWorldThree, projectWorldDocument, projectWorldState, renderWorldSVG, worldSceneBounds } from '../ui/world-scene.js';
-import { createScene } from '../ui/scene.js';
+import { createPlainMaterials } from '../rendering/materials.js';
+import { compileScene, prepareSceneUpdate, disposeWorld } from '../rendering/scene-compiler.js';
+import * as compiler from '../rendering/scene-compiler.js';
+import { validateSceneDocument, validateSpatialLayout } from '../spatial/scene-validation.js';
+import { validateCompiledSpatial } from '../rendering/compiled-spatial.js';
+import { libraryScene } from '../spatial/scene-document.js';
+import { buildWorldThree, projectWorldDocument, projectWorldState, renderWorldSVG, worldSceneBounds } from '../rendering/world-scene.js';
+import { createScene } from '../rendering/scene.js';
 import { createMansionFixture } from '../fixtures/mansion-fixture.mjs';
 
 function fixture(count = 3) {

@@ -1,6 +1,6 @@
-import { validateSceneDocument, validateSpatialLayout, localToWorld, rectCorners } from '../geometry/scene-validation.js';
+import { validateSceneDocument, validateSpatialLayout, localToWorld, rectCorners } from '../spatial/scene-validation.js';
 
-import { pointInRoom } from '../geometry/world-document.js';
+import { pointInRoom } from '../spatial/world-document.js';
 
 const escapeXML = value => String(value ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[ch]);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -629,9 +629,8 @@ export function buildWorldThree(THREE, shell, initialState, compiler, { createPl
 export async function createWorldScene(shell, state) {
   shell.reset.setAttribute('aria-label', '重置世界视角');
   try {
-    // The prototype server exposes geometry modules at /geometry/*; relative
-    // imports from the browser URL would incorrectly resolve to /prototypes/*.
-    const [THREE, compiler, materials] = await Promise.all([import('/vendor/three.module.js'), import('/geometry/scene-compiler.js'), import('/geometry/materials.js')]);
+    // Public module URLs keep scene loading independent of the page route.
+    const [THREE, compiler, materials] = await Promise.all([import('/vendor/three.module.js'), import('/rendering/scene-compiler.js'), import('/rendering/materials.js')]);
     return buildWorldThree(THREE, shell, state, compiler, materials);
   } catch { return makeFallback(shell, state); }
 }

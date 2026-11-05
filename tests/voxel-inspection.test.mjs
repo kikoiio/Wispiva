@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createVoxelWorldStore } from '../voxel-world.mjs';
-import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { createVoxelWorldStore } from '../voxel/voxel-world.mjs';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 
 function house(extra = []) {
   const store = createVoxelWorldStore({ file: 'unused', onSave() {} });

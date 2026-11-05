@@ -1,12 +1,11 @@
-import { validateWorldDefinition, observeGeneratedResident } from './world-definition.mjs';
-import { validateSceneDocument, validateSpatialLayout } from './geometry/scene-document.js';
-import { compileScene, disposeWorld } from './geometry/scene-compiler.js';
-import { createPlainMaterials } from './geometry/materials.js';
-import { CampSimulation } from './core.mjs';
-import { validateWorldBindings } from './geometry/world-bindings.js';
-import { normalizeWorldScene } from './geometry/normalize-world-scene.js';
-import { sourceContextText } from './model/source-retrieval.mjs';
-import { voxelContext } from './creation-dialogue.mjs';
+import { validateWorldDefinition, observeGeneratedResident } from '../simulation/world-definition.mjs';
+import { validateSceneDocument, validateSpatialLayout } from '../spatial/scene-document.js';
+import { checkCompiledScene } from '../rendering/scene-check.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { validateWorldBindings } from '../spatial/world-bindings.js';
+import { normalizeWorldScene } from '../spatial/normalize-world-scene.js';
+import { sourceContextText } from '../model/source-retrieval.mjs';
+import { voxelContext } from '../voxel/context.mjs';
 
 const normalizePrivacyText = value => typeof value === 'string'
   ? value.normalize('NFKC').replace(/\s+/g, '').replace(/[，。！？、；：,.!?;:"'“”‘’（）()\[\]{}<>《》【】…—\-_/\\]/g, '')
@@ -168,16 +167,13 @@ export function checkWorldCandidate(definition) {
   if (diagnostics.length) return { ok: false, reason: 'invalid-world-scene', diagnostics };
   const privacyAudit = auditCandidatePrivacy(definition);
   if (!privacyAudit.ok) return { ok: false, reason: 'privacy-audit-failed', diagnostics: privacyAudit.errors, privacyAudit };
-  let compiled; const materials = createPlainMaterials();
   try {
     new CampSimulation({ world: definition.world });
-    compiled = compileScene(definition.scene, 'solid', { materials, details: false });
+    const compiled = checkCompiledScene(definition.scene);
+    if (!compiled.ok) throw Object.assign(new Error('world-compile-failed'), { diagnostics: compiled.diagnostics });
     return { ok: true, definition: structuredClone(definition), adjustments, privacyAudit };
   } catch (error) {
     return { ok: false, reason: 'world-compile-failed', diagnostics: error.diagnostics ?? [{ nodeId: 'world', operationId: 'compile', requirementId: 'world.runtime', message: '生成的世界无法运行或编译。' }] };
-  } finally {
-    if (compiled) disposeWorld(compiled);
-    for (const material of Object.values(materials)) material.dispose();
   }
 }
 

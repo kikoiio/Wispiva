@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { createPlainMaterials } from '../geometry/materials.js';
-import { compileScene, prepareSceneUpdate, disposeWorld } from '../geometry/scene-compiler.js';
-import { validateSceneDocument, validateSpatialLayout } from '../geometry/scene-validation.js';
-import { validateWorldBindings } from '../geometry/world-bindings.js';
-import { validateWorldDefinition } from '../world-definition.mjs';
-import { buildWorldThree, projectWorldDocument, renderWorldSVG } from '../ui/world-scene.js';
+import { createPlainMaterials } from '../rendering/materials.js';
+import { compileScene, prepareSceneUpdate, disposeWorld } from '../rendering/scene-compiler.js';
+import { validateSceneDocument, validateSpatialLayout } from '../spatial/scene-validation.js';
+import { validateWorldBindings } from '../spatial/world-bindings.js';
+import { validateWorldDefinition } from '../simulation/world-definition.mjs';
+import { buildWorldThree, projectWorldDocument, renderWorldSVG } from '../rendering/world-scene.js';
 import { createMansionFixture } from '../fixtures/mansion-fixture.mjs';
 
 class Element {

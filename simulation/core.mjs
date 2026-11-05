@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { readJSON, writeJSONAtomic } from '../storage/files.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { GENERATED_SCENARIO, GENERATED_ACTION_FIELDS, validateGeneratedWorld, stepGeneratedWorld, applyGeneratedAction } from './world-definition.mjs';
 
@@ -312,23 +311,13 @@ export class CampSimulation {
   save(path, { experience } = {}) {
     if (!nonempty(path)) throw new Error('invalid-save-path');
     const saved = experience === undefined ? this.#state : { ...this.#state, experience: clone(experience) };
-    const serialized = `${JSON.stringify(saved)}\n`;
-    // Reject lossy/non-JSON experience rather than silently dropping memory fields.
-    if (!isDeepStrictEqual(JSON.parse(serialized), saved)) throw new Error('non-json-save');
-    mkdirSync(dirname(path), { recursive: true });
-    const temporary = `${path}.${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temporary, serialized, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-      renameSync(temporary, path); // World and experience become visible together, in the same file.
-    } finally {
-      rmSync(temporary, { force: true });
-    }
+    writeJSONAtomic(path, saved, { mkdir: true, validateJSON: true });
     if (experience !== undefined) this.#state = saved;
     return { ok: true, path };
   }
 
   static load(path) {
-    const saved = JSON.parse(readFileSync(path, 'utf8'));
+    const saved = readJSON(path);
     if (saved?.schemaVersion !== 1 || ![SCENARIO, GENERATED_SCENARIO].includes(saved.scenario)) throw new Error('unsupported-save');
     const generated = saved.scenario === GENERATED_SCENARIO;
     if (generated !== (saved.world?.profile === 'generated-world')) throw new Error('invalid-save-scenario');

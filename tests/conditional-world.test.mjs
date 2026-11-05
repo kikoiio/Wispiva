@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CampSimulation } from '../core.mjs';
-import { GENERATED_LIMITS, applyGeneratedAction, createGeneratedFixture, stepGeneratedWorld, validateGeneratedWorld, validateWorldDefinition } from '../world-definition.mjs';
-import { buildResidentMessages, createLedgers, observeResident, verifyDecision } from '../actor.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { GENERATED_LIMITS, applyGeneratedAction, createGeneratedFixture, stepGeneratedWorld, validateGeneratedWorld, validateWorldDefinition } from '../simulation/world-definition.mjs';
+import { buildResidentMessages, createLedgers, observeResident, verifyDecision } from '../residents/actor.mjs';
 import { createMansionFixture } from '../fixtures/mansion-fixture.mjs';
 import { createCampExperience } from '../server.mjs';
 

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createPrototypeExperience } from '../server.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
 
 test('a built voxel origin can enter, reload, archive, and reopen as the same world', async () => {
   const root = resolve('.tmp/prototype'); mkdirSync(root, { recursive: true });

@@ -1,5 +1,8 @@
-import { buildVoxelRepairCommands, inspectVoxelSpaces } from './geometry/voxel-inspection.js';
-import { actorLocationSummary } from '../actor-location-summary.mjs';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
+import { actorLocationSummary } from '../residents/actor-location-summary.mjs';
+import { createTransport } from './transport.js';
+
+const transport = createTransport({ fetch, EventSource: typeof EventSource === 'function' ? EventSource : null, TextDecoder });
 
 const $ = (id) => document.getElementById(id);
 const ui = Object.fromEntries([
@@ -34,7 +37,7 @@ function setText(element, value) {
 }
 
 let state = null, connected = false, closed = false, lifecycle = 0;
-let stateVersion = 0, eventVersion = 0, source = null, syncController = null;
+let stateVersion = 0, eventVersion = 0, syncController = null;
 let localTask = null, controlBusy = false, cancelBusy = false, cancelRequested = false;
 let localError = '', composing = false, suppressEnterUntil = 0, suppressedDraft = null;
 let progress = null, progressTimer = null, archiveSignature = '', draftSignature = '';
@@ -421,7 +424,7 @@ function isCurrentSceneMount(slot, token) {
   return !closed && token === slot.token;
 }
 async function mountCurrentScene(slot, mount, token) {
-  const { createScene } = await import('./scene.js');
+  const { createScene } = await import('../rendering/scene.js');
   if (!isCurrentSceneMount(slot, token)) return;
   const scene = await createScene(mount, slot.latest);
   if (!isCurrentSceneMount(slot, token)) { disposeSceneSafely(scene); return; }
@@ -510,7 +513,7 @@ function syncVoxel(slot, key, world) {
   const mount = node('div', '', 'scene-mount');
   mount.append(sceneLoading('正在载入体素画面…'));
   slot.host.replaceChildren(mount);
-  void import('./voxel-scene.js').then(async ({ createVoxelScene }) => {
+  void import('../rendering/voxel-scene.js').then(async ({ createVoxelScene }) => {
     if (closed || token !== slot.token) return;
     const scene = await createVoxelScene(mount, slot.latest);
     if (closed || token !== slot.token) { scene?.dispose(); return; }
@@ -596,12 +599,10 @@ async function readState() {
   const controller = new AbortController(), version = stateVersion, life = lifecycle;
   syncController = controller;
   try {
-    const response = await fetch('/api/state', { cache: 'no-store', headers: { Accept: 'application/json' }, signal: controller.signal });
-    if (!response.ok) throw new Error(`状态读取失败（HTTP ${response.status}）。`);
-    const next = await response.json();
+    const next = await transport.readState(controller.signal);
     if (closed || life !== lifecycle || controller.signal.aborted || version !== stateVersion) return;
     applyState(next);
-    if (!source || source.readyState !== 0) setConnection(true, '已连接');
+    if (!transport.connecting) setConnection(true, '已连接');
   } catch (error) {
     if (!closed && life === lifecycle && !controller.signal.aborted && version === stateVersion) {
       localError = `${text(error.message, '无法读取世界状态。')} 请重新连接。`;
@@ -611,37 +612,26 @@ async function readState() {
 }
 function connect() {
   if (closed) return;
-  source?.close(); source = null;
+  transport.closeSubscription();
   setConnection(false, '正在连接…');
-  if (typeof EventSource === 'function') {
-    const stream = new EventSource('/api/events'); source = stream;
-    stream.addEventListener('state', (event) => {
-      if (closed || source !== stream) return;
-      try {
-        const next = JSON.parse(event.data);
-        eventVersion++;
-        applyState(next);
-        localError = '';
-        setConnection(true, '已连接'); renderStatus();
-      } catch {
-        setConnection(false, '状态同步失败');
-        localError = '收到的世界状态不完整，请重新连接。'; renderStatus();
-      }
-    });
-    stream.addEventListener('error', () => {
-      if (closed || source !== stream) return;
+  transport.subscribe({
+    onState(next) {
+      eventVersion++;
+      applyState(next);
+      localError = '';
+      setConnection(true, '已连接'); renderStatus();
+    },
+    onInvalidState() {
+      setConnection(false, '状态同步失败');
+      localError = '收到的世界状态不完整，请重新连接。'; renderStatus();
+    },
+    onError() {
       setConnection(false, '连接中断，正在重连');
-    });
-  }
+    },
+  });
   void readState();
 }
 
-async function postJSON(path, body, controller) {
-  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
-  const result = await response.json().catch(() => { throw new Error(`服务没有返回可读结果（HTTP ${response.status}）。`); });
-  if (!response.ok && result.ok !== false) return { ...result, ok: false, message: text(result.message, `操作未完成（HTTP ${response.status}）。`) };
-  return result;
-}
 async function control(body) {
   if (closed || !state || !connected || controlBusy || pending() && body.type !== 'pause') return;
   const controller = new AbortController(), version = eventVersion, life = lifecycle;
@@ -649,7 +639,7 @@ async function control(body) {
   requests.add(controller); controlBusy = true; localError = '';
   updateControls(); renderStatus();
   try {
-    const result = await postJSON('/api/control', body, controller);
+    const result = await transport.postJSON('/api/control', body, controller.signal);
     if (closed || life !== lifecycle) return;
     applyReplyIfCurrent(result, version);
     if (result.ok === false) localError = failureText(result);
@@ -669,72 +659,6 @@ async function control(body) {
   }
 }
 
-// Parse SSE across arbitrary UTF-8 / CR / LF / CRLF chunk boundaries.
-function eventParser(onEvent) {
-  let line = '', skipLF = false, type = 'message', data = [], size = 0;
-  const consume = () => {
-    if (line === '') {
-      const event = type, payload = data.join('\n'), hasData = data.length > 0;
-      type = 'message'; data = []; size = 0;
-      if (hasData && (event === 'progress' || event === 'result')) {
-        let value;
-        try { value = JSON.parse(payload); } catch { throw new Error('回复流格式不完整，请检查连接后重试。'); }
-        onEvent(event, value);
-      }
-    } else if (!line.startsWith(':')) {
-      const colon = line.indexOf(':'), field = colon < 0 ? line : line.slice(0, colon);
-      let value = colon < 0 ? '' : line.slice(colon + 1);
-      if (value.startsWith(' ')) value = value.slice(1);
-      if (field === 'event') type = value;
-      if (field === 'data') { data.push(value); size += value.length; }
-    }
-    line = '';
-  };
-  return (chunk) => {
-    for (const char of chunk) {
-      if (skipLF) { skipLF = false; if (char === '\n') continue; }
-      if (char === '\r' || char === '\n') { consume(); skipLF = char === '\r'; }
-      else line += char;
-      if (line.length + size > 4 * 1024 * 1024) throw new Error('单次回复过长，已停止读取。请重新连接查看最新状态。');
-    }
-  };
-}
-async function streamStep(path, body, task) {
-  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' }, body: JSON.stringify(path === '/api/creation-chat' ? { baseVoxelRevision: state?.creation?.voxel?.revision, voxelId: state?.creation?.voxelId, conversationRevision: state?.creation?.dialogue?.revision, ...body } : body), signal: task.controller.signal });
-  if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
-    return { ...result, ok: false, message: text(result.message, `请求失败（HTTP ${response.status}）。`) };
-  }
-  if (!response.body || !response.headers.get('content-type')?.toLowerCase().startsWith('text/event-stream')) {
-    await response.body?.cancel();
-    throw new Error('没有收到回复流，请重新连接后重试。');
-  }
-  const reader = response.body.getReader(), decoder = new TextDecoder();
-  let result = null;
-  const parse = eventParser((event, data) => {
-    if (result || closed || localTask !== task) return;
-    if (event === 'progress') { takeProgress(data); renderStatus(); }
-    else {
-      if (typeof data?.ok !== 'boolean') throw new Error('回复结果不完整，请重新连接查看最新状态。');
-      result = data;
-    }
-  });
-  try {
-    while (!result) {
-      const { value, done } = await reader.read();
-      parse(done ? decoder.decode() : decoder.decode(value, { stream: true }));
-      if (done) break;
-    }
-    if (!result) throw new Error('连接中断，未收到完整回复。请重新连接查看已保存内容，再继续。');
-    return result;
-  } finally {
-    await cancelReaderIgnoringError(reader);
-    reader.releaseLock();
-  }
-}
-async function cancelReaderIgnoringError(reader) {
-  try { await reader.cancel(); } catch {}
-}
 async function runStep(kind, path, body) {
   if (closed || pending() || controlBusy || !connected) return;
   const task = { kind, controller: new AbortController(), message: body.message, messageIds: new Set(list(state?.creation?.dialogue?.messages).map((entry) => entry.id)), actorId: state?.autonomy?.nextActorId };
@@ -745,7 +669,12 @@ async function runStep(kind, path, body) {
   updateControls(); renderStatus();
   let failedTransport = false;
   try {
-    const result = await streamStep(path, body, task);
+    const requestBody = path === '/api/creation-chat' ? { baseVoxelRevision: state?.creation?.voxel?.revision, voxelId: state?.creation?.voxelId, conversationRevision: state?.creation?.dialogue?.revision, ...body } : body;
+    const result = await transport.streamStep(path, requestBody, {
+      signal: task.controller.signal,
+      isCurrent: () => !closed && localTask === task,
+      onProgress(next) { takeProgress(next); renderStatus(); },
+    });
     if (closed || life !== lifecycle) return;
     applyReplyIfCurrent(result, version);
     if (!result.ok && !(kind === 'resident' && result.reason === 'cancelled' && !waiting())) localError = failureText(result);
@@ -769,7 +698,7 @@ async function cancelModel() {
   requests.add(controller); cancelBusy = true; localError = '';
   updateControls(); renderStatus();
   try {
-    const result = await postJSON('/api/model-cancel', {}, controller);
+    const result = await transport.postJSON('/api/model-cancel', {}, controller.signal);
     if (closed || life !== lifecycle) return;
     applyReplyIfCurrent(result, version);
     if (result.ok === false) localError = failureText(result);
@@ -873,7 +802,7 @@ document.addEventListener('click', (event) => {
 });
 window.addEventListener('pagehide', () => {
   closed = true; lifecycle++;
-  source?.close(); source = null;
+  transport.closeSubscription();
   syncController?.abort(); syncController = null;
   localTask?.controller.abort(); localTask = null;
   for (const controller of requests) controller.abort();

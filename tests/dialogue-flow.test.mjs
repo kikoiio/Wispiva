@@ -5,9 +5,9 @@ import { resolve, join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { createPrototypeExperience, createCampServer } from '../server.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
-import { CampSimulation } from '../core.mjs';
-import { projectActivity } from '../activity.mjs';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { projectActivity } from '../simulation/activity.mjs';
 import { parseGeneratedJSON } from '../model/generated-json.mjs';
 
 test('one prematurely closed root can retain trailing fields without dropping or overwriting commands', () => {
@@ -21,8 +21,8 @@ test('one prematurely closed root can retain trailing fields without dropping or
   assert.throws(() => parseGeneratedJSON('{"reply":"text"} unrelated {"ready":true}'));
   assert.equal(parseGeneratedJSON('{"reply":"},\\\"x\\\":1}"}').value.reply, '},"x":1}');
 });
-import { parseGenesisOutput } from '../genesis-records.mjs';
-import { buildGenesisMessages, checkWorldCandidate } from '../world-genesis.mjs';
+import { parseGenesisOutput } from '../creation/genesis-records.mjs';
+import { buildGenesisMessages, checkWorldCandidate } from '../creation/world-genesis.mjs';
 
 test('a genesis retry prompt repairs private-phrase overlap in public premise text', () => {
   const messages = buildGenesisMessages('海边观测站。', {

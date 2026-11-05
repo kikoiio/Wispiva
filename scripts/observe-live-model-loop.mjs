@@ -1,8 +1,8 @@
 import { mkdtempSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createWorldCreation } from '../world-creation.mjs';
+import { createWorldCreation } from '../creation/world-creation.mjs';
 import { loadModelConfig } from '../model/config.mjs';
-import { inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 
 const outputRoot = resolve('.tmp/live-model-loop');
 mkdirSync(outputRoot, { recursive: true, mode: 0o700 });

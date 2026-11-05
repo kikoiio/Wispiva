@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { createVoxelWorldStore } from '../voxel-world.mjs';
-import { voxelContext } from '../creation-dialogue.mjs';
+import { createVoxelWorldStore } from '../voxel/voxel-world.mjs';
+import { voxelContext } from '../creation/creation-dialogue.mjs';
 
 const root = resolve('.tmp/prototype');
 const sizes = process.argv.slice(2).map(Number).filter(Number.isSafeInteger);

@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CampSimulation, createCampWorld, validateWorld, step } from '../core.mjs';
-import { createGeneratedFixture, validateWorldDefinition, validateGeneratedWorld, GENERATED_LIMITS } from '../world-definition.mjs';
-import { observeResident, verifyDecision, createLedgers, ledgerView, buildResidentMessages } from '../actor.mjs';
+import { CampSimulation, createCampWorld, validateWorld, step } from '../simulation/core.mjs';
+import { createGeneratedFixture, validateWorldDefinition, validateGeneratedWorld, GENERATED_LIMITS } from '../simulation/world-definition.mjs';
+import { observeResident, verifyDecision, createLedgers, ledgerView, buildResidentMessages } from '../residents/actor.mjs';
 
 const actor = { actorId: 'mira', source: 'resident', decisionId: 'test-decision' };
 const resource = (sim, id) => sim.view(0).world.resources.find((r) => r.id === id).quantity;

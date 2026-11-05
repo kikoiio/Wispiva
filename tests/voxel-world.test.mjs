@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createVoxelWorldStore } from '../voxel-world.mjs';
+import { createVoxelWorldStore } from '../voxel/voxel-world.mjs';
 
 const fill = (material, from = [0, 0, 0], to = from) => ({ op: 'fill', from, to, material });
 function setup(t) {

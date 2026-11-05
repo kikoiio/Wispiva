@@ -1,87 +1,33 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, rmSync, appendFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { compactModelAudit } from '../model/audit.mjs';
+import { restoreCreation, recoverInterruptedCreation, invalidateGeneration } from './recovery.mjs';
+import { exists } from '../storage/files.mjs';
+import { createWorldRepository } from '../storage/world-repository.mjs';
 import { randomUUID } from 'node:crypto';
-import { CampSimulation } from './core.mjs';
-import { callModel } from './model/model-client.mjs';
-import { loadModelConfig } from './model/config.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { callModel } from '../model/model-client.mjs';
+import { loadModelConfig } from '../model/config.mjs';
 import { checkWorldCandidate, buildGenesisMessages } from './world-genesis.mjs';
-import { parseGeneratedJSON } from './model/generated-json.mjs';
+import { parseGeneratedJSON } from '../model/generated-json.mjs';
 import { parseGenesisOutput, compileGenesisRecords, GENESIS_STAGES, readGenesisStage } from './genesis-records.mjs';
-import { emptyDialogue, validDialogue, checkDiscussion, normalizeDiscussion, buildDiscussionMessages } from './creation-dialogue.mjs';
-import { createVoxelWorldStore } from './voxel-world.mjs';
-import { bindVoxelWorld } from './voxel-bindings.mjs';
-import { retrieveSource } from './model/source-retrieval.mjs';
-import { normalizeBuildingCommands, describeChanges, recoverableAttempt } from './creation-attempt.mjs';
-import { MODEL_REQUEST_TIMEOUT_MS, MAX_BUILD_LOOP_ITERATIONS } from './creation-limits.mjs';
-import { buildVoxelRepairCommands, inspectVoxelSpaces } from './geometry/voxel-inspection.js';
+import { emptyDialogue, checkDiscussion, normalizeDiscussion, buildDiscussionMessages } from './creation-dialogue.mjs';
+import { createVoxelWorldStore } from '../voxel/voxel-world.mjs';
+import { bindVoxelWorld } from '../spatial/voxel-bindings.mjs';
+import { retrieveSource } from '../model/source-retrieval.mjs';
+import { normalizeBuildingCommands, describeChanges, recoverableAttempt } from '../voxel/creation-attempt.mjs';
+import { MODEL_REQUEST_TIMEOUT_MS, MAX_BUILD_LOOP_ITERATIONS, MAX_SOURCE_CHARACTERS } from './creation-limits.mjs';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 const clone = value => structuredClone(value);
-const MAX_SOURCE_CHARACTERS = 5_000_000;
-
-function compactModelAudit(role, audit, extra = {}) {
-  const requestBody = audit?.request?.body;
-  const input = Array.isArray(requestBody?.input) ? requestBody.input : [];
-  return {
-    role,
-    ...extra,
-    id: audit?.id ?? null,
-    startedAt: audit?.startedAt ?? null,
-    model: audit?.model ?? null,
-    reasoningEffort: requestBody?.reasoning?.effort ?? null,
-    requestSent: Boolean(audit?.requestSent),
-    responseStatus: audit?.responseStatus ?? null,
-    elapsedMs: audit?.elapsedMs ?? 0,
-    headersReceivedMs: audit?.headersReceivedMs ?? null,
-    firstEventMs: audit?.firstEventMs ?? null,
-    firstTextMs: audit?.firstTextMs ?? null,
-    streamedResponse: Boolean(audit?.streamedResponse),
-    eventsReceived: audit?.eventsReceived ?? 0,
-    finishReason: audit?.finishReason ?? null,
-    incompleteReason: audit?.incompleteReason ?? null,
-    usage: audit?.usage ?? null,
-    error: audit?.error ?? null,
-    request: {
-      model: requestBody?.model ?? null,
-      messageCount: input.length,
-      inputCharacters: input.reduce((sum, message) => sum + String(message?.content ?? '').length, 0),
-    },
-    responseCharacters: typeof audit?.rawResponse === 'string' ? audit.rawResponse.length : null,
-  };
-}
 
 export function createWorldCreation({ stateFile, createExperience, configLoader = loadModelConfig, fetchImpl = globalThis.fetch,
   requestTimeoutMs = MODEL_REQUEST_TIMEOUT_MS } = {}) {
-  const directory = dirname(stateFile), stagingFile = join(directory, 'creation.json');
-  const save = value => {
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
-    const temp = `${stagingFile}.${randomUUID()}.tmp`;
-    try { writeFileSync(temp, JSON.stringify(value)+'\n', { mode: 0o600, flag: 'wx' }); renameSync(temp, stagingFile); }
-    finally { rmSync(temp, { force: true }); }
-  };
-  let saved = null;
-  if (existsSync(stagingFile)) {
-    try {
-      saved = JSON.parse(readFileSync(stagingFile, 'utf8'));
-      if (saved?.schemaVersion !== 1) throw new Error('不支持的创建存档版本');
-    } catch (cause) { throw new Error('创建存档无法读取或格式损坏，原文件已保留；请恢复 creation.json 后重启。', { cause }); }
-  }
-  let creation = { mode: 'create', draft: null, lastResult: null, worlds: [], dialogue: emptyDialogue(), source: null, attempts: [], generation: null };
-  if (saved?.schemaVersion === 1) {
-    creation.mode = saved.mode === 'world' ? 'world' : 'create';
-    if (saved.draft?.id && checkWorldCandidate(saved.draft.definition).ok) creation.draft = saved.draft;
-    if (Array.isArray(saved.worlds)) creation.worlds = saved.worlds.filter(w => /^[0-9a-f-]{36}$/.test(w?.id) && typeof w.title === 'string' && Number.isSafeInteger(w.worldMinute));
-    creation.lastResult = saved.pending ? { ok: false, message: '上次创建世界的请求中断，没有自动重试。' } : saved.lastResult ?? null;
-    if (validDialogue(saved.dialogue)) creation.dialogue = saved.dialogue;
-    if (Array.isArray(saved.attempts)) creation.attempts = saved.attempts.filter(a => typeof a?.id === 'string' && typeof a.userMessageId === 'string' && typeof a.outcome === 'string').slice(-80);
-    if (saved.generation?.id && Array.isArray(saved.generation.records) && Array.isArray(saved.generation.completedStages) && Array.isArray(saved.generation.timings?.calls)) creation.generation = saved.generation;
-    if (typeof saved.source?.name === 'string' && saved.source.name.length <= 120 && typeof saved.source?.text === 'string' && saved.source.text.length <= MAX_SOURCE_CHARACTERS && saved.source.text.trim()) creation.source = saved.source;
-    if (saved.pending && saved.pendingKind !== 'creation') creation.dialogue.ready = false;
-  }
-  creation.voxelId = /^[0-9a-f-]{36}$/.test(saved?.voxelId || '') ? saved.voxelId : randomUUID();
+  const repository = createWorldRepository(stateFile);
+  const saved = repository.readCreation();
+  const creation = restoreCreation(saved);
   const openVoxel = (id, expected = 0, snapshot) => {
-    const file = join(directory, `voxel-${id}.json`);
+    const file = repository.voxelFile(id);
     try {
       if (snapshot !== undefined && snapshot?.revision !== expected) throw Error('体素草稿版本不一致');
-      if (snapshot === undefined && expected > 0 && !existsSync(file)) throw Error('已保存的体素草稿文件缺失');
+      if (snapshot === undefined && expected > 0 && !exists(file)) throw Error('已保存的体素草稿文件缺失');
       return createVoxelWorldStore({ file, snapshot, onSave: next => persist(next) });
     } catch {
       const message = '建造草稿文件缺失或损坏；原文件已保留，请恢复后重启。';
@@ -91,49 +37,17 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     }
   };
   let voxel = openVoxel(creation.voxelId, Number.isSafeInteger(saved?.voxelRevision) ? saved.voxelRevision : 0, saved?.voxelSnapshot);
-  for (const attempt of creation.attempts) if (attempt.outcome === 'pending') {
-    const committedIterations = attempt.mode === 'loop'
-      ? (attempt.loop?.iterations ?? []).filter(iteration => iteration.outcome === 'committed' && iteration.toRevision > iteration.fromRevision)
-      : [];
-    const lastCommitted = committedIterations.at(-1);
-    const diagnostics = lastCommitted?.diagnostics ?? attempt.diagnostics ?? [];
-    const message = lastCommitted
-      ? `上次自动建造中断；此前已保存 ${committedIterations.length} 轮修改${diagnostics.length ? `，当前仍有 ${diagnostics.length} 项空间问题` : ''}。已保存场景保持可用，可以从当前内容继续。`
-      : '上次请求中断，输入已保留。可以重试这次请求，或调整后发送。';
-    Object.assign(attempt, { outcome: lastCommitted ? 'partial' : 'failed', reason: 'interrupted', message,
-      ...(lastCommitted ? { toRevision: lastCommitted.toRevision, diagnostics } : {}), finishedAt: new Date().toISOString() });
-    creation.dialogue.messages.push({ id: randomUUID(), role: 'assistant', text: attempt.message, attemptId: attempt.id });
-    creation.lastResult = { ok: false, reason: attempt.reason, message: attempt.message, attemptId: attempt.id, ...(lastCommitted ? { diagnostics } : {}) };
-  }
-  if (creation.generation?.outcome === 'pending') {
-    creation.generation.outcome = 'failed';
-    creation.lastResult = { ok: false, reason: 'interrupted', message: '上次起点生成中断，已完成的步骤已保存。可点击继续生成，没有自动重试。', generationId: creation.generation.id };
-  }
-  // Fixed experiments are backups, never an active world in the creation flow.
-  // Move the original bytes before opening a runtime (which could resume autonomy).
-  if (existsSync(stateFile)) {
-    const head = JSON.parse(readFileSync(stateFile, 'utf8'));
-    if (head.scenario === 'beast-camp-v1') {
-      const retired = join(directory, 'retired');
-      mkdirSync(retired, { recursive: true, mode: 0o700 });
-      renameSync(stateFile, join(retired, `beast-camp-${randomUUID()}.json`));
-      creation.mode = 'create';
-    }
-  }
-  const isGeneratedArchive = id => {
-    try {
-      const head = JSON.parse(readFileSync(join(directory, 'worlds', `${id}.json`), 'utf8'));
-      return head.scenario === 'generated-world-v1' && head.world?.profile === 'generated-world';
-    } catch { return false; }
-  };
+  recoverInterruptedCreation(creation);
+  if (repository.retireLegacy()) creation.mode = 'create';
+  const isGeneratedArchive = repository.isGeneratedArchive;
   creation.worlds = creation.worlds.filter(w => isGeneratedArchive(w.id));
-  let inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null;
+  let inner = exists(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null;
   if (inner && creation.draft?.id === inner.state().genesis?.draftId) { creation.draft = null; creation.mode = 'world'; }
   if (!inner) creation.mode = 'create';
   if (inner && creation.mode === 'create') inner.control({ type: 'pause' });
   let active = null, epoch = 0;
   const model = { pending: false, kind: 'creation', actorId: null, progress: null, lastResult: creation.lastResult };
-  const persist = (snapshot = voxel.snapshot?.()) => save({ schemaVersion: 1, ...creation,
+  const persist = (snapshot = voxel.snapshot?.()) => repository.saveCreation({ schemaVersion: 1, ...creation,
     voxelRevision: snapshot?.revision ?? voxel.state().revision,
     ...(snapshot ? { voxelSnapshot: snapshot } : saved?.voxelSnapshot ? { voxelSnapshot: saved.voxelSnapshot } : {}),
     pending: Boolean(active && !active.finalizing), pendingKind: active ? model.kind : null });
@@ -141,16 +55,6 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     creation: { ...clone({ ...creation, source: creation.source ? { name: creation.source.name, characters: creation.source.text.length } : null }), voxel: voxel.state(), hasWorld: Boolean(inner) },
     ...(active || creation.mode === 'create' ? { model: { ...clone(model), progress: model.progress && active ? { ...model.progress, elapsedMs: performance.now()-active.startedAt } : null } } : {}) });
   const response = (ok, message, extra = {}) => ({ ok, message, ...extra, state: state() });
-  const invalidateGeneration = (generation, result) => {
-    if (!['invalid-world', 'invalid-world-scene', 'privacy-audit-failed', 'world-compile-failed'].includes(result?.reason) || !generation.completedStages.length) return;
-    const stageFor = path => /^(world\.(actors|story\.(clues|facts))|initialMemories)(\.|\[|$)/.test(path) ? 1
-      : /^world\.(resources|processes|actions)(\.|\[|$)/.test(path) ? 2 : 0;
-    const firstInvalid = result.diagnostics?.length ? Math.min(...result.diagnostics.map(d => stageFor(d.path || ''))) : 0;
-    const retained = GENESIS_STAGES.slice(0, firstInvalid), types = new Set(retained.flatMap(s => s.types));
-    generation.completedStages = generation.completedStages.filter(id => retained.some(s => s.id === id));
-    generation.records = generation.records.filter(r => types.has(r.type));
-    generation.adjustments = [];
-  };
   if (creation.generation?.outcome === 'failed') invalidateGeneration(creation.generation, creation.lastResult);
   const blocked = () => Boolean(active || inner?.state().model.pending);
   function archiveCurrent() {
@@ -158,8 +62,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
     inner.close();
     const snapshot = CampSimulation.load(stateFile);
     const s = inner.state(), id = randomUUID();
-    const folder = join(directory, 'worlds'); mkdirSync(folder, { recursive: true, mode: 0o700 });
-    snapshot.save(join(folder, `${id}.json`));
+    repository.saveArchive(id, snapshot.snapshot());
     creation.worlds.push({ id, title: s.world.title || s.scene?.document?.title || '之前的旅途', worldMinute: s.worldMinute });
     persist(); // The archive index must be durable before replacing the active world.
   }
@@ -221,7 +124,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
           pending: false, pendingKind: null, genesis, scene: { document: definition.scene, revision: 0, draft: null, lastResult: null } };
         // The old world is archived before the single authoritative save is replaced.
         try { archiveCurrent(); next.save(stateFile, { experience }); }
-        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
+        catch (error) { inner = exists(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
         inner = createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs });
         creation.draft = null; creation.mode = 'world'; creation.lastResult = { ok: true, message: '世界已创建，时间停在起源，随时可以开始。' }; epoch++; persist();
         return response(true, creation.lastResult.message);
@@ -229,9 +132,9 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
       case 'world-open': {
         if (blocked() || !creation.worlds.some(w => w.id === body.worldId)) return response(false, '找不到这个已保存的世界。');
         if (!isGeneratedArchive(body.worldId)) return response(false, '旧实验不属于已创建的世界，请重新生成。');
-        const selected = CampSimulation.load(join(directory, 'worlds', `${body.worldId}.json`));
+        const selected = CampSimulation.load(repository.archiveFile(body.worldId));
         try { archiveCurrent(); selected.pause(); selected.save(stateFile); }
-        catch (error) { inner = existsSync(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
+        catch (error) { inner = exists(stateFile) ? createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }) : null; throw error; }
         inner = createExperience({ stateFile, configLoader, fetchImpl, requestTimeoutMs }); creation.mode = 'world'; epoch++; persist();
         return response(true, '已切换到保存的世界。');
       }
@@ -291,7 +194,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
       attempt.timings.calls.push({ model: audit.model, elapsedMs: audit.elapsedMs, headersReceivedMs: audit.headersReceivedMs,
         firstEventMs: audit.firstEventMs, firstTextMs: audit.firstTextMs, requestSent: audit.requestSent, reasoningEffort: audit.reasoningEffort, reason: audit.error?.code ?? null });
       attempt.timings.modelMs += audit.elapsedMs;
-      appendFileSync(join(directory, 'model-calls.jsonl'), JSON.stringify(audit)+'\n', { mode: 0o600 });
+      repository.audit(audit);
       return r;
     };
     const basisCurrent = () => epoch === startEpoch && voxelId === creation.voxelId && !voxel.state().error;
@@ -605,7 +508,7 @@ export function createWorldCreation({ stateFile, createExperience, configLoader 
         }), fetchImpl, jsonMode: false, signal: controller.signal, onProgress: stageProgress });
         const audit = compactModelAudit('world-genesis', r.audit, { stage: stage.id, generationId: generation.id });
         generation.timings.calls.push({ stage: stage.id, model: audit.model, elapsedMs: audit.elapsedMs, headersReceivedMs: audit.headersReceivedMs, firstTextMs: audit.firstTextMs, reason: audit.error?.code ?? null });
-        appendFileSync(join(directory, 'model-calls.jsonl'), JSON.stringify(audit)+'\n', { mode: 0o600 });
+        repository.audit(audit);
         if (controller.signal.aborted) result = { ok: false, reason: 'cancelled', message: '创建世界已取消，现有世界保持原样。' };
         else if (!r.ok) result = { ok: false, reason: r.audit.error?.code ?? 'request-failed', message: `${stage.label.replace('正在', '')}未完成，请继续讨论或重新生成。` };
         else if (epoch !== startEpoch) result = { ok: false, reason: 'stale-basis', message: '创建基准已变化，旧草稿未保留。' };

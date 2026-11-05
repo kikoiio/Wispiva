@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CampSimulation } from '../core.mjs';
-import { observeResident, verifyDecision, createLedgers, buildResidentMessages } from '../actor.mjs';
-import { validateGeneratedWorld, validateWorldDefinition, observeGeneratedResident } from '../world-definition.mjs';
-import { auditCandidatePrivacy, checkWorldCandidate } from '../world-genesis.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { observeResident, verifyDecision, createLedgers, buildResidentMessages } from '../residents/actor.mjs';
+import { validateGeneratedWorld, validateWorldDefinition, observeGeneratedResident } from '../simulation/world-definition.mjs';
+import { auditCandidatePrivacy, checkWorldCandidate } from '../creation/world-genesis.mjs';
 import { createRedHeadedLeagueDefinition } from '../fixtures/red-headed-league.mjs';
-import { createPlainMaterials } from '../geometry/materials.js';
-import { compileScene, disposeWorld } from '../geometry/scene-compiler.js';
-import { buildSolid } from '../geometry/solid.js';
+import { createPlainMaterials } from '../rendering/materials.js';
+import { compileScene, disposeWorld } from '../rendering/scene-compiler.js';
+import { buildSolid } from '../rendering/solid.js';
 
 const definition = createRedHeadedLeagueDefinition();
 const actor = (sim, id) => observeResident(sim.snapshot(), id);

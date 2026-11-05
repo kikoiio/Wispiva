@@ -130,7 +130,7 @@ test('an already cancelled complete-checkpoint recovery cannot publish a draft',
 });
 
 test('cancelling during final verification cannot publish a generated draft', async t => {
-  const { createGeneratedFixture } = await import('../world-definition.mjs');
+  const { createGeneratedFixture } = await import('../simulation/world-definition.mjs');
   const f = fixture(t, () => createGeneratedFixture());
   const e = f.open();
   const result = await e.worldStep({description:'一处小观测站'}, {onProgress(progress) {

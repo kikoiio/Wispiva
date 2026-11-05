@@ -1,4 +1,4 @@
-import { validateSceneDocument, validateSpatialLayout } from './geometry/scene-document.js';
+import { validateSceneDocument, validateSpatialLayout } from '../spatial/scene-document.js';
 
 export const GENERATED_SCENARIO = 'generated-world-v1';
 export const GENERATED_LIMITS = Object.freeze({ actors: 8, places: 12, resources: 24, processes: 32, actions: 24, conditions: 24, initialMemories: 32, quantity: 1e9, rate: 1e6 });

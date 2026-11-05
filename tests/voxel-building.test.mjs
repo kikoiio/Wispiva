@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareVoxelEdit } from '../voxel-building.mjs';
+import { prepareVoxelEdit } from '../voxel/voxel-building.mjs';
 
 const types = new Set(['wood', 'stone', 'glass']);
 const at = p => p.join(',');

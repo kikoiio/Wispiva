@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { libraryScene, villageScene, validateSceneDocument, validateSpatialLayout } from '../geometry/scene-document.js';
-import { compileScene, compileSceneParts, disposeWorld } from '../geometry/scene-compiler.js';
-import { createUnfamiliarScene } from '../geometry/scene-fixtures.js';
-import { localToWorld } from '../geometry/scene-validation.js';
-import { validateCompiledSpatial } from '../geometry/compiled-spatial.js';
-import { buildSolid } from '../geometry/solid.js';
-import { buildVoxel } from '../geometry/voxel.js';
+import { libraryScene, villageScene, validateSceneDocument, validateSpatialLayout } from '../spatial/scene-document.js';
+import { compileScene, compileSceneParts, disposeWorld } from '../rendering/scene-compiler.js';
+import { createUnfamiliarScene } from '../spatial/scene-fixtures.js';
+import { localToWorld } from '../spatial/scene-validation.js';
+import { validateCompiledSpatial } from '../rendering/compiled-spatial.js';
+import { buildSolid } from '../rendering/solid.js';
+import { buildVoxel } from '../rendering/voxel.js';
 
 const names = ['grass','earth','stone','stoneDark','plaster','wood','woodLight','roof','roofLight','glass','water','waterLight','leaf','leafLight','reed','cream','terracotta','bookRed','bookBlue','bookGold','dark'];
 const materials = Object.fromEntries(names.map(name => [name, new THREE.MeshStandardMaterial()]));

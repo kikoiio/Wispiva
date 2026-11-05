@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMP_COLORS, CAMP_LOCATIONS } from './camp-document.js';
+import { CAMP_COLORS, CAMP_LOCATIONS } from '../spatial/camp-document.js';
 
 function buildCampPart(node) {
   const part = new THREE.Group();

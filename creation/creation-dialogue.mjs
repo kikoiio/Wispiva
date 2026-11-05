@@ -1,5 +1,6 @@
-import { sourceContextText } from './model/source-retrieval.mjs';
-import { inspectVoxelSpaces } from './geometry/voxel-inspection.js';
+import { sourceContextText } from '../model/source-retrieval.mjs';
+import { voxelContext } from '../voxel/context.mjs';
+export { voxelContext } from '../voxel/context.mjs';
 import { MAX_BUILD_COMMANDS } from './creation-limits.mjs';
 
 export const emptyDialogue = () => ({ messages: [], summary: '', ready: false, revision: 0 });
@@ -39,27 +40,6 @@ export function normalizeDiscussion(value, previousSummary = '') {
   if (value.commands !== undefined) normalized.commands = value.commands;
   if (value.retrievalQueries !== undefined) normalized.retrievalQueries = value.retrievalQueries;
   return normalized;
-}
-
-export function voxelContext(voxel) {
-  const cells = voxel.cells.slice(0, 5000);
-  const objects = voxel.objects.map(o => o.members?.length > 64 ? { ...o, members: undefined,
-    memberRegions: compactRegions(o.members.map(position => ({ position }))) } : o);
-  const base = { revision: voxel.revision, cellCount: voxel.cells.length, truncated: voxel.cells.length > 5000, objects,
-    inspection: inspectVoxelSpaces(voxel) };
-  if (cells.length <= 64) return { ...base, cells };
-  return { ...base, regions: compactRegions(cells) };
-}
-
-function compactRegions(cells) {
-  const sorted = [...cells].sort((a,b) => a.position[1]-b.position[1] || a.position[2]-b.position[2] || a.position[0]-b.position[0]);
-  const regions = [];
-  for (const {position,material} of sorted) {
-    const previous = regions.at(-1);
-    if (previous && previous.material === material && previous.to[1] === position[1] && previous.to[2] === position[2] && previous.to[0]+1 === position[0]) previous.to[0] = position[0];
-    else regions.push({ from:[...position], to:[...position], ...(material === undefined ? {} : { material }) });
-  }
-  return regions;
 }
 
 export function buildDiscussionMessages(dialogue, draft, source = null, voxel = null, { sourceContext = null, retrievalRound = false, mode = 'auto', previousAttempt = null, attempts = [], loopContext = null } = {}) {

@@ -4,8 +4,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright';
 import { createCampServer } from '../server.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
-import { inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
+import { inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 
 if (!process.env.CI) throw Error('Browser observation is cloud-first. Run through the prepared GitHub Actions workflow.');
 const output = resolve('.tmp/prototype/voxel-browser');

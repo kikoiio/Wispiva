@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { group, mesh, instances, exposedVoxelMesh } from './primitives.js';
-import { libraryScene } from './scene-document.js';
-import { islandContains } from './scene-validation.js';
+import { libraryScene } from '../spatial/scene-document.js';
+import { islandContains } from '../spatial/scene-validation.js';
 
 const DEFAULT_UNIT = 0.42;
 const PARTS = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];

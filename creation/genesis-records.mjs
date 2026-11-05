@@ -1,4 +1,4 @@
-import { parseGeneratedJSON } from './model/generated-json.mjs';
+import { parseGeneratedJSON } from '../model/generated-json.mjs';
 
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const nonempty = value => typeof value === 'string' && value.trim() && value.length <= 2000;

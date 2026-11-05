@@ -1,6 +1,6 @@
 import { expandVoxelTools } from './voxel-tools.mjs';
 import { VOXEL_MATERIALS } from './voxel-world.mjs';
-import { MAX_BUILD_COMMANDS } from './creation-limits.mjs';
+import { MAX_BUILD_COMMANDS } from './building-limits.mjs';
 
 class BuildingError extends Error {
   constructor(message, path, detail) {

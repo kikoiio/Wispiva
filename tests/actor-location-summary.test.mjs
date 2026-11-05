@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { actorLocationSummary } from '../actor-location-summary.mjs';
+import { actorLocationSummary } from '../residents/actor-location-summary.mjs';
 
 test('actor location summary reports semantic place without inventing coordinates', () => {
   const world = {

@@ -2,10 +2,10 @@
 import assert from 'node:assert/strict';
 import {mkdirSync,mkdtempSync,rmSync,writeFileSync} from 'node:fs';
 import {join,resolve} from 'node:path';
-import {CampSimulation} from '../core.mjs';
+import {CampSimulation} from '../simulation/core.mjs';
 import {createMansionFixture} from '../fixtures/mansion-fixture.mjs';
-import {observeResident,buildResidentMessages,createLedgers,verifyDecision} from '../actor.mjs';
-import {validateGeneratedWorld,validateWorldDefinition} from '../world-definition.mjs';
+import {observeResident,buildResidentMessages,createLedgers,verifyDecision} from '../residents/actor.mjs';
+import {validateGeneratedWorld,validateWorldDefinition} from '../simulation/world-definition.mjs';
 const base=resolve('.tmp/prototype');mkdirSync(base,{recursive:true});const dir=mkdtempSync(join(base,'story-'));
 const checks=[],definition=createMansionFixture(),sim=new CampSimulation({world:definition.world});sim.pause();
 const observe=id=>observeResident(sim.view(1),id);

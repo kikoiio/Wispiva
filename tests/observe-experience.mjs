@@ -3,9 +3,9 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { mkdirSync, mkdtempSync, rmSync, readFileSync, copyFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { CampSimulation } from '../core.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
 import { createCampExperience, createCampServer } from '../server.mjs';
-import { observeResident, buildResidentMessages, verifyDecision } from '../actor.mjs';
+import { observeResident, buildResidentMessages, verifyDecision } from '../residents/actor.mjs';
 import { createEventParser } from '../model/stream-events.mjs';
 
 const base = resolve('.tmp/prototype'); mkdirSync(base, { recursive: true });

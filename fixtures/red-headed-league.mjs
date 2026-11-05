@@ -1,4 +1,4 @@
-import { compileGenesisRecords } from '../genesis-records.mjs';
+import { compileGenesisRecords } from '../creation/genesis-records.mjs';
 
 // A small, source-grounded starting point for testing information boundaries.
 // It deliberately stops before the novel's bank robbery and leaves the agents

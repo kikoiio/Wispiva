@@ -1,6 +1,4 @@
-import { readFileSync, writeFileSync, renameSync, unlinkSync } from 'node:fs';
-import { dirname, basename, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { readJSON, writeJSONAtomic } from '../storage/files.mjs';
 import { isDeepStrictEqual } from 'node:util';
 import { prepareVoxelEdit } from './voxel-building.mjs';
 import { expandVoxelTools, validString } from './voxel-tools.mjs';
@@ -30,10 +28,8 @@ const validBatch = batch => {
 };
 
 function readStore(file) {
-  let raw;
-  try { raw = readFileSync(file, 'utf8'); }
+  try { return validateStore(readJSON(file)); }
   catch (error) { if (error.code === 'ENOENT') return { revision: 0, cells: [], objects: [], undo: [], redo: [] }; throw error; }
-  return validateStore(JSON.parse(raw));
 }
 
 function validateStore(data) {
@@ -54,16 +50,7 @@ function validateStore(data) {
   return { ...data, objects: objects.map(copyObject) };
 }
 
-function writeStore(file, data) {
-  const temp = join(dirname(file), `.${basename(file)}.${randomUUID()}.tmp`);
-  try {
-    writeFileSync(temp, JSON.stringify(data), { encoding: 'utf8', flag: 'wx' });
-    renameSync(temp, file);
-  } catch (error) {
-    try { unlinkSync(temp); } catch (cleanupError) { if (cleanupError.code !== 'ENOENT') error.cleanupError = cleanupError; }
-    throw error;
-  }
-}
+const writeStore = (file, data) => writeJSONAtomic(file, data, { newline: false });
 
 /** Synchronous, file-backed world. Mutations return a fresh public state. */
 export function createVoxelWorldStore({ file, snapshot, onSave }) {

@@ -1,6 +1,6 @@
 import { buildSolid } from './solid.js';
 import { buildVoxel } from './voxel.js';
-import { validateSceneDocument, validateSpatialLayout, formatDiagnostic, sceneLayout, islandContains } from './scene-document.js';
+import { validateSceneDocument, validateSpatialLayout, formatDiagnostic, sceneLayout, islandContains } from '../spatial/scene-document.js';
 import { batchStaticMeshes } from './primitives.js';
 import { validateCompiledSpatial } from './compiled-spatial.js';
 import { buildCamp } from './camp-compiler.js';

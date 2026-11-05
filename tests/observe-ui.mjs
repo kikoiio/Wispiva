@@ -2,13 +2,14 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
 import { setImmediate as flush } from 'node:timers/promises';
-import { actorLocationSummary } from '../actor-location-summary.mjs';
-import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { actorLocationSummary } from '../residents/actor-location-summary.mjs';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 
 const html = readFileSync(new URL('../ui/index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../ui/app.js', import.meta.url), 'utf8');
-const sceneSource = readFileSync(new URL('../ui/scene.js', import.meta.url), 'utf8');
+const transport = readFileSync(new URL('../ui/transport.js', import.meta.url), 'utf8');
+const sceneSource = readFileSync(new URL('../rendering/scene.js', import.meta.url), 'utf8');
 const clone = (value) => structuredClone(value);
 const settle = async () => { for (let i = 0; i < 8; i++) await flush(); };
 const checks = [];
@@ -164,7 +165,7 @@ function heldStream() {
 
 async function page(initial = emptyState(), options = {}) {
   const { document, elements } = memoryDocument();
-  const windowEvents = new Map(), timers = new Map(), routes = new Map(), requests = [], sources = [], scenes = [], sceneStarts = [];
+  const windowEvents = new Map(), timers = new Map(), routes = new Map(), requests = [], sources = [], scenes = [], voxelScenes = [], sceneStarts = [];
   let now = 0, timer = 0, server = clone(initial), holdScenes = false, failScenes = 0;
   class MemorySource {
     constructor(path) { this.path = path; this.readyState = 0; this.handlers = new Map(); this.closed = false; sources.push(this); }
@@ -185,18 +186,35 @@ async function page(initial = emptyState(), options = {}) {
     if (path === '/api/state') return options.initialGet ? options.initialGet() : Response.json(server);
     throw new Error(`Unexpected UI request ${path}`);
   };
+  const memoryScene = (host, state) => ({ host, mode: '3d', disposed: false, updates: [clone(state)], update(next) { assert(!this.disposed); this.updates.push(clone(next)); }, dispose() { this.disposed = true; host.replaceChildren(); } });
   const loadScene = async () => ({ createScene: async (host, state) => {
     if (failScenes) { failScenes--; throw new Error('Synthetic scene failure'); }
-    const instance = { host, mode: '3d', disposed: false, updates: [clone(state)], update(next) { assert(!this.disposed); this.updates.push(clone(next)); }, dispose() { this.disposed = true; host.replaceChildren(); } };
+    const instance = memoryScene(host, state);
     scenes.push(instance);
     if (holdScenes) await new Promise((resolve) => sceneStarts.push(resolve));
     return instance;
   } });
-  assert.equal(app.split("import('./scene.js')").length, 2);
-  const context = vm.createContext({ document, window, inspectVoxelSpaces, buildVoxelRepairCommands, actorLocationSummary, EventSource: MemorySource, performance: { now: () => now }, fetch: fetchUI, AbortController, TextDecoder, console, __loadSceneModule: loadScene });
-  new vm.Script(app.replace("import { buildVoxelRepairCommands, inspectVoxelSpaces } from './geometry/voxel-inspection.js';", '').replace("import { actorLocationSummary } from '../actor-location-summary.mjs';", '').replace("import('./scene.js')", '__loadSceneModule()')).runInContext(context);
+  const loadVoxelScene = async () => ({ createVoxelScene: async (host, state) => {
+    const instance = memoryScene(host, state);
+    voxelScenes.push(instance);
+    return instance;
+  } });
+  assert.equal(app.split("import('../rendering/scene.js')").length, 2);
+  assert.equal(app.split("import('../rendering/voxel-scene.js')").length, 2);
+  const context = vm.createContext({ document, window, inspectVoxelSpaces, buildVoxelRepairCommands, actorLocationSummary, EventSource: MemorySource, performance: { now: () => now }, fetch: fetchUI, AbortController, TextDecoder, console, __loadSceneModule: loadScene, __loadVoxelSceneModule: loadVoxelScene });
+  // vm.Script needs no experimental module flags. Remove only the ESM export
+  // declarations and evaluate the production module in its own lexical scope.
+  const transportModule = new vm.Script(`(() => {\n${transport.replace(/^export (?=function )/gm, '')}\nreturn { createTransport };\n})()`, { filename: 'ui/transport.js' }).runInContext(context);
+  context.createTransport = transportModule.createTransport;
+  const script = app
+    .replace("import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';", '')
+    .replace("import { actorLocationSummary } from '../residents/actor-location-summary.mjs';", '')
+    .replace("import { createTransport } from './transport.js';", '')
+    .replace("import('../rendering/scene.js')", '__loadSceneModule()')
+    .replace("import('../rendering/voxel-scene.js')", '__loadVoxelSceneModule()');
+  new vm.Script(script, { filename: 'ui/app.js' }).runInContext(context);
   const api = {
-    document, elements, requests, sources, scenes, timers, sceneStarts,
+    document, elements, requests, sources, scenes, voxelScenes, timers, sceneStarts,
     $(id) { return document.getElementById(id); },
     async push(state) { server = clone(state); sources.at(-1).emit('state', server); await settle(); },
     setServer(state) { server = clone(state); },
@@ -615,7 +633,7 @@ await check('pagehide closes SSE, aborts this page request, clears timers and di
   const task = p.click('actor-step'); await settle(); const request = p.requests.at(-1);
   const count = p.requests.length; p.hide(); await task;
   assert.equal(p.requests.length, count); assert.equal(p.sources[0].closed, true); assert.equal(request.signal.aborted, true);
-  assert.equal(p.timers.size, 0); assert(p.scenes.every((scene) => scene.disposed));
+  assert.equal(p.timers.size, 0); assert([...p.scenes, ...p.voxelScenes].every((scene) => scene.disposed));
   await p.restore(); await p.push(worldState());
   assert.equal(p.sources.filter((source) => !source.closed).length, 1); assert.equal(p.timers.size, 1);
   assert.equal(p.$('actor-step').disabled, false); assert.equal(p.$('activity-log').children.length, 1);

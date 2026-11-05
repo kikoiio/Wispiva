@@ -1,7 +1,6 @@
-import { createCampSceneDocument, validateCampSceneDocument } from './geometry/camp-document.js';
-import { compileScene, disposeWorld } from './geometry/scene-compiler.js';
-import { validateSceneDocument, validateSpatialLayout } from './geometry/scene-document.js';
-import { createPlainMaterials } from './geometry/materials.js';
+import { createCampSceneDocument, validateCampSceneDocument } from '../spatial/camp-document.js';
+import { checkCompiledScene } from '../rendering/scene-check.mjs';
+import { validateSceneDocument, validateSpatialLayout } from '../spatial/scene-document.js';
 
 export { createCampSceneDocument };
 
@@ -10,13 +9,9 @@ export function checkSceneCandidate(document) {
   const errors = generic ? validateSceneDocument(document) : validateCampSceneDocument(document);
   if (generic && !errors.length) errors.push(...validateSpatialLayout(document));
   if (errors.length) return { ok: false, reason: 'invalid-scene', diagnostics: errors };
-  let compiled; const materials = generic ? createPlainMaterials() : null;
-  try {
-    compiled = compileScene(document, 'solid', generic ? { materials, details: false } : {});
-    return { ok: true, document: structuredClone(document) };
-  } catch (error) {
-    return { ok: false, reason: 'scene-compile-failed', diagnostics: error.diagnostics ?? [{ nodeId: 'scene', operationId: 'compile', requirementId: 'geometry', message: '场景未通过几何编译。' }] };
-  } finally { if (compiled) disposeWorld(compiled); if (materials) for (const material of Object.values(materials)) material.dispose(); }
+  const compiled = checkCompiledScene(document);
+  if (!compiled.ok) return { ok: false, reason: 'scene-compile-failed', diagnostics: compiled.diagnostics ?? [{ nodeId: 'scene', operationId: 'compile', requirementId: 'geometry', message: '场景未通过几何编译。' }] };
+  return { ok: true, document: structuredClone(document) };
 }
 
 export function buildSceneMessages(instruction, document) {

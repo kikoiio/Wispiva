@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createPrototypeExperience } from '../server.mjs';
-import { projectVoxelActors } from '../voxel-bindings.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
-import { buildDiscussionMessages } from '../creation-dialogue.mjs';
-import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../geometry/voxel-inspection.js';
+import { projectVoxelActors } from '../spatial/voxel-bindings.mjs';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
+import { buildDiscussionMessages } from '../creation/creation-dialogue.mjs';
+import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 
 const base = resolve('.tmp/prototype');
 const fill = { op: 'fill', from: [0, 0, 0], to: [2, 0, 0], material: 'wood' };

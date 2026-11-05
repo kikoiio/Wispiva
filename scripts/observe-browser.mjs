@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 import { createCampServer } from '../server.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
 
 if (!process.env.CI) throw Error('Browser observation is cloud-first. Run through the prepared GitHub Actions workflow.');
 const output = resolve('.tmp/prototype/browser'); mkdirSync(output, { recursive: true });

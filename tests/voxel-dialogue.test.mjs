@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { createPrototypeExperience } from '../server.mjs';
-import { normalizeBuildingCommands } from '../creation-attempt.mjs';
+import { normalizeBuildingCommands } from '../voxel/creation-attempt.mjs';
 
 test('conversation edits persist, undo and reject invalid model operations', async t => {
   const root = resolve('.tmp/prototype'); mkdirSync(root, { recursive: true });

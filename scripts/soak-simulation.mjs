@@ -4,8 +4,8 @@ import { availableParallelism, freemem, release, totalmem, platform, arch } from
 import { dirname, join, resolve } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { CampSimulation } from '../core.mjs';
-import { createGeneratedFixture } from '../world-definition.mjs';
+import { CampSimulation } from '../simulation/core.mjs';
+import { createGeneratedFixture } from '../simulation/world-definition.mjs';
 
 const script = fileURLToPath(import.meta.url);
 const root = resolve(dirname(script), '..');

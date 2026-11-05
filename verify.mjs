@@ -8,9 +8,10 @@ const files = (directory, pattern) => readdirSync(resolve(repoRoot, directory))
   .filter(name => pattern.test(name)).sort().map(name => resolve(repoRoot, directory, name));
 const testFiles = files('tests', /\.test\.mjs$/);
 const observationFiles = ['tests', 'model'].flatMap(directory => files(directory, /^observe-.*\.mjs$/));
+const modules = ['ui', 'rendering', 'transport', 'creation', 'voxel', 'spatial', 'simulation', 'residents', 'model', 'storage'];
 
 const jobs = [
-  ...files('ui', /\.js$/).map(file => ['--check', file]),
+  ...['server.mjs', ...modules.flatMap(directory => files(directory, /\.(?:js|mjs)$/))].map(file => ['--check', file]),
   [
     '--test',
     '--test-isolation=none',

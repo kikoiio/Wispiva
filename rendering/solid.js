@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { group, mesh, box, texturedBox, cylinder, sphere, beam, instances, rng } from './primitives.js';
-import { libraryScene } from './scene-document.js';
-import { islandContains, islandRadius } from './scene-validation.js';
+import { libraryScene } from '../spatial/scene-document.js';
+import { islandContains, islandRadius } from '../spatial/scene-validation.js';
 
 const partNames = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { expandVoxelTools } from '../voxel-tools.mjs';
+import { expandVoxelTools } from '../voxel/voxel-tools.mjs';
 
 const shape = (op, from, to) => ({ op, from, to, material: 'wood' });
 function cells(commands) {

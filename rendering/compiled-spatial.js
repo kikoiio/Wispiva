@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { sceneLayout, localToWorld, bridgePoint, diagnostic, islandContains } from './scene-validation.js';
-import { CAMP_LOCATIONS } from './camp-document.js';
+import { sceneLayout, localToWorld, bridgePoint, diagnostic, islandContains } from '../spatial/scene-validation.js';
+import { CAMP_LOCATIONS } from '../spatial/camp-document.js';
 
 // Probe the actual compiled surfaces, not just the declared dimensions. No renderer/GPU is needed.
 export function validateCompiledSpatial(document, parts) {

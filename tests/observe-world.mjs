@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { CampSimulation, createCampWorld } from '../core.mjs';
+import { CampSimulation, createCampWorld } from '../simulation/core.mjs';
 
 // Offline, small behavioral observations. No server, configuration loader or model imports.
 // Run: node tests/observe-world.mjs
