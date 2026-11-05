@@ -28,8 +28,8 @@ export function loadModelConfig({ root = repoRoot, envFile, env = process.env, r
   const problems = [];
   const protocol = values.WISPIVA_LLM_PROTOCOL?.trim();
   if (protocol) {
-    if (!['responses', 'chat-completions'].includes(protocol)) {
-      problems.push('WISPIVA_LLM_PROTOCOL 必须为 responses 或 chat-completions');
+    if (!['responses', 'chat-completions', 'anthropic-messages'].includes(protocol)) {
+      problems.push('WISPIVA_LLM_PROTOCOL 必须为 responses、chat-completions 或 anthropic-messages');
     } else llm.protocol = protocol;
   }
   const effort = values.WISPIVA_LLM_REASONING_EFFORT?.trim();
@@ -54,8 +54,14 @@ export function loadModelConfig({ root = repoRoot, envFile, env = process.env, r
 }
 
 export function configSummary(config) {
+  let inferredProtocol = 'responses';
+  try {
+    const path = new URL(config.llm.baseUrl).pathname.replace(/\/+$/, '');
+    if (/\/(?:anthropic(?:\/v1)?|v1\/messages|messages)$/i.test(path)) inferredProtocol = 'anthropic-messages';
+    else if (/\/chat\/completions$/i.test(path)) inferredProtocol = 'chat-completions';
+  } catch { /* The loader reports invalid URLs before this summary is used. */ }
   return {
-    protocol: config.llm.protocol ?? 'responses',
+    protocol: config.llm.protocol ?? inferredProtocol,
     envFile: config.envFile,
     llm: {
       baseUrl: config.llm.baseUrl,
