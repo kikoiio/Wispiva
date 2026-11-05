@@ -44,9 +44,9 @@ jobs:
       - run: npm ci
       - name: Run isolated current-model build and repair loop
         env:
-          WISPIVA_LLM_MODEL: ${{ vars.WISPIVA_LLM_MODEL || secrets.WISPIVA_LLM_MODEL }}
-          WISPIVA_LLM_BASE_URL: ${{ vars.WISPIVA_LLM_BASE_URL || secrets.WISPIVA_LLM_BASE_URL || vars.QODER_API_BASE_URL || secrets.QODER_API_BASE_URL }}
-          WISPIVA_LLM_API_KEY: ${{ secrets.WISPIVA_LLM_API_KEY || secrets.QODER_ACCESS_TOKEN }}
+          WISPIVA_LLM_MODEL: ${{ vars.WISPIVA_LLM_MODEL || secrets.WISPIVA_LLM_MODEL || vars.MODEL_NAME || secrets.MODEL_NAME }}
+          WISPIVA_LLM_BASE_URL: ${{ vars.WISPIVA_LLM_BASE_URL || secrets.WISPIVA_LLM_BASE_URL || vars.QODER_API_BASE_URL || secrets.QODER_API_BASE_URL || vars.LLM_BASE_URL || secrets.LLM_BASE_URL }}
+          WISPIVA_LLM_API_KEY: ${{ secrets.WISPIVA_LLM_API_KEY || secrets.QODER_ACCESS_TOKEN || secrets.LLM_API_KEY }}
           WISPIVA_LLM_PROTOCOL: ${{ vars.WISPIVA_LLM_PROTOCOL || secrets.WISPIVA_LLM_PROTOCOL }}
           WISPIVA_LLM_REASONING_EFFORT: ${{ vars.WISPIVA_LLM_REASONING_EFFORT || secrets.WISPIVA_LLM_REASONING_EFFORT }}
         run: node scripts/observe-live-model-loop.mjs
