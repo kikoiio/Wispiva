@@ -176,6 +176,8 @@ def run(output, budget):
     try:
         processes.start('product server', base + ['--resume', '--speed', '1'],
                         env=env, cwd=ROOT, log=work / 'continued.log')
+        wait(lambda text: 'SOCIETY spawn count=' in text, 'continued world ready')
+        send_command(world, 'resume', timeout=10)
         wait(lambda text: 'ev=model-action ' in text, 'model continuation after recovery')
         send_command(world, 'pause', timeout=10)
     finally:
