@@ -2205,6 +2205,7 @@ end
 local function apply_product_projection()
 	if not WORLD_PRODUCT then return end
 	local plan = world_projection.plan(genesis_manifest)
+	dofile(minetest.get_modpath("society") .. "/origin_protection.lua").install(minetest, plan.operations)
 	local components = product_state:components()
 	if components.map > 0 then
 		for _, operation in ipairs(plan.operations) do
@@ -2625,10 +2626,11 @@ minetest.register_on_shutdown(function()
 		local environment_amount = environment_process
 			and environment_process:export().amount or resource_initial_environment or 0
 		local environment_delta = environment_amount - (resource_initial_environment or 0)
-		local expected = resource_initial + environment_delta
-		ev("resource-verify initial=%d environment_delta=%d expected=%d world=%d inventory=%d ok=%s",
+		-- Suppressed resource nodes remain a virtual environment balance.
+		local expected = resource_initial + (SUPPRESS_RESOURCES and 0 or environment_delta)
+		ev("resource-verify initial=%d environment_delta=%d expected=%d world=%d inventory=%d ok=%s virtual_environment=%s",
 			resource_initial, environment_delta, expected, in_world, inventory,
-			tostring(expected == in_world + inventory))
+			tostring(expected == in_world + inventory), tostring(SUPPRESS_RESOURCES))
 	end
 	if PERSIST and not S.failed then
 		local saved = {}

@@ -52,6 +52,7 @@ jobs:
           (cd cognition && lua5.1 test_navigation.lua)
           lua5.1 world/test_narrative_state.lua
           lua5.1 engine/luanti/mod/society/test_story_runtime.lua
+          lua5.1 engine/luanti/mod/society/test_origin_protection.lua
           lua5.1 engine/luanti/mod/society/test_world_projection.lua
           if [[ -f engine/luanti/mod/society/test_interior_blueprints.lua ]]; then
             lua5.1 engine/luanti/mod/society/test_interior_blueprints.lua

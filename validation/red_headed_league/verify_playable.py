@@ -108,6 +108,8 @@ def run(output, budget):
     finally:
         processes.close()
     first_log = read_log(log)
+    balance = re.findall(r'resource-verify [^\n]*?ok=(true|false)', first_log)
+    require(balance and all(value == 'true' for value in balance), 'resource reconciliation failed')
     first = checkpoint(world)
     require(not (world / 'wispiva-session-recovery.json').exists(), 'unclean first shutdown')
     narrative = first['narrative']
