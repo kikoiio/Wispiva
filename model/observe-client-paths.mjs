@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildAnthropicMessagesEndpoint, buildChatCompletionsEndpoint, buildResponsesEndpoint, callModel } from './model-client.mjs';
+import { buildAnthropicMessagesEndpoint, buildChatCompletionsEndpoint, buildResponsesEndpoint, callModel, resolveModelProtocol } from './model-client.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EVIDENCE = join(ROOT, '.tmp/shared-model/client-path-observation.json');
@@ -112,8 +112,6 @@ for (const baseUrl of [
   ' https://fixture.invalid ',
   'https://fixture.invalid/v1/chat/completions',
   'https://fixture.invalid/v1/chat/completions///',
-  'https://fixture.invalid/messages',
-  'https://fixture.invalid/v1/messages/',
   null,
 ]) {
   await observe('reject unsafe/invalid URL', async () => {
@@ -211,6 +209,8 @@ await observe('Anthropic Messages protocol sends the compatible request shape an
   assert.equal(buildAnthropicMessagesEndpoint('https://api.scnet.cn/api/llm/anthropic'), 'https://api.scnet.cn/api/llm/anthropic/v1/messages');
   assert.equal(buildAnthropicMessagesEndpoint('https://fixture.invalid/v1'), 'https://fixture.invalid/v1/messages');
   assert.equal(buildAnthropicMessagesEndpoint('https://fixture.invalid/v1/messages/'), 'https://fixture.invalid/v1/messages');
+  assert.equal(buildAnthropicMessagesEndpoint('https://fixture.invalid/messages'), 'https://fixture.invalid/messages');
+  assert.equal(resolveModelProtocol({ baseUrl: 'https://fixture.invalid/messages' }), 'anthropic-messages');
 });
 
 await observe('Anthropic Messages streaming accumulates text and usage without retaining provider event framing', async () => {
