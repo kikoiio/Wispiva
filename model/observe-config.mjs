@@ -39,6 +39,16 @@ check('chat-completions protocol is accepted and reported without exposing crede
   assert.equal(configSummary(config).protocol, 'chat-completions');
   assert.equal(JSON.stringify(configSummary(config)).includes('synthetic-secret'), false);
 });
+check('Anthropic Messages protocol is accepted and inferred from its base URL', () => {
+  const explicit = load(fixture + 'WISPIVA_LLM_PROTOCOL=anthropic-messages\n');
+  assert.equal(explicit.llm.protocol, 'anthropic-messages');
+  assert.equal(configSummary(explicit).protocol, 'anthropic-messages');
+  const inferred = load('', { readFile: missing, env: {
+    WISPIVA_LLM_BASE_URL: 'https://api.scnet.cn/api/llm/anthropic',
+    WISPIVA_LLM_MODEL: 'fixture-model', WISPIVA_LLM_API_KEY: 'synthetic-secret',
+  } });
+  assert.equal(configSummary(inferred).protocol, 'anthropic-messages');
+});
 check('environment-only deployment needs no local file', () => {
   assert.equal(load('', { readFile: missing, env: {
     WISPIVA_LLM_BASE_URL: 'https://fixture.invalid/v1', WISPIVA_LLM_MODEL: 'fixture-model', WISPIVA_LLM_API_KEY: 'synthetic-secret',
