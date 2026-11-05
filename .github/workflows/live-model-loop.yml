@@ -1,0 +1,60 @@
+name: Live model build and repair
+
+on:
+  workflow_dispatch:
+    inputs:
+      repetitions:
+        description: Number of sequential isolated attempts
+        required: true
+        default: '3'
+        type: choice
+        options:
+          - '1'
+          - '3'
+  push:
+    branches: ['prototype/review-*']
+    paths:
+      - '.github/workflows/live-model-loop.yml'
+      - 'scripts/observe-live-model-loop.mjs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-model-loop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  live-model-loop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp/ci
+      WISPIVA_ENV_FILE: ${{ github.workspace }}/.tmp/ci/empty.env
+      LIVE_MODEL_REPETITIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.repetitions || '3' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare isolated temporary directories
+        run: |
+          mkdir -p .tmp/ci
+          : > .tmp/ci/empty.env
+      - run: npm ci
+      - name: Run isolated current-model build and repair loop
+        env:
+          WISPIVA_LLM_MODEL: ${{ vars.WISPIVA_LLM_MODEL || secrets.WISPIVA_LLM_MODEL }}
+          WISPIVA_LLM_BASE_URL: ${{ vars.WISPIVA_LLM_BASE_URL || secrets.WISPIVA_LLM_BASE_URL || vars.QODER_API_BASE_URL || secrets.QODER_API_BASE_URL }}
+          WISPIVA_LLM_API_KEY: ${{ secrets.WISPIVA_LLM_API_KEY || secrets.QODER_ACCESS_TOKEN }}
+          WISPIVA_LLM_PROTOCOL: ${{ vars.WISPIVA_LLM_PROTOCOL || secrets.WISPIVA_LLM_PROTOCOL }}
+          WISPIVA_LLM_REASONING_EFFORT: ${{ vars.WISPIVA_LLM_REASONING_EFFORT || secrets.WISPIVA_LLM_REASONING_EFFORT }}
+        run: node scripts/observe-live-model-loop.mjs
+      - name: Upload redacted model-loop metrics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-model-loop-metrics
+          path: .tmp/live-model-loop/**/report.json
+          if-no-files-found: warn
+          retention-days: 7
