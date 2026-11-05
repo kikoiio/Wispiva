@@ -533,6 +533,7 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
   try { url = buildModelEndpoint(llm.baseUrl, protocol); } catch { return finish('invalid-config'); }
 
   let body;
+  let rawRequest;
   try {
     body = protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
       ? buildAnthropicRequestBody(llm, messages, jsonMode)
