@@ -10,7 +10,7 @@
 
 `world-definition.mjs`、`core.mjs` 和 `actor.mjs` 管理规则、事实和角色观察；角色通过自身可见的观察选择行动，程序裁定结果。`activity.mjs` 将已提交变化投影为动态。作者界面是全知视图，角色输入受到信息边界约束。
 
-`model/` 负责模型配置、请求和素材检索。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
+`model/` 负责模型配置、请求和素材检索。`loadModelConfig()` 从进程环境变量或 `.env` 读取 `WISPIVA_LLM_MODEL`、API 基址和凭据；进程环境变量优先，`WISPIVA_ENV_FILE` 可指定配置文件。模型 ID 没有写死在应用代码中。本机当前 CLI 配置来自 `.env`，模型为 `spark-x2.6`。GitHub Actions 的 `prototype-preview.yml` 未把仓库模型 secrets／variables 传给 job，其浏览器流程使用合成模型，不代表 GitHub 设置的真实模型。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
 
 ## 创建与反馈
 
@@ -42,7 +42,7 @@
 
 ## 检查
 
-`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。结构方案提交 `2c8d395` 的 [run 41772518381](https://github.com/kikoiio/Wispiva/actions/runs/41772518381) 通过离线与浏览器流程。之后的 [run 41783501746](https://github.com/kikoiio/Wispiva/actions/runs/41783501746) 通过离线检查、对话／活动、体素建造、创建恢复和截图步骤；合成场景包含 532 格湖岸、室内石桌和两位有支撑地点的人物，水面人物不作虚构投影，确认后的全景和室内截图已人工检查。该运行也覆盖生成失败的诊断显示修复。全应用请求增加 180 秒默认超时后的实现由 [run 41787319530](https://github.com/kikoiio/Wispiva/actions/runs/41787319530) 再次通过完整离线与浏览器流程。[run 41792778203](https://github.com/kikoiio/Wispiva/actions/runs/41792778203) 验证了确定性地板缺口修复、无模型回复时的持久化保护和完整浏览器流程。[run 41822596843](https://github.com/kikoiio/Wispiva/actions/runs/41822596843) 在提交 `662a2ad` 上通过离线检查、对话／活动、体素建造、创建恢复和截图观察步骤。[run 41825456201](https://github.com/kikoiio/Wispiva/actions/runs/41825456201) 在提交 `073aaa6` 上通过相同完整流程，覆盖诊断驱动的隐私修复提示及其回归。渲染地面高程修复提交 `72e4d77` 已触发 [run 41838838255](https://github.com/kikoiio/Wispiva/actions/runs/41838838255)，但当前 GitHub API／连接器返回传输错误，无法核实其最终结果；本机语法检查与实际隔离场景渲染已观察通过。这些流程验证固定合成样本，不代表真实模型输出稳定或真实模型生成的完整场景已通过。
+`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。结构方案提交 `2c8d395` 的 [run 41772518381](https://github.com/kikoiio/Wispiva/actions/runs/41772518381) 通过离线与浏览器流程。之后的 [run 41783501746](https://github.com/kikoiio/Wispiva/actions/runs/41783501746) 通过离线检查、对话／活动、体素建造、创建恢复和截图步骤；合成场景包含 532 格湖岸、室内石桌和两位有支撑地点的人物，水面人物不作虚构投影，确认后的全景和室内截图已人工检查。该运行也覆盖生成失败的诊断显示修复。全应用请求增加 180 秒默认超时后的实现由 [run 41787319530](https://github.com/kikoiio/Wispiva/actions/runs/41787319530) 再次通过完整离线与浏览器流程。[run 41792778203](https://github.com/kikoiio/Wispiva/actions/runs/41792778203) 验证了确定性地板缺口修复、无模型回复时的持久化保护和完整浏览器流程。[run 41822596843](https://github.com/kikoiio/Wispiva/actions/runs/41822596843) 在提交 `662a2ad` 上通过离线检查、对话／活动、体素建造、创建恢复和截图观察步骤。[run 41825456201](https://github.com/kikoiio/Wispiva/actions/runs/41825456201) 在提交 `073aaa6` 上通过相同完整流程，覆盖诊断驱动的隐私修复提示及其回归。渲染地面高程修复提交 `72e4d77` 的 [run 41838838255](https://github.com/kikoiio/Wispiva/actions/runs/41838838255) 已由 GitHub 连接器确认完整通过离线检查、三段浏览器流程和 artifact 步骤；这些流程使用固定合成样本，不代表真实模型输出稳定或真实模型生成的完整场景已通过。
 
 `npm run benchmark:voxel` 用 756 和 5,000 方块的确定性样本输出上下文字节数、快照文件大小、重载后的方块数，以及样本写入、上下文生成和重载的总耗时；它不单独测磁盘读取延迟，不测浏览器／GPU 渲染，也不替代真实场景验收。
 
