@@ -6,6 +6,7 @@ unmodified model proposals validated by the production executor.
 """
 import argparse
 from collections import Counter
+import copy
 import hashlib
 import json
 import os
@@ -160,7 +161,12 @@ def run(output, budget):
     finally:
         processes.close()
     second = checkpoint(world)
-    for key in ('narrative', 'long_term', 'world_events'):
+    expected_narrative = copy.deepcopy(first['narrative'])
+    for operation in (expected_narrative.get('operations') or {}).values():
+        operation['receipt']['checkpointed'] = True
+    require(expected_narrative == second['narrative'],
+            'narrative content changed across paused recovery')
+    for key in ('long_term', 'world_events'):
         require(first[key] == second[key], key + ' changed across paused recovery')
     require(not (world / 'wispiva-session-recovery.json').exists(), 'unclean recovered shutdown')
     processes = Processes(time.monotonic() + 205)
