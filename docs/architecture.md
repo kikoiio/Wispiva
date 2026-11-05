@@ -61,7 +61,7 @@ flowchart TD
 | `npm run benchmark:voxel` | 756 与 5,000 方块样本的上下文大小、快照大小、重载数量及总耗时 |
 | `npm run soak:simulation` | 1–14 个模拟日的合成世界与进程重启检查 |
 | `.github/workflows/prototype-preview.yml` | 离线检查与合成模型浏览器流程 |
-| `.github/workflows/live-model-loop.yml` | 使用仓库配置验证真实模型建造与修复回路 |
+| `.github/workflows/live-model-loop.yml` | 仅由 `workflow_dispatch` 手动触发，使用仓库配置验证真实模型建造与修复回路；普通推送不调用真实模型 |
 | `.github/workflows/prototype-soak.yml` | 云端运行合成世界 soak，只上传指标 |
 
 当前模拟只覆盖有限地点、资源、条件过程和角色信息隔离。空间诊断只检查受支持的单层矩形建筑；隐私审计只能拦截部分泄漏。检查通过不能证明任意建筑可通行、自然语言推理安全或视觉体验合格。复杂物理、大型世界、连续寻路、长期主观记忆与自由分岔尚未完成或验证。
