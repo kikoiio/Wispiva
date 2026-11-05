@@ -2,10 +2,12 @@ import { createEventParser } from './stream-events.mjs';
 
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const MAX_TIMEOUT_MS = 2_147_483_647;
+const DEFAULT_ANTHROPIC_MAX_TOKENS = 8192;
 const REDACTED = '[REDACTED]';
 export const MODEL_PROTOCOLS = Object.freeze({
   RESPONSES: 'responses',
   CHAT_COMPLETIONS: 'chat-completions',
+  ANTHROPIC_MESSAGES: 'anthropic-messages',
 });
 const VALID_PROTOCOLS = new Set(Object.values(MODEL_PROTOCOLS));
 
@@ -295,6 +297,83 @@ async function readChatCompletionEvents(response, setCancel, progress) {
   }
 }
 
+async function readAnthropicMessageEvents(response, setCancel, progress) {
+  if (typeof response.body?.getReader !== 'function') throw new ResponseReadError('invalid-response');
+  const reader = response.body.getReader();
+  setCancel(() => reader.cancel());
+  const decoder = new TextDecoder();
+  const blocks = new Map();
+  let message = {};
+  let usage = null;
+  let stopReason = null;
+  let stopSequence = null;
+  let providerError = null;
+  let stopped = false;
+  const parser = createEventParser(({ event, data }) => {
+    if (stopped || data === '[DONE]') { stopped = true; return; }
+    let value;
+    try { value = JSON.parse(data); } catch { throw new ResponseReadError('invalid-response'); }
+    const type = value.type ?? event;
+    progress(type, value);
+    if (type === 'error') {
+      providerError = value.error ?? { code: value.code, message: value.message };
+      stopped = true;
+    } else if (type === 'message_start') {
+      message = value.message && typeof value.message === 'object' ? value.message : {};
+      if (message.usage && typeof message.usage === 'object') usage = { ...message.usage };
+      for (const [index, block] of (Array.isArray(message.content) ? message.content : []).entries()) blocks.set(index, { ...block });
+    } else if (type === 'content_block_start') {
+      const index = Number.isInteger(value.index) ? value.index : blocks.size;
+      blocks.set(index, value.content_block && typeof value.content_block === 'object' ? { ...value.content_block } : {});
+    } else if (type === 'content_block_delta') {
+      const index = Number.isInteger(value.index) ? value.index : 0;
+      const block = blocks.get(index) ?? { type: 'text', text: '' };
+      const delta = value.delta;
+      if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+        block.text = `${typeof block.text === 'string' ? block.text : ''}${delta.text}`;
+      } else if (delta?.type === 'input_json_delta' && typeof delta.partial_json === 'string') {
+        block.partial_json = `${typeof block.partial_json === 'string' ? block.partial_json : ''}${delta.partial_json}`;
+      }
+      blocks.set(index, block);
+    } else if (type === 'message_delta') {
+      if (typeof value.delta?.stop_reason === 'string') stopReason = value.delta.stop_reason;
+      if (typeof value.delta?.stop_sequence === 'string' || value.delta?.stop_sequence === null) stopSequence = value.delta.stop_sequence;
+      if (value.usage && typeof value.usage === 'object') usage = { ...(usage ?? {}), ...value.usage };
+    } else if (type === 'message_stop') {
+      stopped = true;
+    }
+  });
+  try {
+    while (!stopped) {
+      const { value, done } = await reader.read();
+      if (done) { parser.push(decoder.decode()); parser.end(); break; }
+      parser.push(decoder.decode(toBytes(value), { stream: true }));
+    }
+    if (!stopped) throw new ResponseReadError('truncated');
+    const terminal = providerError
+      ? { type: 'error', error: providerError }
+      : {
+          id: message.id,
+          type: 'message',
+          role: 'assistant',
+          model: message.model,
+          content: [...blocks.entries()].sort(([a], [b]) => a - b).map(([, block]) => block),
+          stop_reason: stopReason,
+          stop_sequence: stopSequence,
+          ...(usage ? { usage } : {}),
+        };
+    const raw = JSON.stringify(terminal);
+    if (utf8ByteLength(raw) > MAX_RESPONSE_BYTES) throw new ResponseReadError('response-too-large');
+    return raw;
+  } catch (error) {
+    if (error instanceof ResponseReadError) throw error;
+    throw new ResponseReadError('truncated');
+  } finally {
+    cancelQuietly(() => reader.cancel());
+    try { reader.releaseLock(); } catch { /* Cancellation may still be settling. */ }
+  }
+}
+
 function isValidConfig(llm, messages, fetchImpl) {
   return Boolean(
     llm && typeof llm === 'object'
@@ -344,10 +423,21 @@ export function buildChatCompletionsEndpoint(baseUrl) {
   return `${endpoint}${path ? '' : '/v1'}/chat/completions`;
 }
 
+export function buildAnthropicMessagesEndpoint(baseUrl) {
+  const { endpoint, path } = parseModelBaseUrl(baseUrl);
+  if (/\/(?:responses|chat\/completions|completions)$/i.test(path)) {
+    throw new TypeError('Invalid model API base URL.');
+  }
+  if (/\/messages$/i.test(path)) return endpoint;
+  if (/\/v1$/i.test(path)) return `${endpoint}/messages`;
+  return `${endpoint}/v1/messages`;
+}
+
 export function resolveModelProtocol(llm) {
   if (llm?.protocol != null) return llm.protocol;
   try {
     const { path } = parseModelBaseUrl(llm?.baseUrl);
+    if (/\/(?:anthropic(?:\/v1)?|v1\/messages|messages)$/i.test(path)) return MODEL_PROTOCOLS.ANTHROPIC_MESSAGES;
     if (/\/chat\/completions$/i.test(path)) return MODEL_PROTOCOLS.CHAT_COMPLETIONS;
   } catch {
     // Validation below reports invalid URLs rather than guessing a protocol.
@@ -358,7 +448,42 @@ export function resolveModelProtocol(llm) {
 export function buildModelEndpoint(baseUrl, protocol = MODEL_PROTOCOLS.RESPONSES) {
   if (protocol === MODEL_PROTOCOLS.RESPONSES) return buildResponsesEndpoint(baseUrl);
   if (protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS) return buildChatCompletionsEndpoint(baseUrl);
+  if (protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES) return buildAnthropicMessagesEndpoint(baseUrl);
   throw new TypeError('Invalid model protocol.');
+}
+
+function anthropicText(content) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) throw new TypeError('Invalid Anthropic message content.');
+  return content.map((part) => {
+    if (['text', 'input_text'].includes(part?.type) && typeof part.text === 'string') return part.text;
+    throw new TypeError('Invalid Anthropic message content.');
+  }).join('');
+}
+
+function buildAnthropicRequestBody(llm, messages, jsonMode) {
+  const system = [];
+  const turns = [];
+  for (const message of messages) {
+    if (!message || typeof message !== 'object' || typeof message.role !== 'string') throw new TypeError('Invalid message.');
+    const content = anthropicText(message.content);
+    if (message.role === 'system') {
+      system.push(content);
+      continue;
+    }
+    if (!['user', 'assistant'].includes(message.role)) throw new TypeError('Invalid message role.');
+    const previous = turns.at(-1);
+    if (previous?.role === message.role) previous.content += `\n\n${content}`;
+    else turns.push({ role: message.role, content });
+  }
+  if (jsonMode) system.push('请只返回一个有效 JSON 对象，不要添加 Markdown 代码围栏或 JSON 以外的说明文字。');
+  return {
+    model: llm.model,
+    max_tokens: llm.maxOutputTokens ?? DEFAULT_ANTHROPIC_MAX_TOKENS,
+    ...(system.length ? { system: system.join('\n\n') } : {}),
+    messages: turns,
+    stream: true,
+  };
 }
 
 export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, signal, onProgress, jsonMode = true } = {}) {
@@ -407,16 +532,20 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
   let url;
   try { url = buildModelEndpoint(llm.baseUrl, protocol); } catch { return finish('invalid-config'); }
 
-  const body = protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
-    ? {
+  let body;
+  try {
+    body = protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+      ? buildAnthropicRequestBody(llm, messages, jsonMode)
+      : protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
+        ? {
         model: llm.model,
         messages,
         ...(jsonMode ? { response_format: { type: 'json_object' } } : {}),
         stream: true,
         ...(llm.reasoningEffort ? { reasoning_effort: llm.reasoningEffort } : {}),
         ...(llm.maxOutputTokens == null ? {} : { max_tokens: llm.maxOutputTokens }),
-      }
-    : {
+        }
+        : {
         model: llm.model,
         input: messages,
         ...(jsonMode ? { text: { format: { type: 'json_object' } } } : {}),
@@ -424,9 +553,7 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
         ...(llm.reasoningEffort ? { reasoning: { effort: llm.reasoningEffort } } : {}),
         ...(llm.maxOutputTokens == null ? {} : { max_output_tokens: llm.maxOutputTokens }),
         store: false,
-      };
-  let rawRequest;
-  try {
+        };
     rawRequest = JSON.stringify(body);
     audit.request.body = JSON.parse(rawRequest);
     audit.request.rawBody = rawRequest;
@@ -456,10 +583,13 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
     audit.eventsReceived++;
     const elapsed = (globalThis.performance?.now?.() ?? Date.now()) - startedClock;
     audit.firstEventMs ??= elapsed;
+    const anthropicDelta = type === 'content_block_delta' && event.delta?.type === 'text_delta'
+      && typeof event.delta.text === 'string' ? event.delta.text : null;
     const chatDelta = Array.isArray(event.choices) ? event.choices[0]?.delta?.content : null;
     const responseDelta = type === 'response.output_text.delta' && typeof event.delta === 'string'
       ? event.delta : null;
-    const delta = responseDelta
+    const delta = anthropicDelta
+      ?? responseDelta
       ?? (typeof chatDelta === 'string' ? chatDelta : null)
       ?? (Array.isArray(chatDelta) ? chatContentText(chatDelta) : null);
     if (typeof delta === 'string' && delta.length > 0) {
@@ -486,6 +616,7 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
       headers: {
         Authorization: `Bearer ${llm.apiKey}`,
         'Content-Type': 'application/json',
+        ...(protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES ? { 'anthropic-version': '2023-06-01' } : {}),
       },
       body: rawRequest,
       ...(controller ? { signal: controller.signal } : {}),
@@ -500,9 +631,11 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
     audit.streamedResponse = Boolean(streamed);
     progress('generating', true);
     const raw = streamed
-      ? await (protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
-        ? readChatCompletionEvents(response, setCancel, streamProgress)
-        : readResponseEvents(response, setCancel, streamProgress))
+      ? await (protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+        ? readAnthropicMessageEvents(response, setCancel, streamProgress)
+        : protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
+          ? readChatCompletionEvents(response, setCancel, streamProgress)
+          : readResponseEvents(response, setCancel, streamProgress))
       : await readResponseBody(response, (partial) => { audit.rawResponse = partial; }, setCancel);
     audit.rawResponse = raw;
     audit.responseComplete = true;
@@ -545,7 +678,9 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
   if (status === 404) {
     return finish('http-error', protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
       ? 'HTTP 404：API路由未找到，检查Chat Completions基址路径；支持完整/chat/completions URL。'
-      : 'HTTP 404：API路由未找到，检查Responses基址路径；支持完整/responses URL。');
+      : protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+        ? 'HTTP 404：API路由未找到，检查 Anthropic Messages 基址路径；支持完整/v1/messages URL。'
+        : 'HTTP 404：API路由未找到，检查Responses基址路径；支持完整/responses URL。');
   }
   if (status < 200 || status >= 300) return finish('http-error', `The model endpoint returned HTTP ${status}.`);
 
@@ -557,6 +692,29 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
   }
   if (!isNonEmptyObject(parsed)) return finish('invalid-response');
   audit.usage = isNonEmptyObject(parsed.usage) ? parsed.usage : null;
+
+  if (protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES) {
+    audit.finishReason = typeof parsed.stop_reason === 'string' ? parsed.stop_reason : null;
+    audit.incompleteReason = audit.finishReason === 'max_tokens' ? 'max_tokens'
+      : audit.finishReason === 'refusal' ? 'refusal' : null;
+    if (parsed.error != null || parsed.type === 'error') return finish('provider-error');
+    if (audit.incompleteReason === 'refusal') return finish('refusal');
+    if (audit.incompleteReason === 'max_tokens') {
+      return finish('truncated', 'The model provider stopped at max_tokens before completing its response.');
+    }
+    if (!Array.isArray(parsed.content)) return finish('invalid-response');
+    let invalidOutput = false;
+    const texts = [];
+    for (const block of parsed.content) {
+      if (block?.type === 'text' && typeof block.text === 'string') texts.push(block.text);
+      else if (block?.type === 'tool_use' || block?.type === 'thinking') continue;
+      else invalidOutput = true;
+    }
+    if (invalidOutput) return finish('invalid-response');
+    if (texts.join('').trim().length === 0) return finish('empty-content');
+    content = texts.join('');
+    return finish();
+  }
 
   if (protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS) {
     const choice = Array.isArray(parsed.choices) ? parsed.choices[0] : null;
