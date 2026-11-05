@@ -1,4 +1,4 @@
-name: Protect main from experiment branches
+name: Protect main from experimental branches
 
 on:
   pull_request_target:
@@ -12,13 +12,13 @@ jobs:
     name: branch-origin-guard
     runs-on: ubuntu-latest
     steps:
-      - name: Block experiment source branches
+      - name: Block protected source branches
         env:
           SOURCE_BRANCH: ${{ github.head_ref }}
         run: |
           case "$SOURCE_BRANCH" in
-            experiment/*)
-              echo "Branches under experiment/ must not be merged into main."
+            prototype|proto/*|prototype/*|experiment/*|wispiva/luanti|wispiva/world-product|wispiva/luanti-world)
+              echo "This branch must not be merged into main."
               exit 1
               ;;
             *) echo "Source branch is allowed." ;;

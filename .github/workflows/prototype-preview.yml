@@ -2,7 +2,7 @@ name: Prototype experience
 on:
   workflow_dispatch:
   push:
-    branches: ['prototype/review-*']
+    branches: ['prototype', 'prototype/review-*']
 permissions:
   contents: read
 jobs:
