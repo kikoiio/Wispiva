@@ -3,14 +3,13 @@ import { dirname, basename, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { prepareVoxelEdit } from './voxel-building.mjs';
-import { expandVoxelTools } from './voxel-tools.mjs';
+import { expandVoxelTools, validString } from './voxel-tools.mjs';
 
 export const VOXEL_MATERIALS = Object.freeze(['grass', 'dirt', 'stone', 'wood', 'glass', 'water', 'leaves', 'roof']);
 const materials = new Set(VOXEL_MATERIALS);
 const key = position => position.join(',');
 const validPosition = p => Array.isArray(p) && p.length === 3 && p.every(n => Number.isSafeInteger(n) && Math.abs(n) <= 1024);
 const validMaterial = m => m === null || materials.has(m);
-const validString = s => typeof s === 'string' && s.length <= 256 && s.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(s);
 const validObject = o => o && validString(o.id) && validString(o.name) && validString(o.kind) &&
   validPosition(o.from) && validPosition(o.to) && o.from.every((n, i) => n <= o.to[i]) &&
   (o.members === undefined || Array.isArray(o.members) && o.members.length <= 5000 &&

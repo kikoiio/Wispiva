@@ -17,8 +17,7 @@ import { parseGeneratedJSON } from './model/generated-json.mjs';
 import { projectActivity } from './activity.mjs';
 import { MODEL_REQUEST_TIMEOUT_MS } from './creation-limits.mjs';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const root = here;
+const root = dirname(fileURLToPath(import.meta.url));
 const clone = (value) => structuredClone(value);
 const boundedModelConfig = (llm, timeoutMs = MODEL_REQUEST_TIMEOUT_MS) => llm.timeoutMs == null ? { ...llm, timeoutMs } : llm;
 const messages = {
@@ -367,11 +366,11 @@ export function createCampServer({ withCreation = true, ...options } = {}) {
         streams.add(response); response.on('close', close); push(); return;
       }
       if (request.method === 'GET' && Object.hasOwn(files, path)) {
-        const [file, type] = files[path]; const body = readFileSync(join(here, file));
+        const [file, type] = files[path]; const body = readFileSync(join(root, file));
         response.writeHead(200, { 'content-type': `${type}; charset=utf-8`, 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); return response.end(body);
       }
       if (request.method === 'GET' && /^\/geometry\/[a-z-]+\.js$/.test(path)) {
-        const file = join(here, path.slice(1));
+        const file = join(root, path.slice(1));
         if (!existsSync(file)) return send(404, { ok: false });
         response.writeHead(200, { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' }); return response.end(readFileSync(file));
       }

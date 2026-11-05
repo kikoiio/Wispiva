@@ -203,7 +203,7 @@ export function worldSceneBounds(doc, places = []) {
 // Bounds of everything a viewer is meant to look at: rooms, characters, trees,
 // buildings, path and bridge geometry, plus any place the world knows about but
 // has not built on yet. Ground is not a bounding subject — it surrounds these.
-export function contentBounds(doc, places = []) {
+function contentBounds(doc, places = []) {
   const boxes = [];
   const addPoints = points => {
     const flat = points.filter(point => Array.isArray(point) && point.length === 3 && point.every(Number.isFinite));

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { group, mesh, instances, exposedVoxelMesh } from './primitives.js';
 import { libraryScene } from './scene-document.js';
+import { islandContains } from './scene-validation.js';
 
 const DEFAULT_UNIT = 0.42;
 const PARTS = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];
@@ -339,13 +340,7 @@ function buildNatureExtras(parent, m, regions, unit) {
 // Rasterize a lane as stone cells on top of its host island's voxel ground grid.
 function buildPathVoxel(parent, m, record, regions, unit) {
   const points = record.points;
-  const islandRadius = (region, angle) =>
-    region.radius * (1 + region.irregularity * (Math.sin(angle * 3) + Math.cos(angle * 5) * 0.45));
-  const host = regions.find(region => {
-    if (region?.kind !== 'island') return false;
-    const dx = points[0][0] - region.center[0], dz = points[0][1] - region.center[1];
-    return Math.hypot(dx, dz) <= islandRadius(region, Math.atan2(dz, dx));
-  });
+  const host = regions.find(region => region?.kind === 'island' && islandContains(region, points[0][0], points[0][1]));
   if (!host) return;
   parent.position.set(host.center[0] - unit / 2, host.elevation, host.center[1] - unit / 2);
   parent.userData.recordId = record.id;

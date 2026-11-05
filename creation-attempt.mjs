@@ -2,7 +2,7 @@ import { expandVoxelTools } from './voxel-tools.mjs';
 import { VOXEL_MATERIALS } from './voxel-world.mjs';
 import { MAX_BUILD_COMMANDS } from './creation-limits.mjs';
 
-export class BuildingError extends Error {
+class BuildingError extends Error {
   constructor(message, path, detail) {
     super(message);
     this.diagnostics = [{ path, message: detail || message }];

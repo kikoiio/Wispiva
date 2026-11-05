@@ -6,7 +6,7 @@ import { validateCompiledSpatial } from './compiled-spatial.js';
 import { buildCamp } from './camp-compiler.js';
 
 const basePartIds = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];
-export function partIdsFor(document) {
+function partIdsFor(document) {
   if (document?.profile === 'beast-camp') return document.objects.map(node => `camp:${node.id}`);
   const ids = [...basePartIds];
   for (const object of document?.objects ?? []) {
@@ -61,7 +61,7 @@ function recipeHashes(document, backend, options) {
   // Canonical recipe content is retained, not a lossy 32-bit identity. It also makes differences inspectable.
   return Object.fromEntries(partIdsFor(document).map(id => [id, stable([backend, document.style, recipes[id]])]));
 }
-export function disposePart(part) {
+function disposePart(part) {
   const geometries = new Set(), ownedMaterials = new Set();
   part.traverse(node => {
     if (!node.geometry) return;

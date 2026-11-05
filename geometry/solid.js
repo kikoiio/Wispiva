@@ -1,13 +1,7 @@
 import * as THREE from 'three';
 import { group, mesh, box, texturedBox, cylinder, sphere, beam, instances, rng } from './primitives.js';
 import { libraryScene } from './scene-document.js';
-import { islandContains } from './scene-validation.js';
-
-export const solidCamera = {
-  island: { position: [27, 22, 31], target: [0, 2, 0] },
-  interior: { position: [2.6, 3.7, 2.5], target: [-0.8, 2.8, -2.5] },
-  detail: { position: [14, 8, 16], target: [2, 2.8, 1] },
-};
+import { islandContains, islandRadius } from './scene-validation.js';
 
 const partNames = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];
 
@@ -387,10 +381,6 @@ function islandFrame(parent, region, name) {
   local.position.set(region.center[0], region.elevation - 0.8, region.center[1]);
   local.scale.set(region.radius / 11.5, 1, region.radius / 11.5);
   return local;
-}
-
-function islandRadius(region, angle) {
-  return region.radius * (1 + region.irregularity * (Math.sin(angle * 3) + Math.cos(angle * 5) * 0.45));
 }
 
 function buildIsland(parent, m, region, details, victorian = false) {

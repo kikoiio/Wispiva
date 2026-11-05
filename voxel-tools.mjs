@@ -2,7 +2,7 @@
 const MAX_COMMANDS = 128;
 const MAX_SCAN = 32768;
 const materialPattern = /^[a-z][a-z0-9_.:-]{0,63}$/;
-const validString = value => typeof value === 'string' && value.length <= 256 && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
+export const validString = value => typeof value === 'string' && value.length <= 256 && value.trim().length > 0 && !/[\u0000-\u001f\u007f]/.test(value);
 
 function bounds(command) {
   for (const point of [command.from, command.to]) {

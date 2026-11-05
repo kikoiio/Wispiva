@@ -116,4 +116,3 @@ export const libraryScene = {
     { id: 'tree-landing', kind: 'tree', position: [15, 0.61, 8.7], scale: 0.3, seed: 1785 },
   ],
 };
-

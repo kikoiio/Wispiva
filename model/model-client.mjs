@@ -773,4 +773,3 @@ export async function callModel({ llm, messages, fetchImpl = globalThis.fetch, s
   content = texts.join('');
   return finish();
 }
-

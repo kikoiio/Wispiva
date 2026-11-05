@@ -5,9 +5,6 @@ function makeShell(host) {
   Object.assign(root.style, { position: 'absolute', inset: '0', overflow: 'hidden', isolation: 'isolate' });
   const stage = document.createElement('div');
   Object.assign(stage.style, { position: 'absolute', inset: '0' });
-  // No caption element: weather, totals and the drag hint are drawn inside the
-  // scene itself (chips and legend), so a separate overlay can no longer
-  // collide with them on a narrow screen.
   const reset = document.createElement('button');
   reset.type = 'button';
   reset.className = 'scene-reset';
