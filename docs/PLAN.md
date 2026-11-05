@@ -78,6 +78,8 @@ GitHub Actions 的既有验证记录（运行 `40999695061`）在独立验证分
 
 配置来源核对：本机 CLI 最近一次隔离请求从仓库 `.env` 读取 `spark-x2.6`（未输出密钥），约 5.1 秒以 `network-error` 结束，HTTP 状态为空、`voxel.revision` 仍为 0；该次请求不代表 GitHub 配置或 GitHub Actions 的模型。GitHub Actions run [41838838255](https://github.com/kikoiio/Wispiva/actions/runs/41838838255) 已由 GitHub 连接器确认全部成功；其 workflow 未引用模型 secrets／variables，浏览器流程使用合成模型。因此本机模型样本和 GitHub CI 不可互相代表。
 
+2026-11-04 单模型 Actions 验收准备：新增 `.github/workflows/live-model-loop.yml` 与 `scripts/observe-live-model-loop.mjs`，计划用当前配置的单一模型依次运行 3 次隔离建造、诊断和确定性修复，并仅上传脱敏指标。Actions run [41967391134](https://github.com/kikoiio/Wispiva/actions/runs/41967391134) 在配置预检失败：job 未收到 `WISPIVA_LLM_MODEL`、`WISPIVA_LLM_BASE_URL`、`WISPIVA_LLM_API_KEY`，所以没有发送模型请求，也没有可用于判断模型质量的结果；metrics artifact 仅记录配置错误。相同提交的合成浏览器 workflow [41967390992](https://github.com/kikoiio/Wispiva/actions/runs/41967390992) 通过。GitHub 连接器可访问仓库和 Actions，因此这不是 GitHub 登录／连接阻塞；当前未确认配置是否使用了不同变量名或 GitHub Environment 范围。需确认设置范围及变量／密钥名称（不需要提供值），再绑定并重跑；A 仍未验收。
+
 2026-11-04 三次当前模型的合成海岸观测站起点生成：第一轮完成地点、人物与运行规律三个阶段，最终候选被 `privacy-audit-failed` 拒绝，没有可确认草稿或居民行动；第二轮地点阶段成功（约 64.3 秒），人物阶段约 10.7 秒后以 `empty-content` 结束，未完成规律阶段；第三轮首阶段请求运行超过 235 秒未返回。代码检查发现除建造 loop 外，分阶段起点、普通讨论／建造、居民行动和场景造型请求都没有应用级默认超时；现在所有应用内模型请求默认限时 180 秒，显式配置的请求上限会保留。三次均使用隔离 `.tmp` 存档，未保留模型原文，临时数据已清理。第一轮的隐私审计诊断路径未记录，现有证据不足以判断是候选内容还是审计边界导致拒绝，不据此称为误报。
 
 超时修复后的两次合成复验仍未生成完整草稿：一次地点阶段约 103 秒后以 `invalid-json` 结束；另一次地点阶段首次约 29 秒后 `invalid-json`，按现有“继续生成”恢复流程重试后约 82 秒完成地点、约 96 秒完成居民，但运行规律请求在 180 秒上限处以 `timeout` 结束。失败后保留的两个阶段检查点证明显式恢复能沿用已完成步骤；该轮没有可确认草稿或居民行动，真实场景视觉与位置投影仍未验证。两次都只发送合成描述，隔离 `.tmp` 状态在运行后删除，未保留模型原文。
@@ -117,7 +119,7 @@ GitHub Actions 的既有验证记录（运行 `40999695061`）在独立验证分
 ### 执行顺序与资源
 
 1. **已完成：** A 的确定性 loop 与结构方案回归；run [41825456201](https://github.com/kikoiio/Wispiva/actions/runs/41825456201) 在提交 `073aaa6` 上通过完整离线／浏览器 CI；B 的真实模型海岸场景全景／放大复核；C 的当前模型行动、一日隔离回放、记忆重载与角色地点投影；以及 D 的 756／5,000 格规模基准和 7 日合成 soak。soak 报告只含指标。
-2. **仍待通过：** 仅 A 的当前模型重复完整建造／修复回路稳定性。此前有 121／159 格零诊断成功创建和确定性缺口修复，也有 347 格后五项问题、格式／空响应／超时及新建未提交样本；成功样本不足以抹去这些失败。
+2. **仍待通过：** 仅 A 的当前模型重复完整建造／修复回路稳定性。此前有 121／159 格零诊断成功创建和确定性缺口修复，也有 347 格后五项问题、格式／空响应／超时及新建未提交样本；成功样本不足以抹去这些失败。新增单模型 Actions workflow 尚未进入模型请求：run [41967391134](https://github.com/kikoiio/Wispiva/actions/runs/41967391134) 因 job 未收到必需配置而在预检停止。下一步是确认 GitHub 配置范围与名称并映射，再运行三次隔离验收。
 3. 最新渲染修复提交 `72e4d77` 的 Actions run [41838838255](https://github.com/kikoiio/Wispiva/actions/runs/41838838255) 已由 GitHub 连接器核实成功：离线检查、三段浏览器流程和截图 artifact 均完成。本机 `node --check ui/world-scene.js`、`git diff --check` 和真实场景浏览器渲染观察也通过。该 CI 使用合成模型，不读取仓库模型 secrets／variables。7 日合成 soak run [41683058142](https://github.com/kikoiio/Wispiva/actions/runs/41683058142) 通过，报告在本轮 `.tmp/plan-closeout-20261103/soak/`。临时分支未创建 PR 或合并。
 
 本轮由主 agent 负责整合。自动建造回归集中在 `tests/creation-recovery.test.mjs`；行为轨迹、模型观察和规模基准分别位于独立文件，可并行核对。共享验证入口、`package.json`、`docs/PLAN.md` 与文档索引由主 agent 串行整合。A 仍标为未通过；B、C 的验收仅覆盖文中所述隔离样本，不扩展为长期可靠性结论。
