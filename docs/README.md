@@ -1,5 +1,7 @@
 # 文档索引
 
+分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的完整产品尝试。后两条线独立演进，不整体合入 `main`。
+
 | 类型 | 状态 | 更新 / 核对 | 文档 |
 | --- | --- | --- | --- |
 | 项目意图与需求 | Wispiva 共同产品目标；本分支采用 Luanti | 2026-10-29 | [项目意图](intent.md) |
@@ -23,7 +25,7 @@
 | 研究 | 方法、容量与记忆研究；自由社会出现交流与物品转移但仍不稳定；提示改进后 36 次记忆对照中短线索 1/3、明确提取 3/3，需更多 seeds 和长期质量评估 | 2026-10-30 | [世界模型](research/2026-10-28-world-models.md)、[记忆](research/2026-10-28-memory.md)、[3D 生成](research/2026-10-28-3d-generation.md)、[Minecraft 社会](research/2026-10-28-minecraft-agent-societies.md)、[Mineflayer / Voyager](research/2026-10-28-mineflayer-voyager.md)、[记忆证据](../evidence/luanti/genesis/2026-10-30-cjk-free-society/README.md)、[自由社会证据](../evidence/luanti/product-model-2026-10-30/README.md) |
 | 公开 CI 数据边界 | 原始私有记忆 artifact 已清理；后续上传按汇总文件 allowlist | 2026-10-30 | [产品模型和隐私复核](../evidence/luanti/product-model-2026-10-30/README.md)、[Actions 上传 allowlist](../.github/workflows/wispiva-validation.yml) |
 | 原始素材 | 《红发会》仍是世界完成目标；贝克街已选择完整会客室蓝图，其余地点仍为占位。原文剧情不被注入为未来行动 | 2026-11-04 | [《红发会》](source-texts/sherlock-holmes/the-red-headed-league.txt)、[设定稿](../validation/red_headed_league/moment.json) |
-| 创建世界原型 | 另一分支快照；可供参考，本 worktree 尚未接入 | 2026-10-28 | `proto/world-genesis`，`prototypes/README.md` |
+| 创建世界原型 | 另一分支快照；可供参考，本 worktree 尚未接入 | 2026-10-28 | `prototype`，`README.md` |
 | 运行时验证与历史证据 | Luanti 适配层的验证工具、历史计划和量测 | 2026-10-29 | [运行时说明](../validation/luanti/README.md)、[验证记录](../validation/luanti/PLAN.md) |
 | 产品目录迁移验证 | 根目录迁移后的引擎、恢复及预览检查 | 2026-10-29 | [Actions 原始证据](../evidence/luanti/product-root-2026-10-29/README.md) |
 | 起源原型验证 | 起源数据原型与既有运行时回归，未验证集成 | 2026-10-29 | [Actions 原始证据](../evidence/luanti/origin-2026-10-29/README.md) |

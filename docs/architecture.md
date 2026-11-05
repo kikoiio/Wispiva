@@ -16,7 +16,7 @@
 | 创建与状态核心 | [genesis/](../genesis/README.md)、[world/](../world/README.md) | 创建、校验、确认草稿和 SQLite 状态事务已有原型；`DraftStore.create_from_intent` 会持久绑定原始用户意图，确认前允许编辑，`genesis/world_create.py` 将已确认修订发布为带稳定身份、私有 manifest、起源副本和 Luanti mod 的产品世界。两个非 `example.json` 题材案例已有创建入口、修订、确认和私有边界回归证据。产品运行时用 `PREPARING → 投影/回读 → READY` 记录共同提交边界，异常留下冻结证据。地图、事件、库存和角色仍不是跨存储原子事务；真实用户语义确认仍未完成。 |
 | 世界身份与受控接入边界 | [launch.py](../engine/luanti/launch.py)、[world_session.py](../engine/luanti/world_session.py)、[world_identity.py](../engine/luanti/world_identity.py)、[world_lock.py](../engine/luanti/world_lock.py) | `launch.py` 在启动 Luanti 前取得 `WorldSession`，运行期间持有 Unix `flock`，转发停止信号并在引擎退出后释放；新世界先建立独立 UUID 身份，非空无身份世界拒绝自动接管。锁仍是协作式的，不能约束未使用该协议的进程、玩家或 mod。世界事件、角色 checkpoint 和记忆已共享事件身份，但地图共同提交尚未完成。 |
 | 验证运行器与 CI | [engine/luanti/run.sh](../engine/luanti/run.sh)、[Actions 工作流](../.github/workflows/wispiva-validation.yml) | Actions 负责轻量单测、Luanti 持久世界、重启恢复和容量测量；`run_product.sh --serve` 保持产品服务器可供本地 Luanti 客户端连接，`view_product.sh` 从固定观察者出生点进入三维世界。真实客户端画面仍需真人验收。 |
-| 用户意图创建原型 | `proto/world-genesis` 分支的 `prototypes/` | 独立的 Node/Three.js 原型，包含创建对话、世界草稿和有限规则；不在本 worktree 中运行，也尚未与 Luanti 接通。可通过 `git show proto/world-genesis:prototypes/README.md` 查阅。 |
+| 用户意图创建原型 | `prototype` 分支根目录 | 独立的 Node/Three.js 原型，包含创建对话、世界草稿和有限规则；不在本 worktree 中运行，也尚未与 Luanti 接通。可通过 `git show prototype:README.md` 查阅。 |
 
 目前的实际数据路径是 `Luanti globalstep → 当前角色的观察/授权记忆 → wispiva.model-input envelope → 私有文件队列 → 模型 worker → provider 前校验 → 动作校验 → Luanti 执行 → world-event 与角色记忆`；规则模式使用本地策略而不经过模型。停服时由产品状态账本包住地图回读、环境、角色、事件和记忆的顺序写入；它能发现中断并冻结，仍不是跨数据库原子事务。
 
