@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildChatCompletionsEndpoint, buildResponsesEndpoint, callModel } from './model-client.mjs';
+import { buildAnthropicMessagesEndpoint, buildChatCompletionsEndpoint, buildResponsesEndpoint, callModel } from './model-client.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const EVIDENCE = join(ROOT, '.tmp/shared-model/client-path-observation.json');
@@ -178,6 +178,67 @@ await observe('Chat Completions protocol sends the compatible request shape and 
   assert.equal(result.audit.finishReason, 'stop');
   assert.deepEqual(result.audit.usage, usage);
   assert.equal(buildChatCompletionsEndpoint('https://fixture.invalid/v1'), 'https://fixture.invalid/v1/chat/completions');
+});
+
+await observe('Anthropic Messages protocol sends the compatible request shape and parses content', async () => {
+  const messages = [
+    { role: 'system', content: 'Be concise.' },
+    { role: 'user', content: 'Return JSON.' },
+  ];
+  const result = await callModel({ llm: { ...llm, baseUrl: 'https://api.scnet.cn/api/llm/anthropic' }, messages,
+    fetchImpl: injected(async (url, options) => {
+      assert.equal(url, 'https://api.scnet.cn/api/llm/anthropic/v1/messages');
+      assert.equal(options.headers.Authorization, `Bearer ${llm.apiKey}`);
+      assert.equal(options.headers['anthropic-version'], '2023-06-01');
+      assert.deepEqual(JSON.parse(options.body), {
+        model: llm.model,
+        max_tokens: llm.maxOutputTokens,
+        system: 'Be concise.\n\n请只返回一个有效 JSON 对象，不要添加 Markdown 代码围栏或 JSON 以外的说明文字。',
+        messages: [{ role: 'user', content: 'Return JSON.' }],
+        stream: true,
+      });
+      return new Response(JSON.stringify({
+        id: 'msg_fixture', type: 'message', role: 'assistant', model: llm.model,
+        content: [{ type: 'text', text: '{}' }], stop_reason: 'end_turn', usage,
+      }), { status: 200 });
+    }),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.content, '{}');
+  assert.equal(result.audit.protocol, 'anthropic-messages');
+  assert.equal(result.audit.finishReason, 'end_turn');
+  assert.deepEqual(result.audit.usage, usage);
+  assert.equal(buildAnthropicMessagesEndpoint('https://api.scnet.cn/api/llm/anthropic'), 'https://api.scnet.cn/api/llm/anthropic/v1/messages');
+  assert.equal(buildAnthropicMessagesEndpoint('https://fixture.invalid/v1'), 'https://fixture.invalid/v1/messages');
+  assert.equal(buildAnthropicMessagesEndpoint('https://fixture.invalid/v1/messages/'), 'https://fixture.invalid/v1/messages');
+});
+
+await observe('Anthropic Messages streaming accumulates text and usage without retaining provider event framing', async () => {
+  const events = [
+    { type: 'message_start', message: { id: 'msg_stream', type: 'message', role: 'assistant', model: llm.model, content: [], usage: { input_tokens: 4, output_tokens: 0 } } },
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: '{"ok":' } },
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'true}' } },
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 3 } },
+    { type: 'message_stop' },
+  ];
+  const wire = events.map(value => `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`).join('');
+  const encoded = new TextEncoder().encode(wire);
+  const result = await callModel({ llm: { ...llm, baseUrl: 'https://api.scnet.cn/api/llm/anthropic' }, messages,
+    fetchImpl: injected(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoded.slice(0, 109));
+        controller.enqueue(encoded.slice(109));
+        controller.close();
+      },
+    }), { status: 200, headers: { 'content-type': 'text/event-stream' } })),
+  });
+  assert.equal(result.ok, true);
+  assert.equal(result.content, '{"ok":true}');
+  assert.equal(result.audit.protocol, 'anthropic-messages');
+  assert.equal(result.audit.streamedResponse, true);
+  assert.equal(result.audit.finishReason, 'end_turn');
+  assert.deepEqual(result.audit.usage, { input_tokens: 4, output_tokens: 3 });
 });
 
 await observe('HTTP error raw body and request secret redaction', async () => {
