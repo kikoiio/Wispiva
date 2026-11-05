@@ -165,30 +165,39 @@ M.validate = normalise
 
 -- A single normal-shutdown checkpoint, not a transaction with the map database
 -- and not a crash-recovery protocol. Legacy checkpoints are plain agent arrays.
-function M.pack_checkpoint(agents, long_term, world_events, force_long_term)
+function M.pack_checkpoint(agents, long_term, world_events, force_long_term, narrative_snapshot)
   local saved = {}
   for i = 1, array(agents) do saved[i] = normalise(agents[i]) end
-  local checkpoint = {format = "society-checkpoint", version = 1, agents = saved}
+  assert(narrative_snapshot == nil or type(narrative_snapshot) == "table",
+    "invalid narrative checkpoint")
+  local checkpoint = {format = "society-checkpoint",
+    version = narrative_snapshot and 2 or 1, agents = saved}
   -- Luanti JSON cannot preserve the distinction between an empty array and
   -- an empty object. Omit an empty memory store; restore treats it as new.
   if force_long_term or long_term:count() > 0 then checkpoint.long_term = long_term:export() end
   if world_events then checkpoint.world_events = world_events:export() end
+  if narrative_snapshot then checkpoint.narrative = narrative_snapshot end
   return checkpoint
 end
 
 function M.unpack_checkpoint(checkpoint, long_term_module, world_events_module)
   assert(type(checkpoint) == "table", "invalid checkpoint")
-  local saved, long_term, world_events
+  local saved, long_term, world_events, narrative_snapshot
   if checkpoint.format == nil then
     saved, long_term = checkpoint, long_term_module.new()
     world_events = world_events_module and world_events_module.new() or nil
   else
-    assert(checkpoint.format == "society-checkpoint" and checkpoint.version == 1,
+    assert(checkpoint.format == "society-checkpoint"
+      and (checkpoint.version == 1 or checkpoint.version == 2),
       "unsupported checkpoint")
     for key in pairs(checkpoint) do
       assert(key == "format" or key == "version" or key == "agents" or key == "long_term"
-        or key == "world_events",
+        or key == "world_events" or (checkpoint.version == 2 and key == "narrative"),
         "unknown checkpoint field")
+    end
+    if checkpoint.version == 2 then
+      assert(type(checkpoint.narrative) == "table", "missing narrative checkpoint")
+      narrative_snapshot = checkpoint.narrative
     end
     saved = checkpoint.agents
     long_term = checkpoint.long_term and long_term_module.load(checkpoint.long_term)
@@ -205,7 +214,7 @@ function M.unpack_checkpoint(checkpoint, long_term_module, world_events_module)
   end
   local result = {}
   for i = 1, array(saved) do result[i] = normalise(saved[i]) end
-  return result, long_term, world_events
+  return result, long_term, world_events, narrative_snapshot
 end
 
 function M.snapshot(entity)

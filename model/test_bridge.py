@@ -206,7 +206,7 @@ class BridgeReflectionTests(unittest.TestCase):
             (adapter.ModelError('timeout'), 'timeout'),
             (reflection.ReflectionError('unknown_source_id'), 'invalid_response'),
             (reflection.ReflectionError('secret-key private-provider'), 'invalid_response'),
-            (RuntimeError('secret-key private-provider'), 'provider_failed'),
+            (RuntimeError('secret-key private-provider'), 'provider_error'),
             (adapter.ModelError('secret-key private-provider'), 'internal_error'),
         ):
             with self.subTest(error=type(error).__name__, code=code):
@@ -218,7 +218,7 @@ class BridgeReflectionTests(unittest.TestCase):
                 reflect.assert_called_once()
 
     def test_real_provider_failure_stops_decision(self):
-        for code, expected in (('transport_error', 'provider_failed'),
+        for code, expected in (('transport_error', 'transport_error'),
                                ('rate_limited', 'rate_limited'), ('timeout', 'timeout')):
             with self.subTest(code=code):
                 decision = mock.Mock()
@@ -297,10 +297,10 @@ class BridgeReflectionTests(unittest.TestCase):
                 spool_worker.process_one(root, request, 1, runner=runner)
             response = json.loads((root / 'response-7.json').read_text())
         self.assertEqual([attempt['reflection_audit'] for attempt in response['attempts']],
-                         [result['reflection_audit']] * 3)
+                         [result['reflection_audit']] * 2)
         self.assertEqual([attempt['error'] for attempt in response['attempts']],
-                         ['rate_limited'] * 3)
-        self.assertEqual(runner.call_count, 3)
+                         ['rate_limited'] * 2)
+        self.assertEqual(runner.call_count, 2)
 
     def test_decision_exception_keeps_only_this_requests_reflection_audit(self):
         source = io.StringIO(json.dumps({'id': 7, 'context': self.context()}) + '\n{broken\n')

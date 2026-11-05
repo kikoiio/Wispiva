@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from genesis.store import DraftStore, DraftConflict
-from genesis.test_genesis import draft
+from genesis.test_genesis import draft, scene_draft
 from genesis.world_create import WorldCreationError, create_world
 from engine.luanti.world_identity import read_world_identity
 from world.product_contract import ProductContractError, validate_world_contract
@@ -44,6 +44,9 @@ class WorldCreateTests(unittest.TestCase):
         self.assertEqual(len(manifest["operation_id"]), 32)
         self.assertEqual(manifest["actors"][0]["memory_seeds"][0]["text"], "私人的经历")
         self.assertTrue((target / "worldmods" / "society" / "init.lua").is_file())
+        self.assertTrue((target / "worldmods" / "society" / "narrative_state.lua").is_file())
+        self.assertTrue((target / "worldmods" / "society" / "story_runtime.lua").is_file())
+        self.assertTrue((target / "worldmods" / "society" / "story_nodes.lua").is_file())
         self.assertTrue((target / "server.conf").is_file())
         self.assertTrue((target / "private" / "origin.sqlite").is_file())
         self.assertEqual((target / "private" / "wispiva-origin.json").stat().st_mode & 0o777, 0o600)
@@ -52,6 +55,38 @@ class WorldCreateTests(unittest.TestCase):
         publication = self.store.product_publication(row["id"], row["revision"])
         self.assertEqual(publication["state"], "PUBLISHED")
         self.assertEqual(publication["operation_id"], result["operation_id"])
+
+    def test_scene_survives_confirmed_publication_and_canonical_recompile(self):
+        source = scene_draft()
+        row = self.confirmed(source)
+        target = self.root / "worlds" / "narrative-study"
+        target.parent.mkdir()
+        result = create_world(self.store, row["id"], row["revision"], target)
+        manifest = json.loads((target / "private" / "wispiva-origin.json").read_text())
+        self.assertEqual(manifest["public"]["places"][0]["scene"], source["layout"]["places"][0]["scene"])
+        self.assertEqual(manifest["origin_draft"], source)
+        contract = validate_world_contract(target, expected_world_id=result["world_id"])
+        self.assertEqual(contract["phase"], "READY")
+
+    def test_red_headed_league_story_objects_survive_product_publication(self):
+        moment = json.loads((Path(__file__).parents[1] / "validation" / "red_headed_league" /
+                            "moment.json").read_text(encoding="utf-8"))
+        row = self.confirmed(moment)
+        target = self.root / "worlds" / "red-headed-league"
+        target.parent.mkdir()
+        result = create_world(self.store, row["id"], row["revision"], target)
+        manifest = json.loads((target / "private" / "wispiva-origin.json").read_text(encoding="utf-8"))
+        self.assertEqual({item["id"] for item in manifest["public"]["objects"]},
+                         {"dissolution_notice", "cellar_workface"})
+        self.assertEqual(set(manifest["private_objects"]),
+                         {"dissolution_notice", "cellar_workface"})
+        self.assertEqual(manifest["private_objects"]["cellar_workface"]["grants"][0]["actorId"],
+                         "spaulding")
+        self.assertEqual(manifest["origin_draft"]["storyObjects"], moment["storyObjects"])
+        public = json.dumps(manifest["public"], ensure_ascii=False)
+        self.assertNotIn("John Clay", public)
+        contract = validate_world_contract(target, expected_world_id=result["world_id"])
+        self.assertEqual(contract["phase"], "READY")
 
     def test_exact_published_world_retry_returns_same_result_without_writes(self):
         row = self.confirmed()

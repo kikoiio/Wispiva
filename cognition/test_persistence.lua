@@ -124,3 +124,14 @@ empty_checkpoint.world_events.events = nil
 local restored, _, empty_events = persistence.unpack_checkpoint(empty_checkpoint,long_term,world_events)
 assert(#restored==1 and empty_events:count()==0)
 print('empty JSON world-event checkpoint restored')
+local narrative_snapshot = {version=1, sequence=0, interactions={}, object_states={},
+  operations={}, offers={}, limits={}}
+local narrative_checkpoint = persistence.pack_checkpoint({s}, long_term.new(),
+  world_events.new(), true, narrative_snapshot)
+assert(narrative_checkpoint.version == 2 and narrative_checkpoint.narrative == narrative_snapshot)
+local _, _, _, restored_narrative = persistence.unpack_checkpoint(
+  narrative_checkpoint, long_term, world_events)
+assert(restored_narrative.sequence == 0)
+narrative_checkpoint.narrative = nil
+assert(not pcall(persistence.unpack_checkpoint, narrative_checkpoint, long_term, world_events))
+print('narrative checkpoint version 2 round trip passed')

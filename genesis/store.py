@@ -177,10 +177,10 @@ class DraftStore:
             raise
         return self.read(ident)
 
-    def create_from_intent(self, intent, model):
+    def create_from_intent(self, intent, model, *, scene=False):
         """Generate and persist one editable draft while retaining the input intent."""
         intent = _check_intent(intent)
-        draft = generate(intent, model)
+        draft = generate(intent, model, scene=scene)
         return self.create(draft, intent=intent)
 
     def read(self, draft_id):

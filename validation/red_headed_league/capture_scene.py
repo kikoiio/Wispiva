@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Capture a new product world's furnished Baker Street room in actual Luanti.
+"""Capture an isolated product room in an actual Luanti client.
 
-Run only after authorization for the GUI/CI workload. This is a visual fixture:
-the normal genesis publication and product projection build the room; a worldmod
-only fixes cameras/daylight and hides people/HUD to match the empty reference.
-No real model is called and these images are not evidence of agent behavior.
+The default input is the Baker Street blueprint moment. With --draft, the input
+is a private schema v2 narrative-scene draft generated in a preceding step. The
+normal genesis publication and product projection build the room; a worldmod
+only fixes cameras/daylight and hides people/HUD. Images are visual fixtures,
+not evidence of agent behavior.
 
 All working files (including private creation records and logs) stay beneath
 <repo>/.tmp/interior. --output must name a NEW directory; only two raw X11 PNGs
@@ -14,6 +15,7 @@ The capture budget is 95 seconds, with a further 25 for owned-process cleanup.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -212,10 +214,18 @@ def wait_for(predicate, *, processes, deadline, product_log, description):
         time.sleep(min(0.1, remaining(deadline)))
 
 
-def prepare_world(work):
-    draft = json.loads((FIXTURE / "moment.json").read_text(encoding="utf-8"))
-    baker = next((place for place in draft["layout"]["places"] if place["placeId"] == "baker"), {})
-    require(baker.get("blueprint") == BLUEPRINT, "moment.json must select the Baker sitting-room blueprint")
+def prepare_world(work, source_draft=None):
+    draft = (json.loads((FIXTURE / "moment.json").read_text(encoding="utf-8"))
+             if source_draft is None else copy.deepcopy(source_draft))
+    if source_draft is None:
+        baker = next((place for place in draft["layout"]["places"] if place["placeId"] == "baker"), {})
+        require(baker.get("blueprint") == BLUEPRINT, "moment.json must select the Baker sitting-room blueprint")
+        scene_place_id = "baker"
+    else:
+        require(draft.get("schemaVersion") == 2, "narrative capture requires a schema v2 draft")
+        scene = next((place for place in draft["layout"]["places"] if "scene" in place), None)
+        require(scene is not None, "draft has no narrative scene")
+        scene_place_id = scene["placeId"]
     world = work / "world"
     store = DraftStore(work / "drafts.sqlite", create=True)
     try:
@@ -226,8 +236,13 @@ def prepare_world(work):
         store.close()
     # Fail if an old compiler silently discarded the blueprint declaration.
     manifest = json.loads((world / "private/wispiva-origin.json").read_text(encoding="utf-8"))
-    compiled = next(place for place in manifest["public"]["places"] if place["id"] == "baker")
-    require(compiled.get("blueprint") == BLUEPRINT, "published product world lost its interior blueprint")
+    compiled = next(place for place in manifest["public"]["places"] if place["id"] == scene_place_id)
+    if source_draft is None:
+        require(compiled.get("blueprint") == BLUEPRINT, "published product world lost its interior blueprint")
+    else:
+        expected = next(place["scene"] for place in draft["layout"]["places"]
+                        if place["placeId"] == scene_place_id)
+        require(compiled.get("scene") == expected, "published product world lost its narrative scene")
     mod = world / "worldmods/wispiva_scene_capture"
     mod.mkdir(mode=0o700)
     (mod / "mod.conf").write_text(
@@ -253,7 +268,7 @@ def image_info(path):
             "bytes": path.stat().st_size, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
 
 
-def capture(output):
+def capture(output, source_draft=None):
     started = time.monotonic()
     deadline = started + 95
     processes = Processes(started + 120)
@@ -262,7 +277,8 @@ def capture(output):
         require(shutil.which(program), f"required program unavailable: {program}")
     for program in ("luanti", "luantiserver"):
         require(os.access(rt / "root/usr/libexec/luanti" / program, os.X_OK), f"runtime {program} unavailable")
-    require(REFERENCE.is_file(), "generated room reference is missing")
+    if source_draft is None:
+        require(REFERENCE.is_file(), "generated room reference is missing")
     # Reserve a brand new artifact directory. Do not overwrite earlier evidence.
     output.mkdir(parents=True, mode=0o700, exist_ok=False)
     scratch = ROOT / ".tmp/interior"
@@ -278,9 +294,11 @@ def capture(output):
                 "LP_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "LC_ALL": "C.UTF-8"})
     product_log = work / "world/private/product.log"
     images = []
+    views = (VIEWS if source_draft is None else {
+        "reference": "narrative-front-view.png", "reverse": "narrative-reverse-view.png"})
     failure = None
     try:
-        world = prepare_world(work)
+        world = prepare_world(work, source_draft)
         display_file = work / "display-number"
         with display_file.open("wb") as descriptor:
             processes.start("Xvfb", ["Xvfb", "-displayfd", str(descriptor.fileno()), "-ac", "-noreset",
@@ -317,7 +335,7 @@ def capture(output):
                         env=env, cwd=ROOT, log=work / "client-launch.log")
         wait_for(lambda: f"RHL_CAPTURE client-connected player={PLAYER}" in read_log(product_log),
                  processes=processes, deadline=deadline, product_log=product_log, description="client join")
-        for view, filename in VIEWS.items():
+        for view, filename in views.items():
             marker = f"RHL_CAPTURE camera-ready id={view} player={PLAYER}"
             wait_for(lambda: marker in read_log(product_log), processes=processes,
                      deadline=deadline, product_log=product_log, description=f"{view} camera")
@@ -387,21 +405,29 @@ def capture(output):
             and "SOCIETY fail=" not in final_log, "recovered room did not checkpoint cleanly")
     summary = {
         "format": "wispiva-interior-capture", "version": 1,
-        "fixture": "empty-room visual comparison; no AI behavior evidence",
-        "blueprint": BLUEPRINT, "actual_luanti_client_connected": True,
-        "camera_ready": list(VIEWS), "world_created_from_confirmed_moment": True,
+        "fixture": ("empty-room visual comparison; no AI behavior evidence" if source_draft is None
+                    else "generated narrative scene projection; no AI behavior evidence"),
+        "actual_luanti_client_connected": True,
+        "camera_ready": list(views), "world_created_from_confirmed_moment": source_draft is None,
         "decisions_paused": True, "real_model_calls": 0, "owned_processes_stopped": True,
         "product_checkpoint_committed": True,
         "saved_room_and_orientations_recovered": True,
         "mod_storage_backend": "sqlite3" if (world / "mod_storage.sqlite").is_file() else "files",
         "rendering": "Xvfb / Mesa llvmpipe / OpenGL; unmodified root-window captures",
         "people_and_hud_hidden": True, "lighting": "fixed noon daylight; no clouds",
-        "reference": {"file": str(REFERENCE.relative_to(ROOT)), "generated": True,
-                      "sha256": hashlib.sha256(REFERENCE.read_bytes()).hexdigest()},
         "scene_capture_sha256": hashlib.sha256((FIXTURE / "scene_capture.lua").read_bytes()).hexdigest(),
         "git_sha": os.environ.get("GITHUB_SHA"), "screenshots": images,
     }
-    for filename in VIEWS.values():
+    if source_draft is None:
+        summary["blueprint"] = BLUEPRINT
+        summary["reference"] = {"file": str(REFERENCE.relative_to(ROOT)), "generated": True,
+                                "sha256": hashlib.sha256(REFERENCE.read_bytes()).hexdigest()}
+    else:
+        scene = next(place["scene"] for place in source_draft["layout"]["places"] if "scene" in place)
+        summary["input_mode"] = "text-only; no reference image supplied"
+        summary["scene"] = {"palette": scene["palette"], "furnishing_count": len(scene["furnishings"]),
+                            "kinds": sorted(item["kind"] for item in scene["furnishings"])}
+    for filename in views.values():
         shutil.copyfile(work / filename, output / filename)
     (output / "capture-summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
@@ -409,13 +435,15 @@ def capture(output):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", required=True, type=Path, help="new directory for public PNGs and summary only")
+    parser.add_argument("--draft", type=Path, help="private schema v2 scene draft for a no-reference capture")
     args = parser.parse_args(argv)
     os.umask(0o077)
     def interrupted(signum, _frame):
         raise CaptureError(f"capture interrupted by signal {signum}")
     previous = {sig: signal.signal(sig, interrupted) for sig in (signal.SIGINT, signal.SIGTERM)}
     try:
-        capture(args.output.absolute())
+        source_draft = json.loads(args.draft.read_text(encoding="utf-8")) if args.draft else None
+        capture(args.output.absolute(), source_draft)
     except Exception as exc:
         # Private engine logs remain in .tmp/interior, never printed or uploaded.
         print(f"interior capture failed: {exc}", file=sys.stderr)
@@ -423,7 +451,7 @@ def main(argv=None):
     finally:
         for sig, handler in previous.items():
             signal.signal(sig, handler)
-    print("Captured two actual Luanti room views; visual fixture only, no model evidence.")
+    print("Captured two actual Luanti room views; visual fixture only, no model behavior evidence.")
     return 0
 
 

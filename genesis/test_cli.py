@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from genesis.__main__ import main
+from genesis.test_genesis import scene_draft
 
 
 class GenesisCliTests(unittest.TestCase):
@@ -75,6 +76,19 @@ class GenesisCliTests(unittest.TestCase):
         self.assertNotEqual(code, 0)
         self.assertIsNone(result)
         self.assertIn('choose_exactly_one', err)
+
+    def test_create_draft_scene_flag_persists_v2_scene(self):
+        response = self.root / 'scene-response.json'
+        response.write_text(json.dumps(scene_draft(), ensure_ascii=False), encoding='utf-8')
+        code, result, err = self.run_cli('create-draft', '--draft-db', str(self.db),
+                                         '--intent', '一间侦探书房', '--response', str(response), '--scene')
+        self.assertEqual((code, err), (0, ''))
+        self.assertEqual(result['status'], 'draft')
+        code, saved, err = self.run_cli('read', '--draft-db', str(self.db),
+                                        '--draft-id', result['id'], '--draft-only')
+        self.assertEqual((code, err), (0, ''))
+        self.assertEqual(saved['schemaVersion'], 2)
+        self.assertIn('scene', saved['layout']['places'][0])
 
 
 if __name__ == '__main__':

@@ -206,6 +206,8 @@ def _validate_canonical_origin(world_dir, manifest, contract):
             raise ProductContractError("origin_public_projection_mismatch")
         if manifest.get("actors") != _runtime_actors(plan):
             raise ProductContractError("origin_actor_projection_mismatch")
+        if manifest.get("private_objects") != (plan["private_objects"] or None):
+            raise ProductContractError("origin_object_projection_mismatch")
         event = manifest.get("origin_event")
         if (type(event) is not dict or event.get("type") != "genesis.created"
                 or event.get("id") != contract["origin_event_id"]):

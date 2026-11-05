@@ -22,7 +22,7 @@ local function fixture()
     reads = reads + 1
     local name = world[key(p)]
     if name == false then return nil end
-    return {name=name or (p.y == 0 and "default:stone" or "air")}
+    return {name=name or ((p.y == 0 or p.y == -8) and "default:stone" or "air")}
   end
   engine.set_node = function() writes = writes + 1; error("navigation must never write") end
   return engine, world, function() return reads, writes end
@@ -37,16 +37,16 @@ local function checked_move(engine, from, target, options)
   local nextpoint, reason = navigation.step(engine, from, target, options)
   assert(nextpoint and reason == "ok", tostring(reason))
   local dx, dz = nextpoint.x - from.x, nextpoint.z - from.z
-  assert(nextpoint.y == 1 and (dx == 0) ~= (dz == 0), "must follow a straight segment")
+  assert(nextpoint.y == from.y and (dx == 0) ~= (dz == 0), "must follow a straight segment")
   local distance = math.abs(dx) + math.abs(dz)
   assert(distance >= 1 and distance <= (options and options.step or 2))
   local sx = dx == 0 and 0 or (dx > 0 and 1 or -1)
   local sz = dz == 0 and 0 or (dz > 0 and 1 or -1)
   for i = 1, distance do
-    local p = point(from.x + sx*i, from.z + sz*i)
+    local p = point(from.x + sx*i, from.z + sz*i, from.y)
     local feet = engine.get_node_or_nil(p)
-    local head = engine.get_node_or_nil(point(p.x, p.z, 2))
-    local floor = engine.get_node_or_nil(point(p.x, p.z, 0))
+    local head = engine.get_node_or_nil(point(p.x, p.z, from.y + 1))
+    local floor = engine.get_node_or_nil(point(p.x, p.z, from.y - 1))
     assert(feet and (feet.name == "air" or engine.registered_nodes[feet.name].walkable == false))
     assert(head and (head.name == "air" or engine.registered_nodes[head.name].walkable == false))
     assert(floor and engine.registered_nodes[floor.name].walkable == true)
@@ -171,7 +171,7 @@ failure(engine, point(0, 0), point(33, 0), nil, "target_out_of_bounds")
 failure(engine, point(33, 0), point(0, 0), nil, "out_of_bounds")
 failure(engine, point(-33, 0), point(33, 0), {bound=64}, "target_too_far")
 failure(engine, point(0, 0), point(0, 0, 2), nil, "different_level")
-failure(engine, point(0, 0, 2), point(1, 0, 2), nil, "unsupported_level")
+failure(engine, point(0, 0, 65), point(1, 0, 65), nil, "invalid_position")
 assert(counts() == 0, "out-of-range request queried the engine")
 -- A narrow 64-cell corridor exercises the inclusive maximum distance.
 engine, world = fixture()
@@ -229,6 +229,9 @@ local around = navigation.nearest_clear(engine, home, {bound=4, radius=2, max_sc
 assert(around and math.abs(around.x - 1) + math.abs(around.z - 1) == 2)
 assert(engine.get_node_or_nil(around).name == "air")
 assert(select(2, navigation.nearest_clear(engine, home, {radius=false})) == "invalid_options")
+local cellar = point(0, 0, -7)
+assert(equal(checked_move(engine, cellar, point(2, 0, -7)), point(2, 0, -7)))
+assert(navigation.occupies(cellar, point(0, 0, -6)))
 local _, body_writes = counts()
 assert(body_writes == 0)
 

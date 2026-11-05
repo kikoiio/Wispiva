@@ -2,9 +2,10 @@
 -- read-before-write origin projection. It is still not a general map adapter.
 -- Input is the caller-authenticated genesis.world_create persistent manifest:
 -- {format='wispiva-world-manifest', version=1 or 2, world_id, origin_event_id,
--- public={places, semantic_connections, actors, objects?}}. Version 2 is the
--- publication ledger hand-off and also carries operation_id; private fields
--- such as origin_draft are ignored here. Places/actors use genesis.compiler's
+-- public={places, semantic_connections, actors, objects?}}. Places may carry
+-- a bounded narrative scene recipe (fixed shell, palette and semantic furniture).
+-- Manifest v2 is the publication ledger hand-off and also carries operation_id.
+-- Private fields such as origin_draft are ignored here. Places/actors use genesis.compiler's
 -- public fields (anchor, space; actor_id, ordinal, place_id, position). Objects
 -- are {id, place_id, position, node}; supported interactive nodes are listed below.
 -- Private goals/memories are never copied. The caller must verify this manifest
@@ -24,7 +25,9 @@
 -- There is no cross-store transaction: errors may leave a known partial prefix.
 -- Retry the SAME origin while frozen; unknown or divergent state requires review.
 local M = {}
-local interactive = {['default:chest'] = true, ['default:furnace'] = true}
+local interactive = {['default:chest'] = true, ['default:furnace'] = true,
+  ['society:story_notice'] = true, ['society:story_surface'] = true,
+  ['society:story_surface_disturbed'] = true}
 -- Nodes that exist in minetest_game's default mod. Absent fields keep wood.
 local build_nodes = {
   ['default:wood'] = true, ['default:bookshelf'] = true, ['default:glass'] = true,
@@ -57,7 +60,7 @@ local function array(t, limit)
 end
 local function position(p)
   check(type(p) == 'table' and integer(p.x, -64, 64)
-    and integer(p.z, -64, 64) and p.y == 1, 'invalid position')
+    and integer(p.z, -64, 64) and integer(p.y, -7, 1), 'invalid position')
   return {x=p.x, y=p.y, z=p.z}
 end
 local function point(x, y, z) return {x=x, y=y, z=z} end
@@ -78,8 +81,9 @@ end
 -- A reusable, versioned furnished-room blueprint. Coordinates are relative to
 -- the public anchor; the story chooses it in its draft, never by place name.
 local function sitting_room(p, node)
+  local base = p.y - 1
   local function put(x,y,z,name,rotation)
-    node(point(p.x+x,y,p.z+z), 'society:' .. name, rotation)
+    node(point(p.x+x,base+y,p.z+z), 'society:' .. name, rotation)
   end
   for x=-5,5 do
     for z=-4,4 do
@@ -90,7 +94,7 @@ local function sitting_room(p, node)
         if wall and not door then
           put(x,y,z,y==1 and 'panelling' or (y==4 and 'cornice' or 'wallpaper'))
         else
-          node(point(p.x+x,y,p.z+z),nil)
+          node(point(p.x+x,base+y,p.z+z),nil)
         end
       end
       put(x,5,z,'plaster')
@@ -147,6 +151,104 @@ local function sitting_room(p, node)
   put(4,3,-2,'painting',1)
 end
 
+local function scene_room(p, scene, node)
+  local palettes = {
+    study = {floor='parquet', lower='panelling', wall='wallpaper', trim='cornice', ceiling='plaster'},
+    workshop = {floor='walnut', lower='panelling', wall='plaster', trim='plaster', ceiling='plaster'},
+    archive = {floor='parquet', lower='walnut', wall='plaster', trim='cornice', ceiling='plaster'},
+  }
+  local palette = palettes[scene.palette]
+  local base = p.y - 1
+  local function put(x,y,z,name,rotation)
+    node(point(p.x+x,base+y,p.z+z), 'society:' .. name, rotation)
+  end
+  for x=-5,5 do
+    for z=-4,4 do
+      put(x,0,z,palette.floor)
+      for y=1,4 do
+        local wall = math.abs(x)==5 or math.abs(z)==4
+        local door = x==5 and z==-2 and y<=2
+        if wall and not door then
+          local material = y==1 and palette.lower or (y==4 and palette.trim or palette.wall)
+          put(x,y,z,material)
+        else
+          node(point(p.x+x,base+y,p.z+z),nil)
+        end
+      end
+      put(x,5,z,palette.ceiling)
+    end
+  end
+  for z=-1,0 do
+    for y=2,3 do put(-5,y,z,'sash_window',1) end
+  end
+  -- Keep text-authored rooms visibly lit without expanding the model's
+  -- furniture vocabulary. Skip wall sconces where a tall bookcase occupies
+  -- the same wall cell; the central pendant is always clear by schema.
+  put(0,4,0,'ceiling_lamp')
+  local occupied_bookcases = {}
+  for _, furnishing in ipairs(scene.furnishings) do
+    if furnishing.kind == 'bookcase' then
+      occupied_bookcases[furnishing.at[1] .. ',' .. furnishing.at[2]] = true
+    end
+  end
+  for _,x in ipairs({-2,2}) do
+    if not occupied_bookcases[x .. ',3'] then put(x,3,3,'wall_lamp') end
+  end
+  local facings = {north=0, east=3, south=2, west=1}
+  for _, furnishing in ipairs(scene.furnishings) do
+    local x,z = furnishing.at[1], furnishing.at[2]
+    local rotation = facings[furnishing.facing]
+    local name = ({armchair='armchair', writing_desk='desk', desk_chair='desk_chair',
+      bookcase='bookcase', table='coffee_table', side_table='side_table'})[furnishing.kind]
+    local height = furnishing.kind == 'bookcase' and 3 or 1
+    for y=1,height do put(x,y,z,name,rotation) end
+    if furnishing.kind == 'bookcase' then put(x,4,z,'bookcase_crown',rotation) end
+  end
+end
+
+local function exact_fields(value, expected)
+  if type(value) ~= 'table' then return false end
+  local count, expected_count = 0, 0
+  for key in pairs(value) do
+    if not expected[key] then return false end
+    count = count + 1
+  end
+  for key in pairs(expected) do
+    expected_count = expected_count + 1
+    if value[key] == nil then return false end
+  end
+  return count == expected_count
+end
+
+local function validate_scene(scene)
+  check(exact_fields(scene, {version=true, palette=true, furnishings=true})
+    and scene.version == 1, 'invalid scene')
+  check(scene.palette == 'study' or scene.palette == 'workshop' or scene.palette == 'archive',
+    'unsupported scene palette')
+  local kinds = {armchair=true, writing_desk=true, desk_chair=true, bookcase=true,
+    table=true, side_table=true}
+  local facings = {north=true, east=true, south=true, west=true}
+  local bases = {stated=true, inferred=true, author=true}
+  check(array(scene.furnishings, 8) > 0, 'invalid scene furnishings')
+  local occupied = {}
+  for _, furnishing in ipairs(scene.furnishings) do
+    check(exact_fields(furnishing, {kind=true, at=true, facing=true, basis=true}),
+      'invalid scene furnishing')
+    check(kinds[furnishing.kind] and facings[furnishing.facing] and bases[furnishing.basis],
+      'invalid scene furnishing enum')
+    check(array(furnishing.at, 2) == 2
+      and integer(furnishing.at[1], -4, 4) and integer(furnishing.at[2], -3, 3),
+      'invalid scene furnishing position')
+    local x,z = furnishing.at[1], furnishing.at[2]
+    local wall_cell = (math.abs(x)==3 and -1<=z and z<=3)
+      or (math.abs(z)==3 and -2<=x and x<=2)
+    check(wall_cell, 'scene furnishing outside wall-side cells')
+    local cell = x .. ',' .. z
+    check(not occupied[cell], 'overlapping scene furnishings')
+    occupied[cell] = true
+  end
+end
+
 function M.accept_binding(manifest)
   if type(manifest) ~= 'table' or manifest.format ~= 'wispiva-world-manifest' then return false end
   if manifest.version == 1 then
@@ -168,6 +270,7 @@ function M.plan(manifest)
   local objects = view.objects
   if objects == nil then objects = {} end -- Current compiler has no objects yet.
   local places, ordered, nodes, actors, occupied = {}, {}, {}, {}, {}
+  local vertical_cells = {}
   check(array(view.places, 16) > 0, 'no places')
   array(view.semantic_connections, 64); array(view.actors, 64); array(objects, 64)
   local function node(p, name, param2)
@@ -178,9 +281,15 @@ function M.plan(manifest)
     check(type(place) == 'table' and id(place.id) and not places[place.id], 'duplicate/invalid place')
     check(place.space == 'indoor' or place.space == 'outdoor', 'unsupported space')
     local p = position(place.anchor)
-    local detailed = place.blueprint ~= nil
-    check(not detailed or (place.blueprint == 'victorian_sitting_room_v1' and place.space == 'indoor'),
+    check(p.y == 1 or p.y == -7, 'unsupported place level')
+    local detailed = place.blueprint ~= nil or place.scene ~= nil
+    check(not (place.blueprint ~= nil and place.scene ~= nil), 'multiple detailed interiors')
+    check(place.blueprint == nil or (place.blueprint == 'victorian_sitting_room_v1' and place.space == 'indoor'),
       'unsupported blueprint')
+    if place.scene ~= nil then
+      check(place.space == 'indoor', 'scene requires indoor place')
+      validate_scene(place.scene)
+    end
     if detailed then
       for _,field in ipairs({'floor','wall','ceiling','apron','windows'}) do
         check(place[field] == nil, 'blueprint material override')
@@ -190,8 +299,10 @@ function M.plan(manifest)
     local depth = detailed and 4 or radius
     if detailed then check(math.abs(p.x)+radius <= 32 and math.abs(p.z)+depth <= 32, 'blueprint outside bounds') end
     for _, other in ipairs(ordered) do
-      check(math.abs(p.x-other.anchor.x) > radius+other.radius
-        or math.abs(p.z-other.anchor.z) > depth+other.depth, 'overlapping places')
+      if p.y == other.anchor.y then
+        check(math.abs(p.x-other.anchor.x) > radius+other.radius
+          or math.abs(p.z-other.anchor.z) > depth+other.depth, 'overlapping places')
+      end
     end
     if place.windows ~= nil then check(type(place.windows) == 'boolean', 'invalid windows') end
     local function build_node(field)
@@ -201,7 +312,7 @@ function M.plan(manifest)
       return name
     end
     local item = {id=place.id, anchor=p, radius=radius, depth=depth, space=place.space,
-      blueprint=place.blueprint,
+      blueprint=place.blueprint, scene=place.scene, furnished=detailed,
       floor=build_node('floor'), wall=build_node('wall'), ceiling=build_node('ceiling'),
       apron=build_node('apron'), windows=place.windows == true}
     places[place.id] = item; ordered[#ordered+1] = item
@@ -211,24 +322,27 @@ function M.plan(manifest)
     local p, r = place.anchor, place.radius
     if place.blueprint then
       sitting_room(p,node)
+    elseif place.scene then
+      scene_room(p,place.scene,node)
     else
       local floor_name = place.floor or (place.space == 'indoor' and 'default:wood' or 'default:dirt_with_grass')
       local wall_name = place.wall or 'default:wood'
       local ceiling_name = place.ceiling or 'default:wood'
+      local base = p.y - 1
       for x = p.x-r, p.x+r do
         for z = p.z-r, p.z+r do
-          node(point(x,0,z), floor_name)
-          for y = 1, 3 do
+          node(point(x,base,z), floor_name)
+          for relative_y = 1, 3 do
             local wall = place.space == 'indoor' and (math.abs(x-p.x)==r or math.abs(z-p.z)==r)
             -- East doorway, feet and head. A lintel stays at y=3. Other walls stay shut.
-            local door = wall and x == p.x + r and z == p.z and y <= 2
+            local door = wall and x == p.x + r and z == p.z and relative_y <= 2
             local corner = math.abs(x-p.x)==r and math.abs(z-p.z)==r
-            local window = place.windows and wall and not door and not corner and y == 2
+            local window = place.windows and wall and not door and not corner and relative_y == 2
             local name = nil
             if wall and not door then name = window and 'default:glass' or wall_name end
-            node(point(x,y,z), name)
+            node(point(x,base+relative_y,z), name)
           end
-          if place.space == 'indoor' then node(point(x,4,z), ceiling_name) end
+          if place.space == 'indoor' then node(point(x,base+4,z), ceiling_name) end
         end
       end
     end
@@ -243,15 +357,38 @@ function M.plan(manifest)
     seen[a .. ':' .. b] = true; connections[#connections+1] = {from=a, to=b}
   end
   table.sort(connections, function(a,b) return a.from .. ':' .. a.to < b.from .. ':' .. b.to end)
-  local function route(a, b, from, to)
+  for _, c in ipairs(connections) do
+    local a, b = places[c.from], places[c.to]
+    if a.anchor.y ~= b.anchor.y then
+      check(a.space == 'indoor' and b.space == 'indoor'
+        and math.abs(a.anchor.y - b.anchor.y) == 8
+        and a.anchor.x == b.anchor.x and a.anchor.z == b.anchor.z,
+        'invalid vertical connection')
+      local lower_y = math.min(a.anchor.y, b.anchor.y)
+      local ladder_x, ladder_z = a.anchor.x - 2, a.anchor.z + 2
+      for y = lower_y, math.max(a.anchor.y, b.anchor.y) - 1 do
+        local ladder = point(ladder_x, y, ladder_z)
+        local support = point(ladder_x - 1, y, ladder_z)
+        node(support, 'default:cobble')
+        -- wallmounted dir points from the ladder node toward its support (-X).
+        node(ladder, 'default:ladder_wood', 3)
+        vertical_cells[key(ladder)] = true
+        vertical_cells[key(support)] = true
+      end
+    end
+  end
+  local function route(a, b, from, to, stand_y)
     local function route_key(x, z) return x .. ',' .. z end
     local function blocked(x, z)
+      for y=stand_y-1,stand_y+1 do
+        if vertical_cells[key(point(x,y,z))] then return true end
+      end
       for _, other in ipairs(ordered) do
-        if math.abs(x-other.anchor.x) <= other.radius
+        if other.anchor.y == stand_y and math.abs(x-other.anchor.x) <= other.radius
           and math.abs(z-other.anchor.z) <= other.depth then
           if other.id ~= from and other.id ~= to then return true end
-          if other.blueprint then
-            for y=1,2 do
+          if other.furnished then
+            for y=stand_y,stand_y+1 do
               local cell = nodes[key(point(x,y,z))]
               if cell and cell.value ~= false then return true end
             end
@@ -294,16 +431,40 @@ function M.plan(manifest)
   end
   for _, c in ipairs(connections) do
     local a,b = places[c.from].anchor, places[c.to].anchor
+    if a.y == b.y then
     local function path(x,z)
-      path_cells[key(point(x,1,z))] = true
+      path_cells[key(point(x,a.y,z))] = true
       for _,place in ipairs(ordered) do
-        if place.blueprint and math.abs(x-place.anchor.x)<=place.radius
+        if place.anchor.y == a.y and place.furnished and math.abs(x-place.anchor.x)<=place.radius
           and math.abs(z-place.anchor.z)<=place.depth then return end
       end
-      node(point(x,0,z), 'default:stone')
-      for y=1,3 do node(point(x,y,z), nil) end
+      node(point(x,a.y-1,z), 'default:stone')
+      for y=a.y,a.y+2 do node(point(x,y,z), nil) end
     end
-    for _, p in ipairs(route(a, b, c.from, c.to)) do path(p.x,p.z) end
+    local route_cells = route(a, b, c.from, c.to, a.y)
+    local function inside(place, p)
+      return place.anchor.y == a.y and math.abs(p.x-place.anchor.x) <= place.radius
+        and math.abs(p.z-place.anchor.z) <= place.depth
+    end
+    for i, p in ipairs(route_cells) do
+      -- A ground path must also cross the connected rooms' walls. Open only
+      -- the boundary cells where this route enters or leaves each interior.
+      for _, place in ipairs(ordered) do
+        local on_boundary = math.abs(p.x-place.anchor.x) == place.radius
+          or math.abs(p.z-place.anchor.z) == place.depth
+        if place.space == 'indoor' and inside(place,p) and on_boundary then
+          local previous, following = route_cells[i-1], route_cells[i+1]
+          local crosses = (previous and not inside(place,previous))
+            or (following and not inside(place,following))
+          if crosses then
+            node(point(p.x,a.y,p.z), nil)
+            node(point(p.x,a.y+1,p.z), nil)
+          end
+        end
+      end
+      path(p.x,p.z)
+    end
+    end
   end
   -- A one-node ring outside an indoor place. Skip cells already claimed by a
   -- room or a connection so the doorway and the stone route stay as planned.
@@ -314,7 +475,7 @@ function M.plan(manifest)
         for z = p.z-r-1, p.z+r+1 do
           if (math.abs(x-p.x) == r+1 or math.abs(z-p.z) == r+1)
             and x >= -64 and x <= 64 and z >= -64 and z <= 64 then
-            local at = point(x, 0, z)
+            local at = point(x, place.anchor.y - 1, z)
             if nodes[key(at)] == nil then node(at, place.apron) end
           end
         end
@@ -323,13 +484,15 @@ function M.plan(manifest)
   end
   local function interior(place_id, p)
     local place = places[place_id]
-    check(place and math.abs(p.x-place.anchor.x) <= (place.blueprint and 4 or 2)
-      and math.abs(p.z-place.anchor.z) <= (place.blueprint and 3 or 2), 'start/object outside place interior')
-    if place.blueprint then
-      for y=1,2 do
+    check(place and p.y == place.anchor.y and math.abs(p.x-place.anchor.x) <= (place.furnished and 4 or 2)
+      and math.abs(p.z-place.anchor.z) <= (place.furnished and 3 or 2), 'start/object outside place interior')
+    if place.furnished then
+      for y=p.y,p.y+1 do
         check(nodes[key(point(p.x,y,p.z))].value == false, 'start/object blocked by furnishing')
       end
     end
+    check(not vertical_cells[key(p)] and not vertical_cells[key(point(p.x,p.y+1,p.z))],
+      'start/object blocks vertical connection')
     check(not occupied[key(p)], 'start/object collision'); occupied[key(p)] = true
   end
   local actor_ids, ordinals = {}, {}
@@ -345,6 +508,16 @@ function M.plan(manifest)
   for _, object in ipairs(objects) do
     check(type(object) == 'table' and id(object.id) and not object_ids[object.id]
       and interactive[object.node], 'invalid interactive object')
+    if object.render_by_state ~= nil then
+      check(type(object.render_by_state) == 'table', 'invalid object render states')
+      local render_count, has_initial_render = 0, false
+      for state, node_name in pairs(object.render_by_state) do
+        check(id(state) and interactive[node_name], 'unsupported object render state')
+        if node_name == object.node then has_initial_render = true end
+        render_count = render_count + 1
+      end
+      check(render_count <= 4 and has_initial_render, 'too many or missing initial object render states')
+    end
     object_ids[object.id] = true
     local p = position(object.position); interior(object.place_id, p)
     check(not path_cells[key(p)], 'object blocks connection')
@@ -352,6 +525,7 @@ function M.plan(manifest)
     node(p, object.node)
     nodes[key(p)].object_id = object.id
     nodes[key(p)].place_id = object.place_id
+    nodes[key(p)].render_by_state = copy(object.render_by_state)
     -- The adapter must verify the durable interaction binding as well as the
     -- node. Seeing a chest alone cannot prove this origin object was installed.
     nodes[key(p)].value.object_id = object.id

@@ -17,6 +17,8 @@ MAX_LINE = MAX_REQUEST * 2
 ERRORS = frozenset({'invalid_config', 'invalid_context', 'request_too_large',
                     'transport_error', 'invalid_content_type', 'response_too_large',
                     'output_too_large', 'invalid_response', 'provider_failed',
+                    'provider_event_error', 'provider_response_failed', 'provider_error', 'model_refusal',
+                    'provider_request_rejected', 'provider_service_error',
                     'incomplete_response', 'invalid_action', 'rate_limited', 'timeout'})
 
 
@@ -95,7 +97,7 @@ def serve(source, sink, config, decision=decide, reflection=reflect):
                 except ModelError:
                     raise
                 except Exception:
-                    raise ModelError('provider_failed') from None
+                    raise ModelError('provider_error') from None
                 context = {key: value for key, value in context.items()
                            if key != 'reflection_input'}
             result = decision(config, context)

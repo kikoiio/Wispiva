@@ -1,6 +1,6 @@
 -- Pure Lua 5.1, read-only flat-world navigation.
 -- step(engine, pos, target, {bound=32, max_scan=512, step=2}) -> point, "ok"
--- or nil, reason. All coordinates are integers; only y=1 is supported.
+-- or nil, reason. All coordinates are integers; horizontal moves stay on one level.
 -- Bounds are inclusive +/-bound (1..64); max_scan is 1..4096 distinct grid
 -- cells, path distance and step are capped at 64. Scan exhaustion fails closed.
 -- BFS uses four neighbors and finds a shortest path within these limits.
@@ -48,12 +48,12 @@ local function walkable(engine, name)
   return definition.walkable
 end
 
-local function clear(engine, x, z)
-  local feet = node(engine, x, 1, z)
+local function clear(engine, x, z, stand_y)
+  local feet = node(engine, x, stand_y, z)
   if walkable(engine, feet) ~= false then return false, feet end
-  local head = node(engine, x, 2, z)
+  local head = node(engine, x, stand_y + 1, z)
   if walkable(engine, head) ~= false then return false, feet end
-  return walkable(engine, node(engine, x, 0, z)) == true, feet
+  return walkable(engine, node(engine, x, stand_y - 1, z)) == true, feet
 end
 
 local function search(engine, start, target, bound, max_scan, step)
@@ -66,7 +66,7 @@ local function search(engine, start, target, bound, max_scan, step)
     if cached then return cached.clear, cached.name end
     if scanned == max_scan then return nil end
     scanned = scanned + 1
-    local pass, name = clear(engine, x, z)
+    local pass, name = clear(engine, x, z, start.y)
     cells[id] = {clear=pass, name=name}
     return pass, name
   end
@@ -126,12 +126,12 @@ local function search(engine, start, target, bound, max_scan, step)
   local dx, dz = first.x - start.x, first.z - start.z
   local previous = start
   local result
-  if not clear(engine, start.x, start.z) then return nil, "path_blocked" end
+  if not clear(engine, start.x, start.z, start.y) then return nil, "path_blocked" end
   for offset = 1, math.min(step, #reverse) do
     local cell = reverse[#reverse - offset + 1]
     if cell.x - previous.x ~= dx or cell.z - previous.z ~= dz then break end
-    if not clear(engine, cell.x, cell.z) then return nil, "path_blocked" end
-    result = {x=cell.x, y=1, z=cell.z}
+    if not clear(engine, cell.x, cell.z, start.y) then return nil, "path_blocked" end
+    result = {x=cell.x, y=start.y, z=cell.z}
     previous = cell
   end
   return result, "ok"
@@ -155,7 +155,6 @@ function M.step(engine, pos, target, options)
   if not integer(bound, 1, MAX_DISTANCE) or not integer(max_scan, 1, MAX_SCAN)
       or not integer(step, 1, MAX_DISTANCE) then return nil, "invalid_options" end
   if pos.y ~= target.y then return nil, "different_level" end
-  if pos.y ~= 1 then return nil, "unsupported_level" end
   if not inside(pos.x, pos.z, bound) then return nil, "out_of_bounds" end
   if not inside(target.x, target.z, bound) then return nil, "target_out_of_bounds" end
   if math.abs(target.x - pos.x) + math.abs(target.z - pos.z) > MAX_DISTANCE then
@@ -167,12 +166,11 @@ function M.step(engine, pos, target, options)
   return result, reason
 end
 
--- The standing body occupies the feet cell (y=1) and the head cell (y=2).
+-- The standing body occupies the feet cell and the head cell above it.
 function M.occupies(stand, node_pos)
   if not position(stand) or not position(node_pos) then return false end
-  if stand.y ~= 1 then return false end
   return stand.x == node_pos.x and stand.z == node_pos.z
-    and (node_pos.y == 1 or node_pos.y == 2)
+    and (node_pos.y == stand.y or node_pos.y == stand.y + 1)
 end
 
 local function nearest_search(engine, pos, bound, max_scan, radius)
@@ -180,8 +178,8 @@ local function nearest_search(engine, pos, bound, max_scan, radius)
     return inside(x, z, bound)
       and math.abs(x - pos.x) + math.abs(z - pos.z) <= radius
   end
-  if allowed(pos.x, pos.z) and clear(engine, pos.x, pos.z) == true then
-    return {x=pos.x, y=1, z=pos.z}, "clear"
+  if allowed(pos.x, pos.z) and clear(engine, pos.x, pos.z, pos.y) == true then
+    return {x=pos.x, y=pos.y, z=pos.z}, "clear"
   end
   local queue, head = {{x=pos.x, z=pos.z}}, 1
   local seen, scanned = {[pos.x .. ":" .. pos.z] = true}, 0
@@ -196,7 +194,7 @@ local function nearest_search(engine, pos, bound, max_scan, radius)
         seen[id] = true
         scanned = scanned + 1
         if scanned > max_scan then return nil, "scan_limit" end
-        if clear(engine, x, z) == true then return {x=x, y=1, z=z}, "clear" end
+        if clear(engine, x, z, pos.y) == true then return {x=x, y=pos.y, z=z}, "clear" end
         queue[#queue + 1] = {x=x, z=z}
       end
     end
@@ -221,7 +219,6 @@ function M.nearest_clear(engine, pos, options)
   local radius = options.radius == nil and 8 or options.radius
   if not integer(bound, 1, MAX_DISTANCE) or not integer(max_scan, 1, MAX_SCAN)
       or not integer(radius, 0, MAX_DISTANCE) then return nil, "invalid_options" end
-  if pos.y ~= 1 then return nil, "unsupported_level" end
   if not inside(pos.x, pos.z, bound) then return nil, "out_of_bounds" end
   local copy = {x=pos.x, y=pos.y, z=pos.z}
   local ok, spot, reason = pcall(nearest_search, engine, copy, bound, max_scan, radius)

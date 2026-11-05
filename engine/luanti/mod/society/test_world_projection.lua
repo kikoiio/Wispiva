@@ -76,6 +76,111 @@ test('room, outdoor ground, roof, doorway and L-shaped connection', function()
   assert(find(plan,'node:10,2,2').value == false)
 end)
 
+test('narrative scene palette, semantic furniture and facing project deterministically', function()
+  local doc = fixture()
+  local room = doc.public.places[1]
+  room.scene = {version=1, palette='study', furnishings={
+    {kind='armchair', at={-3,1}, facing='east', basis='inferred'},
+    {kind='bookcase', at={3,1}, facing='west', basis='stated'},
+    {kind='table', at={-3,3}, facing='north', basis='author'}}}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:0,0,0').value.name == 'society:parquet')
+  assert(find(plan,'node:0,2,-4').value.name == 'society:wallpaper')
+  assert(find(plan,'node:0,5,0').value.name == 'society:plaster')
+  assert(find(plan,'node:0,4,0').value.name == 'society:ceiling_lamp')
+  assert(find(plan,'node:-2,3,3').value.name == 'society:wall_lamp')
+  assert(find(plan,'node:2,3,3').value.name == 'society:wall_lamp')
+  assert(find(plan,'node:-3,1,1').value.name == 'society:armchair')
+  assert(find(plan,'node:-3,1,1').value.param2 == 3)
+  assert(find(plan,'node:3,1,1').value.name == 'society:bookcase')
+  assert(find(plan,'node:3,3,1').value.name == 'society:bookcase')
+  assert(find(plan,'node:3,4,1').value.name == 'society:bookcase_crown')
+  assert(find(plan,'node:-3,1,3').value.name == 'society:coffee_table')
+  assert(find(plan,'node:5,1,-2').value == false)
+end)
+
+test('narrative scene keeps base lighting clear of tall bookcases', function()
+  local doc = fixture()
+  doc.public.places[1].scene = {version=1, palette='study', furnishings={
+    {kind='bookcase', at={-2,3}, facing='south', basis='stated'}}}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:0,4,0').value.name == 'society:ceiling_lamp')
+  assert(find(plan,'node:-2,3,3').value.name == 'society:bookcase')
+  assert(find(plan,'node:2,3,3').value.name == 'society:wall_lamp')
+end)
+
+test('connected narrative rooms route through clear wall openings', function()
+  local doc = fixture()
+  doc.public.places = {
+    {id='study', space='indoor', anchor={x=0,y=1,z=0},
+      scene={version=1, palette='study', furnishings={{
+        kind='bookcase', at={-3,-1}, facing='east', basis='inferred'}}}},
+    {id='workshop', space='indoor', anchor={x=16,y=1,z=0},
+      scene={version=1, palette='workshop', furnishings={{
+        kind='bookcase', at={-3,-1}, facing='east', basis='inferred'}}}},
+  }
+  doc.public.semantic_connections = {{from='study',to='workshop'}}
+  doc.public.actors = {}; doc.public.objects = {}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:5,1,-2').value == false)
+  assert(find(plan,'node:5,2,-2').value == false)
+  assert(find(plan,'node:6,0,-2').value.name == 'default:stone')
+  assert(find(plan,'node:21,1,-2').value == false)
+  assert(find(plan,'node:21,2,-2').value == false)
+  assert(find(plan,'node:22,0,-2').value.name == 'default:stone')
+  assert(find(plan,'node:5,1,-2').value == false)
+  assert(find(plan,'node:13,1,-2').value == false)
+  assert(find(plan,'node:13,2,-2').value == false)
+end)
+
+test('vertical connection builds a cellar ladder and keeps horizontal paths on their floor', function()
+  local doc = fixture()
+  doc.public.places = {
+    {id='shop', space='indoor', anchor={x=8,y=1,z=0}, floor='default:brick',
+      wall='default:brick', ceiling='default:stone'},
+    {id='cellar', space='indoor', anchor={x=8,y=-7,z=0}, floor='default:stone',
+      wall='default:cobble', ceiling='default:stone'},
+    {id='bank', space='indoor', anchor={x=16,y=1,z=0}},
+  }
+  doc.public.semantic_connections = {{from='shop',to='cellar'}, {from='shop',to='bank'}}
+  doc.public.actors = {{actor_id='spaulding',ordinal=0,place_id='cellar',
+    position={x=6,y=-7,z=-2}}}
+  doc.public.objects = {{id='workface',place_id='cellar',
+    position={x=7,y=-7,z=-1},node='society:story_surface'}}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:6,0,2').value.name == 'default:ladder_wood')
+  assert(find(plan,'node:6,0,2').value.param2 == 3)
+  assert(find(plan,'node:6,-7,2').value.name == 'default:ladder_wood')
+  assert(find(plan,'node:5,-4,2').value.name == 'default:cobble')
+  assert(find(plan,'node:8,-8,0').value.name == 'default:stone')
+  assert(find(plan,'node:8,1,-2').value == false)
+  assert(find(plan,'node:12,0,0').value.name == 'default:stone')
+  assert(not pcall(find, plan, 'node:12,-8,0'))
+  assert(find(plan,'actor:spaulding').value.position.y == -7)
+  assert(find(plan,'node:7,-7,-1').value.object_id == 'workface')
+  doc.public.actors[1].position = {x=6,y=-7,z=2}
+  fails(function() projection.plan(doc) end,'blocks vertical connection')
+  doc.public.actors = {}; doc.public.objects = {}
+  doc.public.places[2].anchor.x = 9
+  fails(function() projection.plan(doc) end,'invalid vertical connection')
+end)
+
+test('narrative scenes reject invalid cells, schemas and blocked actor starts', function()
+  local doc = fixture()
+  doc.public.places[1].scene = {version=1, palette='archive', furnishings={
+    {kind='armchair', at={0,0}, facing='north', basis='stated'}}}
+  fails(function() projection.plan(doc) end,'outside wall-side cells')
+  doc = fixture()
+  doc.public.places[1].scene = {version=1, palette='archive', furnishings={
+    {kind='armchair', at={-3,1}, facing='north', basis='certain'}}}
+  fails(function() projection.plan(doc) end,'invalid scene furnishing enum')
+  doc = fixture()
+  doc.public.places[1].scene = {version=1, palette='archive', furnishings={
+    {kind='armchair', at={-3,1}, facing='north', basis='stated'}}}
+  doc.public.actors[1].position = {x=-3,y=1,z=1}
+  fails(function() projection.plan(doc) end,'blocked by furnishing')
+end)
+
 test('natural grass-to-dirt evolution is compatible only for ground surfaces', function()
   local plan = projection.plan(fixture())
   assert(projection.node_matches_origin(find(plan,'node:12,0,6'),'default:dirt'))
@@ -92,6 +197,18 @@ test('actor identity and interactive object binding preserved without secrets', 
   assert(actor.position.z == 1 and actor.goal == nil and actor.memory_seeds == nil)
   local object = find(plan,'node:1,1,1').value
   assert(object.name == 'default:chest' and object.object_id == 'supplies' and object.place_id == 'home')
+end)
+
+test('story object render states are allowlisted and retained as map bindings', function()
+  local doc = fixture()
+  doc.public.objects[1].node = 'society:story_surface'
+  doc.public.objects[1].render_by_state = {
+    quiet='society:story_surface', worked='society:story_surface_disturbed'}
+  local operation = find(projection.plan(doc),'node:1,1,1')
+  assert(operation.object_id == 'supplies' and operation.place_id == 'home')
+  assert(operation.render_by_state.quiet == 'society:story_surface')
+  doc.public.objects[1].render_by_state.quiet = 'forbidden:node'
+  fails(function() projection.plan(doc) end, 'unsupported object render state')
 end)
 
 test('deterministic plan independent of input order and detached from input', function()
@@ -294,6 +411,22 @@ test('connection routes around unrelated rooms', function()
   assert(stones > 0)
 end)
 
+test('cellar workface stays beside the pawnshop connection route', function()
+  local doc = {format='wispiva-world-manifest',version=1,
+    world_id='12345678-1234-4234-8234-123456789abc',origin_event_id='origin-1',public={
+      places={{id='pawnshop',space='indoor',anchor={x=16,y=1,z=0}},
+              {id='cellar',space='indoor',anchor={x=16,y=1,z=8}}},
+      semantic_connections={{from='pawnshop',to='cellar'}},actors={},
+      objects={{id='cellar_workface',place_id='cellar',position={x=17,y=1,z=9},
+        node='society:story_surface',render_by_state={quiet='society:story_surface',
+          worked='society:story_surface_disturbed'}}}}}
+  local plan = projection.plan(doc)
+  assert(find(plan,'node:17,1,9').object_id == 'cellar_workface')
+  local blocked = copy(doc)
+  blocked.public.objects[1].position={x=16,y=1,z=8}
+  fails(function() projection.plan(blocked) end,'object blocks connection')
+end)
+
 test('empty actors/objects/connections allowed and one-place plan applies', function()
   local doc=fixture()
   doc.public.places[2]=nil
@@ -314,25 +447,30 @@ test('current persistent manifest without object extension is supported', functi
   assert(actor.goal == nil and actor.memory_seeds == nil)
 end)
 
-test('east doors open feet and head without joining separate rooms', function()
+test('authored routes open their wall crossings without joining rooms', function()
   local doc = fixture()
   doc.public.places = {
-    {id='baker', space='indoor', anchor={x=0, y=1, z=0}},
+    {id='baker', space='indoor', anchor={x=0, y=1, z=0},
+      blueprint='victorian_sitting_room_v1'},
     {id='pawnshop', space='indoor', anchor={x=16, y=1, z=0}},
     {id='cellar', space='indoor', anchor={x=16, y=1, z=8}},
     {id='bank', space='indoor', anchor={x=24, y=1, z=0}},
   }
-  doc.public.semantic_connections = {{from='pawnshop', to='cellar'}}
+  doc.public.semantic_connections = {{from='baker',to='pawnshop'},
+    {from='pawnshop', to='cellar'},
+    {from='pawnshop',to='bank'}}
   doc.public.actors = {}
   doc.public.objects = {}
   local plan = projection.plan(doc)
-  assert(find(plan,'node:3,1,0').value == false)
-  assert(find(plan,'node:3,2,0').value == false)
-  assert(find(plan,'node:3,3,0').value.name == 'default:wood')
-  assert(find(plan,'node:-3,1,0').value.name == 'default:wood')
+  assert(find(plan,'node:5,1,-2').value == false)
   assert(find(plan,'node:13,1,0').value.name == 'default:wood')
-  assert(find(plan,'node:21,1,0').value.name == 'default:wood')
-  assert(find(plan,'node:21,2,0').value.name == 'default:wood')
+  assert(find(plan,'node:16,1,3').value == false)
+  assert(find(plan,'node:16,1,5').value == false)
+  assert(find(plan,'node:13,1,-2').value == false)
+  assert(find(plan,'node:13,2,-2').value == false)
+  assert(find(plan,'node:19,1,0').value == false)
+  assert(find(plan,'node:21,1,0').value == false)
+  assert(find(plan,'node:21,2,0').value == false)
   assert(find(plan,'node:24,1,3').value.name == 'default:wood')
 end)
 

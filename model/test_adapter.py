@@ -65,6 +65,9 @@ class AdapterTests(unittest.TestCase):
             'one concise, relevant message',
             'do not invent needs',
             'continue independent work',
+            'reply_player', 'continue_story_object', 'private input',
+            'choose kind only from actor.permissions.allowed_actions',
+            'otherwise do not use it',
         ):
             with self.subTest(guidance=guidance):
                 self.assertIn(guidance, prompt)
@@ -86,6 +89,34 @@ class AdapterTests(unittest.TestCase):
                      '{"kind":"say","target":2,"text":"bad\\nmessage"}'):
             with self.assertRaises(adapter.ModelError):
                 adapter._validate_action(text, context)
+
+    def test_story_actions_require_exact_private_input_or_offered_transition(self):
+        envelope = product_envelope()
+        envelope['actor']['permissions']['allowed_actions'] = ['reply_player', 'continue_story_object']
+        envelope['knowledge']['rumors'] = [{
+            'id': 'story:7', 'text': 'What are you doing?',
+            'source': {'kind': 'player_message', 'id': 'story:7'},
+            'access': {'scope': 'direct', 'audience': ['alice']}, 'epistemic': 'rumor'}]
+        envelope['current']['observation']['story_objects'] = [{
+            'id': 'cellar_workface', 'transitions': [{
+                'id': 'continue_cellar_work', 'expected_revision': 0}]}]
+        context = {**CTX, 'model_input': envelope}
+        reply = {'kind': 'reply_player', 'conversation_id': 'story:7', 'text': 'I was checking the cellar.'}
+        action = {'kind': 'continue_story_object', 'object_id': 'cellar_workface',
+                  'transition_id': 'continue_cellar_work', 'expected_revision': 0}
+        self.assertEqual(adapter._validate_action(json.dumps(reply), context)['kind'], 'reply_player')
+        self.assertEqual(adapter._validate_action(json.dumps(action), context)['kind'],
+                         'continue_story_object')
+        for invalid, forged in (
+            (reply, {**context, 'model_input': {**envelope,
+                'knowledge': {**envelope['knowledge'], 'rumors': []}}}),
+            ({**action, 'expected_revision': 1}, context),
+            (action, {**context, 'model_input': {**envelope,
+                'actor': {**envelope['actor'], 'permissions': {'read_scopes': ['public'],
+                    'allowed_actions': ['reply_player']}}}}),
+        ):
+            with self.subTest(action=invalid), self.assertRaises(adapter.ModelError):
+                adapter._validate_action(json.dumps(invalid), forged)
 
     def test_give_observed_target_and_available_fixed_resource(self):
         context = {**CTX, 'inventory': {'society:resource': 3, 'default:wood': 20}}
@@ -249,6 +280,31 @@ class AdapterTests(unittest.TestCase):
             with self.subTest(size=len(raw)), self.assertRaises(adapter.ModelError):
                 adapter.decide(CONFIG, CTX, transport=lambda *_: raw)
 
+    def test_provider_terminal_errors_are_classified_without_exposing_messages(self):
+        cases = [
+            ({'type': 'response.failed', 'response': {'error': {'message': 'private provider detail'}}},
+             'provider_response_failed'),
+            ({'type': 'response.incomplete'}, 'incomplete_response'),
+            ({'type': 'response.refusal.done'}, 'model_refusal'),
+            ({'type': 'error', 'error': {'code': 'temporarily_unavailable',
+                                        'message': 'private provider detail'}}, 'provider_event_error'),
+            ({'type': 'error', 'error': {'code': 'rate_limit_exceeded',
+                                        'message': 'private provider detail'}}, 'rate_limited'),
+        ]
+        for event, expected in cases:
+            raw = ('data: ' + json.dumps(event) + '\n\n').encode()
+            with self.subTest(error=expected), self.assertRaises(adapter.ModelError) as caught:
+                adapter.decide(CONFIG, CTX, transport=lambda *_: raw)
+            self.assertEqual(str(caught.exception), expected)
+            self.assertNotIn('private provider detail', repr(caught.exception))
+
+        refusal = {'type': 'response.completed', 'response': {
+            'status': 'completed', 'output': [{'type': 'message',
+                'content': [{'type': 'refusal', 'refusal': 'private provider detail'}]}]}}
+        raw = ('data: ' + json.dumps(refusal) + '\n\n').encode()
+        with self.assertRaisesRegex(adapter.ModelError, '^model_refusal$'):
+            adapter.decide(CONFIG, CTX, transport=lambda *_: raw)
+
     def test_config_and_redirect_policy(self):
         env = {'LLM_BASE_URL': 'https://api.example/v1/responses', 'MODEL_NAME': 'm', 'LLM_API_KEY': 'k'}
         self.assertEqual(adapter.Config.from_env(env).endpoint(), env['LLM_BASE_URL'])
@@ -395,9 +451,11 @@ class AdapterTests(unittest.TestCase):
                 adapter.decide(CONFIG, CTX)
         self.assertNotIn('secret-key', str(caught.exception))
 
-    def test_http_429_is_rate_limited_and_other_http_errors_remain_transport_errors(self):
-        for status, expected in ((429, 'rate_limited'), (401, 'transport_error'),
-                                 (403, 'transport_error'), (500, 'transport_error')):
+    def test_http_errors_get_safe_retry_categories(self):
+        for status, expected in ((429, 'rate_limited'), (408, 'transport_error'),
+                                 (401, 'provider_request_rejected'),
+                                 (403, 'provider_request_rejected'),
+                                 (500, 'provider_service_error')):
             with self.subTest(status=status):
                 failure = adapter.urllib.error.HTTPError(
                     'https://private-provider.invalid/?key=secret-key', status,

@@ -235,6 +235,39 @@ local agents = {}
 local history = long_term_memory.new()
 local event_log = world_events.new()
 if WORLD_PRODUCT then
+	S.story_narrative_module = dofile(minetest.get_modpath("society") .. "/narrative_state.lua")
+	S.story_runtime_module = dofile(minetest.get_modpath("society") .. "/story_runtime.lua")
+	S.story_node_module = dofile(minetest.get_modpath("society") .. "/story_nodes.lua")
+	S.story_runtime = S.story_runtime_module.new(minetest, S.story_narrative_module, genesis_manifest, {
+		logical_time=world_time,
+		actor_lookup=function(actor_id)
+			for _, actor in pairs(agents) do
+				if actor._actor_id == actor_id and actor.object and actor.object:get_pos() then return actor end
+			end
+		end,
+		on_error=function(reason, detail)
+			if ev then ev("fail=%s detail=%s", tostring(reason), tostring(detail):gsub("%s+", "_")) end
+			freeze_product_state("story-object-render-failed")
+		end,
+		on_public_transition=function(object_id, receipt)
+			if ev then ev("ev=story-object object=%s interaction=%s revision=%d", object_id,
+				receipt.interaction_id, receipt.revision) end
+		end,
+	})
+	if RESTORE and initial_state ~= "" then
+		local checkpoint = minetest.parse_json(initial_state)
+		if type(checkpoint) == "table" and checkpoint.format == "society-checkpoint"
+				and checkpoint.version == 2 and type(checkpoint.narrative) == "table" then
+			S.story_runtime:load(checkpoint.narrative)
+		elseif #(genesis_manifest.public.objects or {}) > 0 then
+			error("story objects require a narrative checkpoint")
+		end
+	end
+	S.story_node_module.register(minetest, function(pos, _, clicker)
+		S.story_runtime:show_object(pos, clicker)
+	end)
+end
+if WORLD_PRODUCT then
 	local function integer_setting(name, default, low, high)
 		local value = tonumber(cfg(name, tostring(default)))
 		assert(value and value == math.floor(value) and value >= low and value <= high,
@@ -600,9 +633,10 @@ minetest.register_entity("society:view_guide", {
 	})
 
 local function view_landmark_position(place)
-	local radius = place.blueprint and 5 or (place.space == "indoor" and 3 or 2)
+	local detailed = place.blueprint or place.scene
+	local radius = detailed and 5 or (place.space == "indoor" and 3 or 2)
 	return {x = place.anchor.x + radius + 1, y = 1.5,
-		z = place.anchor.z + (place.blueprint and -2 or 0)}
+		z = place.anchor.z + (detailed and -2 or 0)}
 end
 
 local function spawn_view_scene()
@@ -852,7 +886,14 @@ end
 
 if minetest.register_on_player_receive_fields then
 	minetest.register_on_player_receive_fields(function(player, formname, fields)
-		if formname ~= "wispiva:providers" or not player or not player:is_player() then return end
+		if not player or not player:is_player() then return end
+		if S.story_runtime and (formname == "wispiva:story_journal"
+				or (type(formname) == "string" and formname:match("^wispiva:story:"))) then
+			local ok, err = pcall(S.story_runtime.handle_fields, S.story_runtime, player, formname, fields)
+			if not ok then view_send(player, "交互发生错误，请稍后重试。") end
+			return
+		end
+		if formname ~= "wispiva:providers" then return end
 		local name = player:get_player_name()
 		local ok = pcall(function()
 			local draft = provider_drafts[name]
@@ -899,8 +940,8 @@ local function agent_stand(le)
 	local raw = le and le.object and le.object:get_pos()
 	if not raw then return nil end
 	local x, y, z = round_coord(raw.x), round_coord(raw.y), round_coord(raw.z)
-	if not x or not z or not y or y < 0 or y > 3 then return nil end
-	return {x = x, y = 1, z = z}
+	if not x or not z or not y or y < -8 or y > 3 then return nil end
+	return {x = x, y = y, z = z}
 end
 
 local function grid_pos(pos)
@@ -948,7 +989,7 @@ local function free_blocked_agents()
 				bound = bound, max_scan = 1024, radius = 16,
 			})
 			if spot and (spot.x ~= stand.x or spot.z ~= stand.z) then
-				le.object:set_pos({x = spot.x, y = 1, z = spot.z})
+				le.object:set_pos({x = spot.x, y = spot.y, z = spot.z})
 				if le.object.set_velocity then
 					le.object:set_velocity({x = 0, y = 0, z = 0})
 					le.object:set_acceleration({x = 0, y = 0, z = 0})
@@ -1017,16 +1058,24 @@ if minetest.register_on_joinplayer then
 		free_blocked_agents()
 		set_body_solid(true)
 		if VIEW_SPAWN then
+			local spawn_place_id = cfg("society_view_spawn_place", "")
 			local room
 			for _, place in ipairs(genesis_manifest and genesis_manifest.public.places or {}) do
-				if place.blueprint == "victorian_sitting_room_v1" then room = place; break end
+				if (place.blueprint == "victorian_sitting_room_v1" or place.scene)
+					and (spawn_place_id == "" or place.id == spawn_place_id) then
+					room = place
+					break
+				end
 			end
 			if room then
-				player:set_pos({x=room.anchor.x+1.5, y=0.6, z=room.anchor.z-2.8})
+				local z = room.scene and room.anchor.z-1.5 or room.anchor.z-2.8
+				player:set_pos({x=room.anchor.x+1.5, y=0.6, z=z})
 				player:set_look_horizontal(0.25)
 				player:set_look_vertical(0.12)
+				ev("view spawn player=%s place=%s", player:get_player_name(), room.id)
 			else
 				player:set_pos({x = 0, y = 1, z = -20})
+				if spawn_place_id ~= "" then ev("view spawn place-not-found id=%s", spawn_place_id) end
 			end
 		end
 		reader.refresh()
@@ -1036,6 +1085,10 @@ if minetest.register_on_joinplayer then
 				local again = minetest.get_player_by_name(name)
 				if not again then return end
 				give_visitor_materials(again)
+				local premise = genesis_manifest and genesis_manifest.public
+				if premise and type(premise.title) == "string" and type(premise.description) == "string" then
+					view_send(again, premise.title .. "：" .. premise.description)
+				end
 				view_send(again, T("visitor_help"))
 				reader.refresh()
 			end)
@@ -1297,6 +1350,13 @@ local function apply(self, action, pos)
 		return true, "observed"
 	end
 
+	if kind == "reply_player" or kind == "continue_story_object" then
+		if not (WORLD_PRODUCT and S.story_runtime and self._actor_id and action._story_decision_id) then
+			return false, "story-action-unavailable"
+		end
+		return S.story_runtime:apply_action(self._actor_id, action._story_decision_id, action)
+	end
+
 	if kind == "gather" or kind == "build" then
 		local ok, reason = self._resources[kind](self._resources, action.point, "society:resource")
 		reason = reason or (ok and "world-verified" or "action-failed")
@@ -1496,6 +1556,7 @@ local function decide_and_act(self)
 	if measured then profile.observe = profile.observe + minetest.get_us_time() - measured end
 	local action
 	if MODEL then
+		local story_view, story_decision_id
 		if not self._pending then
 			if self._model_retry_at and minetest.get_us_time() < self._model_retry_at then
 				return
@@ -1504,6 +1565,18 @@ local function decide_and_act(self)
 				return
 			end
 			request_id = request_id + 1
+			story_decision_id = WORLD_PRODUCT and
+				(EVENT_NAMESPACE .. ":agent:" .. tostring(self._id) .. ":decision:" .. tostring(self._decisions + 1)) or nil
+			if WORLD_PRODUCT then
+				local view_reason
+				story_view, view_reason = S.story_runtime:actor_view(self._actor_id, story_decision_id, pos)
+				if not story_view then
+					ev("fail=story-view agent=%d reason=%s", self._id, tostring(view_reason))
+					S.failed = "story-view"
+					summary_and_stop()
+					return
+				end
+			end
 			local query_parts = {(GENESIS_PREVIEW or WORLD_PRODUCT) and self._genesis.goal or GOAL}
 			if WORLD_PRODUCT then
 				query_parts[#query_parts + 1] = "role " .. self._genesis.role
@@ -1550,6 +1623,7 @@ local function decide_and_act(self)
 					max = {x = BOUND, y = pos.y, z = BOUND}}}
 			if GENESIS_PREVIEW then preview_module.attach_context(context, self._genesis) end
 			if WORLD_PRODUCT then
+				context.observation.story_objects = story_view.granted_objects
 				context.origin = {format = "wispiva-world-manifest", version = 1,
 					world_id = genesis_manifest.world_id,
 					origin_event_id = genesis_manifest.origin_event_id,
@@ -1615,6 +1689,11 @@ local function decide_and_act(self)
 						text = message.text, source = {kind = "agent_message", id = message.message_id or tostring(message.from)},
 						scope = "private", audience = {self._genesis.actor_id}, captured_at = message.time})
 				end
+				for _, message in ipairs(story_view.messages) do
+					add_unique(rumors, {id=message.id, text=message.text,
+						source={kind="player_message", id=message.id}, scope="direct",
+						audience={self._genesis.actor_id}, captured_at=message.logical_time})
+				end
 				for _, belief in ipairs(reflection_runtime.beliefs(history, tostring(self._id))) do
 					add_unique(reflections, {id = belief.id, text = belief.text,
 						source = {kind = "reflection", id = belief.source.id, revision = belief.version},
@@ -1628,15 +1707,23 @@ local function decide_and_act(self)
 						event_id = self._last_action.event_id, observed_at = world_time(),
 						world_revision = self._last_action.world_revision}
 				end
+				local allowed_actions = {"inspect", "wander", "advance", "approach", "say", "give", "gather", "build"}
+				if #story_view.messages > 0 then allowed_actions[#allowed_actions + 1] = "reply_player" end
+				for _, object in ipairs(story_view.granted_objects) do
+					if #object.transitions > 0 then
+						allowed_actions[#allowed_actions + 1] = "continue_story_object"
+						break
+					end
+				end
 				local envelope = model_envelope.build({world_id = genesis_manifest.world_id,
 					origin_event_id = genesis_manifest.origin_event_id, actor_id = self._genesis.actor_id,
-					runtime_id = self._id, decision_id = EVENT_NAMESPACE .. ":agent:" .. tostring(self._id) .. ":decision:" .. tostring(self._decisions + 1),
+					runtime_id = self._id, decision_id = story_decision_id,
 					world_revision = product_state:version(), observed_at = world_time(),
 					actor = {name = self._genesis.name, role = self._genesis.role, goal = self._genesis.goal,
 						role_source = {kind = "genesis.actor", id = genesis_manifest.origin_event_id .. ":" .. self._genesis.actor_id},
 						goal_source = {kind = "genesis.goal", id = genesis_manifest.origin_event_id .. ":" .. self._genesis.actor_id}},
 					permissions = {read_scopes = {"world.public", "self.experience", "self.memory", "direct.messages"},
-						allowed_actions = {"inspect", "wander", "advance", "approach", "say", "give", "gather", "build"}},
+						allowed_actions = allowed_actions},
 					facts = facts, experiences = experiences, rumors = rumors, unknowns = unknowns, reflections = reflections,
 					observation = context.observation, inventory = context.inventory,
 					affordances = context.local_actions, feedback = feedback})
@@ -1666,7 +1753,8 @@ local function decide_and_act(self)
 				end
 			end
 			self._pending = {id = request_id, started = minetest.get_us_time(),
-				reflection = context.reflection_input, inbox = self._inbox}
+				reflection = context.reflection_input, inbox = self._inbox,
+				story_decision_id=story_decision_id, story_view=story_view}
 			self._inbox = {}
 			ev("ev=model-request agent=%d request=%d", self._id, request_id)
 			return
@@ -1688,6 +1776,8 @@ local function decide_and_act(self)
 			return
 		end
 		local id = self._pending.id
+		story_decision_id = self._pending.story_decision_id
+		story_view = self._pending.story_view
 		local result = minetest.parse_json(f:read("*a"))
 		f:close()
 		if MODEL_AUDIT then
@@ -1744,6 +1834,11 @@ local function decide_and_act(self)
 				tostring(usage.input_tokens or "unknown"), tostring(usage.output_tokens or "unknown"))
 		end
 		action = result.action
+		if WORLD_PRODUCT and story_decision_id then
+			action._story_decision_id = story_decision_id
+			action._story_input_ids = story_view and story_view.offered_conversations or {}
+			action._story_messages = story_view and story_view.messages or {}
+		end
 		local valid = action.kind == "inspect" or action.kind == "mark"
 			or (action.kind == "advance" and self._target ~= nil)
 		if action.kind == "approach" or action.kind == "say" or action.kind == "give" then
@@ -1762,6 +1857,32 @@ local function decide_and_act(self)
 			valid = type(p.x) == "number" and type(p.y) == "number" and type(p.z) == "number"
 				and p.x == math.floor(p.x) and p.z == math.floor(p.z)
 				and p.y == pos.y and in_bounds(p)
+		elseif action.kind == "reply_player" then
+			valid = WORLD_PRODUCT and story_view ~= nil and type(action.conversation_id) == "string"
+				and type(action.text) == "string" and #action.text > 0 and #action.text <= 1000
+				and not action.text:find("[%c]")
+			if valid then
+				valid = false
+				for _, message in ipairs(story_view.messages) do
+					if message.id == action.conversation_id then valid = true; break end
+				end
+			end
+		elseif action.kind == "continue_story_object" then
+			valid = WORLD_PRODUCT and story_view ~= nil and type(action.object_id) == "string"
+				and type(action.transition_id) == "string" and type(action.expected_revision) == "number"
+				and action.expected_revision == math.floor(action.expected_revision)
+			if valid then
+				valid = false
+				for _, object in ipairs(story_view.granted_objects) do
+					if object.id == action.object_id then
+						for _, transition in ipairs(object.transitions) do
+							if transition.id == action.transition_id and
+								transition.expected_revision == action.expected_revision then valid = true; break end
+						end
+						break
+					end
+				end
+			end
 		end
 		if not valid then
 			ev("ev=model-stale agent=%d request=%d", self._id, id)
@@ -1791,23 +1912,46 @@ local function decide_and_act(self)
 	if action.kind == "mark" then point = {x=fp(pos.x)+self._facing.x, y=fp(pos.y), z=fp(pos.z)+self._facing.z} end
 	if action.kind == "advance" then point = self.object:get_pos() end
 	local detail = point and string.format("position=%s,%s,%s", tostring(point.x), tostring(point.y), tostring(point.z)) or nil
+	if action.kind == "continue_story_object" then
+		detail = "object=" .. tostring(action.object_id) .. " transition=" .. tostring(action.transition_id)
+	end
 	local delivered = (action.kind == "say" or action.kind == "give") and ok
 	local delivery_text = action.kind == "say" and action.text or
 		(action.kind == "give" and (tostring(action.amount) .. " society:resource") or nil)
 	local operation_id = string.format("%s:agent:%d:decision:%d", EVENT_NAMESPACE,
 		self._id, self._decisions + 1)
-	local committed, event = pcall(event_log.commit, event_log, operation_id, {
-		time = world_time(), kind = action.kind, actor = tostring(self._id), ok = ok,
-		reason = reason or "unspecified", detail = detail, point = point,
-		participants = delivered and {tostring(action.target)} or {},
-	})
+	if WORLD_PRODUCT and ok and action._story_input_ids and #action._story_input_ids > 0 then
+		local acknowledged, receipt = pcall(S.story_runtime.commit_actor_result, S.story_runtime,
+			action._story_decision_id .. ":inputs", self._actor_id, action._story_decision_id,
+			action._story_input_ids, true)
+		if acknowledged and receipt.status == "accepted_this_run" then
+			for _, message in ipairs(action._story_messages or {}) do
+				self._episodic:add({time=message.logical_time or world_time(),
+					text="A player told me: " .. message.text,
+					source={kind="player_message", id=message.id}, classification="rumor",
+					audience={self._actor_id}})
+			end
+		else
+			ev("ev=story-input-unacknowledged agent=%d reason=%s", self._id,
+				tostring(acknowledged and receipt.reason or receipt):gsub("%s+", "_"))
+		end
+	end
+	local private_reply = action.kind == "reply_player"
+	local committed, event = true, {id=operation_id .. ":private"}
+	if not private_reply then
+		committed, event = pcall(event_log.commit, event_log, operation_id, {
+			time = world_time(), kind = action.kind, actor = tostring(self._id), ok = ok,
+			reason = reason or "unspecified", detail = detail, point = point,
+			participants = delivered and {tostring(action.target)} or {},
+		})
+	end
 	if not committed then
 		ev("fail=world-event agent=%d detail=%s", self._id, tostring(event):gsub("%s+", "_"))
 		S.failed = "world-event"
 		summary_and_stop()
 		return
 	end
-	if LONG_TERM then
+	if LONG_TERM and not private_reply then
 		local recorded, detail = pcall(history.record_outcome, history, tostring(self._id),
 			action.kind, ok, reason or "unspecified", world_time(),
 			delivered and tostring(action.target) or nil, delivered and delivery_text or nil, detail, event.id)
@@ -1860,7 +2004,7 @@ minetest.register_entity("society:agent", {
 		textures = {"default_stone.png^[colorize:#7fc7ff:170"},
 		physical = false,
 		collide_with_objects = false,
-		pointable = false,
+		pointable = WORLD_PRODUCT or VISUAL,
 		static_save = false,   -- M0 不持久化；重启由实验脚本重新生成（持久化是 M3）
 	},
 	on_activate = function(self)
@@ -1872,7 +2016,9 @@ minetest.register_entity("society:agent", {
 		local who = self._persona or ""
 		local home = self._genesis and public_place_name(self._genesis.place_id) or ""
 		if home ~= "" then who = who .. " · " .. home end
-		if who ~= "" then view_send(clicker, who) end
+		if WORLD_PRODUCT and S.story_runtime and self._actor_id then
+			S.story_runtime:show_actor(self, clicker)
+		elseif who ~= "" then view_send(clicker, who) end
 	end,
 	-- Per-entity counters prove participation within each sampled interval.
 	on_step = function(self, dtime)
@@ -1891,13 +2037,24 @@ local function spawn_agents()
 	end
 	if RESTORE then
 		local decoded = minetest.parse_json(initial_state)
-		local valid, restored, restored_history, restored_events = pcall(
+		local valid, restored, restored_history, restored_events, restored_story = pcall(
 			persistence.unpack_checkpoint, decoded, long_term_memory, world_events)
-		if not valid or #restored ~= COUNT or (RESET_MINDS and restored_history:count() > 0) then
+		if not valid or #restored ~= COUNT or (RESET_MINDS and restored_history:count() > 0)
+				or (WORLD_PRODUCT and #(genesis_manifest.public.objects or {}) > 0
+					and type(restored_story) ~= "table") then
 			ev("fail=restore-invalid expected=%d detail=%s", COUNT, tostring(restored):gsub("%s+", "_"))
 			S.failed = "restore-invalid"
 			summary_and_stop()
 			return
+		end
+		if WORLD_PRODUCT and restored_story then
+			local loaded, detail = pcall(S.story_runtime.load, S.story_runtime, restored_story)
+			if not loaded then
+				ev("fail=restore-story detail=%s", tostring(detail):gsub("%s+", "_"))
+				S.failed = "restore-story"
+				summary_and_stop()
+				return
+			end
 		end
 		saved, history, event_log = restored, restored_history, restored_events
 		for i = 1, COUNT do
@@ -1911,7 +2068,7 @@ local function spawn_agents()
 			end
 		end
 		S.marks = #minetest.find_nodes_in_area(
-			{x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = 4, z = BOUND}, {MARK_NODE})
+			{x = -BOUND, y = -16, z = -BOUND}, {x = BOUND, y = 4, z = BOUND}, {MARK_NODE})
 	end
 	local cols = math.ceil(math.sqrt(COUNT))
 	local offset = -math.floor((cols - 1) * SPACING / 2)
@@ -2058,7 +2215,12 @@ local function apply_product_projection()
 				-- later interactions, so they must not freeze a valid world.
 				if expected ~= "air" then
 					local actual = minetest.get_node_or_nil(operation.position)
-					if not actual or not world_projection.node_matches_origin(operation, actual.name, actual.param2) then
+					local matches
+					if actual then
+						if operation.object_id then matches = S.story_runtime:verify_node(operation, actual)
+						else matches = world_projection.node_matches_origin(operation, actual.name, actual.param2) end
+					end
+					if not matches then
 						freeze_product_state("origin projection differs from committed map")
 						fail("product-reconcile", "map=%s expected=%s actual=%s", operation.key, expected,
 							actual and actual.name or "unknown")
@@ -2076,12 +2238,13 @@ local function apply_product_projection()
 	target.map = 1
 	product_state:prepare("origin-projection:" .. genesis_manifest.origin_event_id, target)
 	save_product_state()
-	local projection_height = 4
+	local projection_floor, projection_height = -16, 4
 	for _, operation in ipairs(plan.operations) do
 		if operation.kind == "node" then
 			projection_height = math.max(projection_height, operation.position.y)
 			local desired = operation.value
-			local name = desired and desired.name or "air"
+			local name = operation.object_id and S.story_runtime:projected_node(operation)
+				or (desired and desired.name or "air")
 			local param2 = desired and desired.param2 or 0
 			local current = minetest.get_node(operation.position)
 			if current.name ~= name or current.param2 ~= param2 then
@@ -2092,13 +2255,17 @@ local function apply_product_projection()
 				fail("world-projection", "node=%s expected=%s", operation.key, name)
 				return false
 			end
+			if operation.object_id and not S.story_runtime:bind_node(operation) then
+				fail("world-projection", "story-object=%s binding=write-failed", operation.object_id)
+				return false
+			end
 		end
 	end
 	-- Luanti's normal map-save cadence is asynchronous. Flush the emerged
 	-- origin region through VoxelManip before publishing the product commit,
 	-- so a restart cannot observe a committed projection with an old map.
 	local vm = minetest.get_voxel_manip(
-		{x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = projection_height, z = BOUND})
+		{x = -BOUND, y = projection_floor, z = -BOUND}, {x = BOUND, y = projection_height, z = BOUND})
 	local minp, maxp = vm:get_emerged_area()
 	local sx, sy = maxp.x - minp.x + 1, maxp.y - minp.y + 1
 	local map_data = vm:get_data()
@@ -2106,7 +2273,8 @@ local function apply_product_projection()
 	for _, operation in ipairs(plan.operations) do
 		if operation.kind == "node" then
 			local p = operation.position
-			local name = operation.value and operation.value.name or "air"
+			local name = operation.object_id and S.story_runtime:projected_node(operation)
+				or (operation.value and operation.value.name or "air")
 			local index = (p.z - minp.z) * sy * sx + (p.y - minp.y) * sx + (p.x - minp.x) + 1
 			assert(index >= 1 and index <= #map_data, "origin projection outside emerged map")
 			map_data[index] = minetest.get_content_id(name)
@@ -2116,6 +2284,15 @@ local function apply_product_projection()
 	vm:set_data(map_data)
 	vm:set_param2_data(map_param2)
 	vm:write_to_map()
+	for _, operation in ipairs(plan.operations) do
+		if operation.kind == "node" and operation.object_id then
+			if not S.story_runtime:bind_node(operation) or
+					not S.story_runtime:verify_node(operation, minetest.get_node(operation.position)) then
+				fail("world-projection", "story-object=%s binding=write-failed", operation.object_id)
+				return false
+			end
+		end
+	end
 	injected_fault("after_map")
 	local committed = product_state:commit("origin-projection:" .. genesis_manifest.origin_event_id, target)
 	local encoded = minetest.write_json(committed)
@@ -2132,18 +2309,20 @@ end
 minetest.after(1, function()
 	local lo, hi = math.floor(-BOUND / 16), math.floor(BOUND / 16)
 	local ok, tried = 0, 0
-	for bx = lo, hi do
-		for bz = lo, hi do
-			tried = tried + 1
-			if minetest.forceload_block({x = bx * 16, y = 0, z = bz * 16}, true, -1) then
-				ok = ok + 1
+	for _, by in ipairs({-16, 0}) do
+		for bx = lo, hi do
+			for bz = lo, hi do
+				tried = tried + 1
+				if minetest.forceload_block({x = bx * 16, y = by, z = bz * 16}, true, -1) then
+					ok = ok + 1
+				end
 			end
 		end
 	end
-	ev("forceload blocks=%d/%d bound=%d", ok, tried, BOUND)
+	ev("forceload blocks=%d/%d bound=%d levels=surface,cellar", ok, tried, BOUND)
 	if GENESIS_PREVIEW and ok ~= tried then fail("preview-forceload", "loaded=%d expected=%d", ok, tried); return end
 
-	minetest.emerge_area({x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = 16, z = BOUND},
+	minetest.emerge_area({x = -BOUND, y = -16, z = -BOUND}, {x = BOUND, y = 16, z = BOUND},
 		function(blockpos, action, calls_remaining)
 			if calls_remaining == 0 then
 				local first_product_projection = WORLD_PRODUCT
@@ -2478,7 +2657,8 @@ minetest.register_on_shutdown(function()
 		end
 		local ok, encoded = pcall(function()
 			local checkpoint = (LONG_TERM or history:count() > 0 or event_log:count() > 0)
-				and persistence.pack_checkpoint(saved, history, event_log, LONG_TERM) or saved
+				and persistence.pack_checkpoint(saved, history, event_log, LONG_TERM,
+					WORLD_PRODUCT and S.story_runtime:export() or nil) or saved
 			local json = minetest.write_json(checkpoint)
 			assert(type(json) == "string" and json ~= "", "checkpoint encoding failed")
 			return json
@@ -2514,7 +2694,7 @@ minetest.register_on_shutdown(function()
 	-- 计数器是 mod 自己的账，不是世界的账。这里回读地图核对一次：
 	-- 「世界真的变了」必须由世界本身证明，而不是由我们的变量证明。
 	local in_world = #minetest.find_nodes_in_area(
-		{x = -BOUND, y = 0, z = -BOUND}, {x = BOUND, y = 4, z = BOUND}, {MARK_NODE})
+		{x = -BOUND, y = -16, z = -BOUND}, {x = BOUND, y = 4, z = BOUND}, {MARK_NODE})
 	ev("verify marks_counter=%d marks_in_world=%d ok=%s",
 		S.marks, in_world, tostring(S.marks == in_world))
 	ev("shutdown alive=%d spawned=%d decisions=%d rounds=%d marks=%d meetings=%d actions=%s",

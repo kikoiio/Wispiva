@@ -25,12 +25,13 @@ def main():
     parser = argparse.ArgumentParser(description='Manage world drafts and confirmed world origins.')
     sub = parser.add_subparsers(dest='command', required=True)
     check = sub.add_parser('validate'); check.add_argument('draft')
-    create = sub.add_parser('generate'); create.add_argument('--intent', required=True); create.add_argument('--response', required=True, help='file containing a model-generated JSON response')
+    create = sub.add_parser('generate'); create.add_argument('--intent', required=True); create.add_argument('--response', required=True, help='file containing a model-generated JSON response'); create.add_argument('--scene', action='store_true', help='use narrative scene draft schema version 2')
     create_draft = sub.add_parser('create-draft', help='generate and persist one editable draft with its private intent')
     create_draft.add_argument('--draft-db', required=True)
     create_draft.add_argument('--intent', required=True)
     create_draft.add_argument('--response', help='file containing a model-generated JSON response')
     create_draft.add_argument('--live', action='store_true', help='call the configured model provider')
+    create_draft.add_argument('--scene', action='store_true', help='generate an indoor narrative scene with semantic furnishings')
     save = sub.add_parser('save', help='persist a validated draft in a new or existing private DraftStore')
     save.add_argument('--draft-db', required=True); save.add_argument('--draft', required=True)
     confirm = sub.add_parser('confirm', help='explicitly confirm one draft revision into a new WorldStore')
@@ -60,7 +61,7 @@ def main():
             _print({'status': 'valid'})
         elif args.command == 'generate':
             response = Path(args.response).read_text(encoding='utf-8')
-            draft = generate(args.intent, lambda system, user: response)
+            draft = generate(args.intent, lambda system, user: response, scene=args.scene)
             _print(draft)
         elif args.command == 'create-draft':
             path = Path(args.draft_db)
@@ -75,7 +76,7 @@ def main():
                 else:
                     response = Path(args.response).read_text(encoding='utf-8')
                     model = lambda system, user: response
-                record = store.create_from_intent(args.intent, model)
+                record = store.create_from_intent(args.intent, model, scene=args.scene)
             finally:
                 store.close()
             _print({'id': record['id'], 'revision': record['revision'],

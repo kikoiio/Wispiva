@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "title": "红发会",
-  "description": "1890年秋的伦敦。贝克街221B，萨克斯-科堡广场上的一家当铺，当铺底下的地窖，以及与当铺相邻的银行。",
+  "description": "1890年秋的伦敦。Wilson刚向Holmes讲完红发会今早解散的事，仍不明白原因。你可以查看贝克街的解散告示、询问Wilson，或去萨克斯-科堡广场的当铺，从店内梯子下到地窖；银行就在当铺旁边。",
   "places": [
     {
       "id": "baker",
@@ -51,7 +51,7 @@
       "name": "Vincent Spaulding",
       "role": "当铺助手",
       "goal": "趁 Wilson 不在店里，继续地窖里的工作。",
-      "placeId": "pawnshop"
+      "placeId": "cellar"
     }
   ],
   "memories": [
@@ -70,6 +70,66 @@
     {
       "actorId": "spaulding",
       "text": "Wilson 只知道我叫 Vincent Spaulding。红发会是让他白天离开当铺的办法，今早已经收场，店仍在我手上。我一直在地窖里向前挖，隔壁是银行。今晚还没有任何行动。"
+    }
+  ],
+  "storyObjects": [
+    {
+      "id": "dissolution_notice",
+      "placeId": "baker",
+      "at": [0, 2],
+      "node": "society:story_notice",
+      "label": "红发会解散告示",
+      "reach": 4,
+      "initialState": "readable",
+      "states": ["readable"],
+      "renderByState": {"readable": "society:story_notice"},
+      "facets": [
+        {
+          "id": "notice_text",
+          "state": "readable",
+          "text": "纸卡写着：THE RED-HEADED LEAGUE IS DISSOLVED. October 9, 1890.",
+          "sourceRef": "docs/source-texts/sherlock-holmes/the-red-headed-league.txt#L435-L438",
+          "epistemic": "observation"
+        }
+      ],
+      "grants": [],
+      "transitions": []
+    },
+    {
+      "id": "cellar_workface",
+      "placeId": "cellar",
+      "at": [-1, -1],
+      "node": "society:story_surface",
+      "label": "地窖工作面",
+      "reach": 4,
+      "initialState": "quiet",
+      "states": ["quiet", "worked"],
+      "renderByState": {
+        "quiet": "society:story_surface",
+        "worked": "society:story_surface_disturbed"
+      },
+      "facets": [
+        {
+          "id": "cellar_surface_quiet",
+          "state": "quiet",
+          "text": "这个工作面是为玩法加入的推断性场景线索。Wilson 说 Spaulding 常到地窖冲洗照片；这处地面本身不能证明那里有什么通道。",
+          "sourceRef": "docs/source-texts/sherlock-holmes/the-red-headed-league.txt#L183-L186",
+          "epistemic": "inference"
+        },
+        {
+          "id": "cellar_surface_worked",
+          "state": "worked",
+          "text": "这处地面出现了新的松动痕迹。这是本世界记录的后续行动；它没有揭示工作最终通向哪里。",
+          "sourceRef": "docs/source-texts/sherlock-holmes/the-red-headed-league.txt#L183-L186",
+          "epistemic": "author"
+        }
+      ],
+      "grants": [
+        {"actorId": "spaulding", "transitionIds": ["continue_cellar_work"]}
+      ],
+      "transitions": [
+        {"id": "continue_cellar_work", "from": "quiet", "to": "worked"}
+      ]
     }
   ],
   "rules": [],
@@ -102,8 +162,9 @@
         "space": "indoor",
         "grid": [
           2,
-          1
+          0
         ],
+        "level": -1,
         "floor": "default:stone",
         "wall": "default:cobble",
         "ceiling": "default:stone",
@@ -125,8 +186,16 @@
     ],
     "connections": [
       {
+        "from": "baker",
+        "to": "pawnshop"
+      },
+      {
         "from": "pawnshop",
         "to": "cellar"
+      },
+      {
+        "from": "pawnshop",
+        "to": "bank"
       }
     ]
   }

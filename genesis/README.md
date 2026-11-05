@@ -1,12 +1,28 @@
-# World genesis v1
+# World genesis v1 and narrative scene v2
 
-This module generates and persists drafts and can explicitly confirm a particular revision into a new `WorldStore` checkpoint. A valid draft is a bounded, referentially consistent proposal, not an executable Luanti world and not evidence that rules or spatial geometry are implemented. It does not connect to a Luanti map or agent runtime. It never falls back to a canned story after a model failure. `example.json` is only a test and documentation fixture; product-shaped intent cases are recorded under [evidence/luanti/genesis/2026-10-29-product-intents](../evidence/luanti/genesis/2026-10-29-product-intents).
+This module generates and persists drafts, confirms exact revisions, and publishes product worlds through `create-world`. `validate` and `compile_plan` remain bounded, side-effect-free proposal stages; `create_world` installs the Luanti runtime and manifest. Neither a valid draft nor a successful publication proves that a story is playable or that a real model behaves well. It never falls back to a canned story after model failure. `example.json` is only a test and documentation fixture; product-shaped intent cases are recorded under [evidence/luanti/genesis/2026-10-29-product-intents](../evidence/luanti/genesis/2026-10-29-product-intents).
 
 ## Contract
 
-[schema.json](schema.json) is the JSON Schema 2020-12 structural contract. All properties are required; unknown properties are rejected. Arrays may be empty where the schema permits. `places` and `actors` have separate ID namespaces; `rules` have their own. Each actor starts at `placeId`; each memory belongs only to its `actorId`. Layout has exactly one entry per place, distinct integer grid coordinates, and undirected connections. Coordinates express relative semantic layout, not Luanti node positions; neither connectivity nor geometry is guaranteed. Rules are descriptive proposals, not code or enforced mechanics.
+[schema.json](schema.json) is the JSON Schema 2020-12 structural contract; all base fields are required, while `storyObjects` is an optional, bounded extension. Unknown properties are rejected. Arrays may be empty where the schema permits. `places` and `actors` have separate ID namespaces; `rules` have their own. Each actor starts at `placeId`; each memory belongs only to its `actorId`. Layout has exactly one entry per place, distinct integer grid coordinates, and undirected connections. Coordinates express relative semantic layout, not Luanti node positions; neither connectivity nor geometry is guaranteed. Rules are descriptive proposals, not code or enforced mechanics.
 
 In addition to JSON Schema, `validate` enforces unique IDs within each collection, valid actor/place/memory references, exact place coverage in layout, distinct grid cells, and valid, non-self, non-duplicate undirected connections. Integers must be actual JSON integer values (not booleans or decimal-form numbers). Text must be nonblank and contain no control characters U+0000–U+001F. JSON input rejects duplicate keys, non-finite values and outputs over 8192 UTF-8 bytes. `generate` also compiles each schema-valid candidate against current Luanti bounds and spawn capacity; bounded retries receive only path/code diagnostics. This applies to generated drafts; later human edits are checked again on preview or publication. Diagnostics contain only paths and codes, not model output.
+
+## Story object runtime slice
+
+`storyObjects` is author-supplied data, not executable code. The current allowlist supports inspectable nodes, sourced facets tagged `observation`, `inference`, or `author`, and a narrow `continue_cellar_work` transition. `compile_plan` puts object identity, position, and render variants in `public.objects`; facets, initial state, grants, and transitions stay under `private_objects`. `create-world` copies the reducer and Luanti interaction modules into the product world, and startup recompiles the confirmed draft to check that both projections still match.
+
+In the Luanti runtime, a player can right-click a story node to inspect it and record its current facets in `/journal`, or right-click an actor to send that actor a private message. Model input carries the message only as a direct claim for that actor. A `reply_player` action must reference one offered conversation; `continue_story_object` must reference a granted transition and current revision, and the actor must be within the object's reach. Only after those checks does the reducer change state and project the corresponding node. Player text and private replies are not copied to the public world event log.
+
+Story state, investigation records, addressed messages, replies, and operation receipts can be included in clean-shutdown checkpoint version 2. A story world refuses restore when its narrative checkpoint is missing. This is not crash-durable map/state atomicity. The current red-headed-league product fixture has a dissolution notice and a cellar work surface; the latter is an authored inference and does not disclose a hidden tunnel or outcome. Genesis, Lua reducer, projection, runtime boundary, and publication have targeted checks. A current product world has started and a real Luanti client has joined; player interaction, a real-provider story trajectory, and same-world stop/restore remain unverified. Routes among Baker Street, the pawnshop, cellar, and bank are authored and projected with wall openings, but still need an in-client walk test. The cellar is a same-level neighboring room; vertical basement geometry remains open.
+
+## Narrative room drafts (schema v2)
+
+`generate(intent, model, scene=True)` and the CLI `--scene` opt-in use [scene_schema.json](scene_schema.json). They send text only; a reference image is not required or loaded. Schema v2 requires at least one indoor layout entry with a scene recipe. This first slice keeps the room shell fixed at 11×9 nodes with an east entrance and one west window. The recipe selects one existing palette (`study`, `workshop`, or `archive`) and 1–8 semantic furnishings (`armchair`, `writing_desk`, `desk_chair`, `bookcase`, `table`, `side_table`) with a local `[x,z]` cell and facing. The schema enumerates the 20 wall-side cells accepted by the Python validator; the prompt supplies the same list so a model can follow the room rule before validation. The room center and entrance aisle stay open. Arbitrary Luanti node names, Lua snippets, dimensions, doors, and window placement are not model-controlled.
+
+Each furnishing has a `basis`: `stated` means its presence and placement/direction were explicitly stated, `inferred` means the generator filled in a design choice, and `author` is reserved for a choice made during human editing. These labels are provenance hints supplied by the authoring process, not proof that a detail appears in a source text. The draft stays editable and is checked by Python before confirmation; `compile_plan` preserves the recipe in public spatial data, assigns starts outside occupied furniture cells, and reserves the room footprint. The Luanti projector independently checks the recipe and deterministically places existing furniture nodes. The confirmed-world publisher and startup contract recompile the origin draft as before.
+
+The generated schema v2 does not change legacy schema v1 drafts or the compiler plan's own version. The current domain is intentionally narrow: no arbitrary floor plan or room dimensions, no light model, no furniture interactions, and no real-provider semantic-quality or client-art review has been performed. The tests use synthetic drafts and verify the compiler, publication contract, Lua projection, safe starts, bounds, and replay behavior.
 
 `public_view(draft)` removes the entire `memories` collection and each actor's goal; `actor_memories(draft, actor_id)` returns only that actor's seeds. Treat title, description, place descriptions, actor role, rules and layout as public. The prompt requests that the model keep secrets out of these public fields, but structural validation cannot detect a secret restated in public text: a human or a separately designed privacy audit must review it before publication. Do not send the raw draft or another actor's memories or goals to a global or actor observation. Authenticated actor identity and authorization belong to the caller.
 
@@ -21,9 +37,11 @@ def my_model(system_prompt, user_json):
     return provider_call(system_prompt, user_json)  # application-provided
 
 draft = generate('安静的河谷，有一位旅人', my_model)
+# A text-only indoor scene recipe; no reference image is needed.
+room_draft = generate('一间侦探用的书房，保留中央通道', my_model, scene=True)
 ```
 
-For the existing `model.adapter` Responses transport, the host supplies an already constructed `Config` and keeps credentials out of logs. `create-draft --live` instead uses the provider selected in the world window, or `LLM_BASE_URL`, `MODEL_NAME` and `LLM_API_KEY` when none is selected. It does not read `.env`:
+For the existing `model.adapter` Responses or Anthropic Messages transport, the host supplies an already constructed `Config` and keeps credentials out of logs. `create-draft --live` instead uses the provider selected in the world window, or `LLM_BASE_URL`, `MODEL_NAME` and `LLM_API_KEY` when none is selected. It does not read `.env`:
 
 ```python
 from genesis.genesis import generate
@@ -34,7 +52,7 @@ config = Config(base_url=provider_url, model=model_name, api_key=credential)
 draft = generate('安静的河谷，有一位旅人', responses_model(config))
 ```
 
-The bridge reuses the existing adapter's bounded HTTPS/SSE transport and parser, currently private APIs; pin or expose those APIs before production integration. It does not use the action-specific `decide` prompt. Provider failures become `GenesisError('model_failed')`. Invalid JSON, schema output, or Luanti-incompatible geometry is retried at most three total calls; retries receive only safe path/code diagnostics from the previous validation, and failure after the final attempt remains `invalid_json` or `invalid_draft`. Known transient provider errors (`transport_error`, `timeout`, `rate_limited`, `provider_failed`, and `incomplete_response`) also receive at most three total calls, with one- and two-second backoff. Other provider errors fail immediately, and raw provider details are never exposed. `responses_model(..., usage_callback=callable)` can report a copy of the adapter's sanitized provider usage for each completed response; missing or invalid usage is not estimated. Generation performs no writes; a provider call occurs only if the caller invokes the configured bridge. The request transmits the intent to the configured provider; the caller controls provider choice and authorization.
+The bridge reuses the existing adapter's bounded HTTPS transport and Responses SSE or Anthropic JSON parser, currently private APIs; pin or expose those APIs before production integration. It does not use the action-specific `decide` prompt. Provider failures become `GenesisError('model_failed')`. Invalid JSON, schema output, or Luanti-incompatible geometry is retried at most three total calls; retries receive only safe path/code diagnostics from the previous validation, and failure after the final attempt remains `invalid_json` or `invalid_draft`. Known transient provider errors (`transport_error`, `timeout`, `rate_limited`, `provider_failed`, and `incomplete_response`) also receive at most three total calls, with one- and two-second backoff. Other provider errors fail immediately, and raw provider details are never exposed. `responses_model(..., usage_callback=callable)` can report a copy of the adapter's sanitized provider usage for each completed response; missing or invalid usage is not estimated. Generation performs no writes; a provider call occurs only if the caller invokes the configured bridge. The request transmits the intent to the configured provider; the caller controls provider choice and authorization.
 
 `DraftStore.create_from_intent(intent, model)` is the generic persistence entry point. It generates once, stores the exact input intent as private metadata bound to the new draft ID, and returns an editable revision 1. `DraftStore.update` can revise the draft while it remains in `draft` status; `confirm` binds the exact revision and freezes it. The intent is copied only into private creation provenance when `create_world` publishes a product directory. It is never added to `public_view` or the public spatial plan.
 
@@ -45,7 +63,9 @@ Run at repository root. The CLI can consume an already obtained model response o
 ```sh
 python3 -m genesis validate genesis/example.json
 python3 -m genesis generate --intent '安静的河谷，有一位旅人' --response genesis/example.json > /path/to/new-draft.json
+python3 -m genesis generate --intent '一间侦探用的书房，保留中央通道' --response /private/scene-response.json --scene > /private/scene-draft.json
 python3 -m genesis create-draft --draft-db /private/drafts.sqlite --intent '当前用户的世界描述' --response /private/model-response.json
+python3 -m genesis create-draft --draft-db /private/drafts.sqlite --intent '当前用户的室内场景描述' --response /private/scene-response.json --scene
 # 本机设置里选中一家，或已配置 LLM_BASE_URL、MODEL_NAME、LLM_API_KEY 时，可以直接调用真实模型生成可编辑草稿：
 python3 -m genesis create-draft --draft-db /private/drafts.sqlite --intent '当前用户的世界描述' --live
 python3 -m genesis read --draft-db /private/drafts.sqlite --draft-id DRAFT_ID --draft-only > /private/draft-review.json
@@ -61,7 +81,7 @@ python3 -m genesis create-world --draft-db /private/drafts.sqlite --draft-id DRA
 python3 -m unittest genesis.test_genesis genesis.test_store genesis.test_compiler genesis.test_preflight genesis.test_preview -v
 ```
 
-`generate` 仍消费已经取得的模型响应；`create-draft` 默认也消费响应文件，使用 `--live` 时才读取显式配置并调用真实 provider。两种路径都只生成可编辑草稿，不会自动确认或创建世界。`read` 导出完整草稿供检查，`edit` 使用 expected revision 替换草稿并增加 revision；stale edit、已确认草稿编辑都会失败。用户随后可检查新 revision 并明确确认它。响应必须针对当前 intent 生成。无效输入以非零状态退出并向 stderr 输出安全诊断；结构校验和 intent 绑定不能代替用户检查公开／私有预览及语义一致性确认。
+`generate` 仍消费已经取得的模型响应；`create-draft` 默认也消费响应文件，使用 `--live` 时才读取显式配置并调用真实 provider。两种路径都只生成可编辑草稿，不会自动确认或创建世界。`--scene` 选择 schema v2 和上述室内配方；省略该选项时继续使用 schema v1。`read` 导出完整草稿供检查，`edit` 使用 expected revision 替换草稿并增加 revision；stale edit、已确认草稿编辑都会失败。用户随后可检查新 revision 并明确确认它。响应必须针对当前 intent 生成。无效输入以非零状态退出并向 stderr 输出安全诊断；结构校验和 intent 绑定不能代替用户检查公开／私有预览及语义一致性确认。
 
 `create-world` is the persistent product path. It requires the exact confirmed
 draft revision and its unchanged origin checkpoint, then publishes a
@@ -109,9 +129,11 @@ The exact output shape is:
     "grid_spacing": 8,
     "places": [{"id": "bank", "name": "河岸", "space": "outdoor", "grid": [0, 0], "anchor": {"x": 0, "y": 1, "z": 0}}],
     "actors": [{"actor_id": "traveler", "ordinal": 0, "name": "旅人", "place_id": "bank", "grid": [0, 0], "position": {"x": 0, "y": 1, "z": 0}}],
-    "semantic_connections": []
+    "semantic_connections": [],
+    "objects": []
   },
   "private_actors": {"<actor-id>": {"role": "<private role omitted>", "goal": "<private goal omitted>", "memory_seeds": ["<private seed omitted>"]}},
+  "private_objects": {},
   "unsupported": [{"code": "luanti_map_not_integrated"}, {"code": "terrain_and_spawn_safety_unverified"}, {"code": "semantic_connections_not_paths"}, {"code": "character_runtime_not_integrated"}]
 }
 ```
@@ -122,9 +144,9 @@ Connections are undirected, normalized to `from < to`, sorted, and represent onl
 
 `unsupported` always includes the four codes shown, and includes `{"code":"descriptive_rule_not_executed","rule_id":ID}` for every proposed rule, ordered by rule ID. Rule descriptions are not included and no rules execute. `CompileError.code` is `invalid_draft`, `actor_count`, `out_of_bounds`, or `spatial_conflict`; `diagnostics` is a list of safe path/code pairs when available. Invalid references, duplicate IDs/grid cells and path-like IDs are rejected by the draft validator. No partial plan is returned on failure. The resulting format is an integration plan, not the existing Lua persistence schema or proof that terrain, rules, memories or agents were installed.
 
-## Runtime preflight: deliberately blocked
+## Legacy origin-only preflight API: still blocked
 
-Persistent-world integration remains blocked. After explicit `DraftStore.confirm(id, revision, world_checkpoint_path)` has completed, an authorized service can call:
+`preflight` is an older origin-only review API and deliberately returns `status: blocked`; it is not the product-world creation path. Use the confirmed `create-world` flow described below for Luanti publication. The legacy API remains useful for reviewing the small `WorldStore` origin contract. After explicit `DraftStore.confirm(id, revision, world_checkpoint_path)` has completed, a caller can still inspect its blocked result:
 
 ```python
 from genesis.store import DraftStore
@@ -141,9 +163,9 @@ assert result['status'] == 'blocked' and result['launchable'] is False
 
 `preflight` checks the exact confirmed ID and revision, recompiles the draft, replays the confirmed `WorldStore` via a read-only SQLite connection, checks its initial event and full snapshot against that draft, requires world version 1, and checks that the proposed absolute runtime path currently does not exist. It rejects description-only rules, indoor places, semantic connections and invalid/out-of-bounds layouts. The path check neither reserves the path nor protects against concurrent replacement; a future launcher must atomically create an independent directory and revalidate all inputs at the point of use. The caller must control the store and directories and prevent untrusted concurrent replacement.
 
-Success returns `{draft_id, revision, world_path, status: "blocked", launchable: false, plan, blockers}`. The blockers explicitly identify missing cross-store crash recovery, per-character private runtime projection, terrain/spawn verification and runtime world creation. The return is a review artifact, **not permission or a token to launch**. Errors raise `PreflightError` with a safe `code` and optional path/code diagnostics. A pending or unconfirmed draft, stale revision, occupied runtime path, changed/corrupt origin or unsupported draft fails closed. No world is created and no Luanti files or settings are changed.
+Success returns `{draft_id, revision, world_path, status: "blocked", launchable: false, plan, blockers}`. This review artifact is **not the product publisher and not permission to launch**. Errors raise `PreflightError` with a safe `code` and optional path/code diagnostics. A pending or unconfirmed draft, stale revision, occupied runtime path, changed/corrupt origin or unsupported draft fails closed. No world is created and no Luanti files or settings are changed.
 
-`WorldStore` and Luanti's map and normal-shutdown character/long-term checkpoint cannot currently commit atomically or reconcile after a crash. The existing runtime also supplies one global goal rather than verified per-actor private goals, roles and seeds. A complete integration needs an explicit recoverable authority/commit protocol, retained draft-to-ordinal identity, fail-closed launch and restore, private per-actor model projection, and terrain/spawn checks. Until those exist, do not use this preflight result to launch or resume a persistent world. The separate disposable preview below does not bypass these persistent-world blockers. Long-term memory and existing restore behavior remain unchanged.
+This legacy origin-only API does not publish or launch a product world. The product `create-world` path below provides a confirmed draft-to-actor mapping, private per-actor data, terrain projection, and product startup checks. Its remaining persistence limit is that Luanti's map and the normal-shutdown character, long-term-memory, and narrative checkpoints do not share one atomic transaction, so crash recovery across those stores is not proven. Do not treat this blocked preflight result as permission or evidence for product launch. The separate disposable preview below remains a one-shot view and does not provide persistent-world recovery.
 
 ## Disposable Luanti preview
 

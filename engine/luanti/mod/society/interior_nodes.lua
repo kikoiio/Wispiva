@@ -1,4 +1,4 @@
--- Original Victorian sitting-room kit. Pure definitions; no engine at load time.
+-- Original reusable interior material/furniture kit. Pure definitions; no engine at load time.
 -- Coordinates are metres relative to integer node centres. Furniture front=-Z,
 -- rear=+Z; facedir rotates geometry, selection/collision boxes and textures.
 -- Floor cubes (including rugs) live at y=0, with their top at world y=0.5.

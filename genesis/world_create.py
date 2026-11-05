@@ -169,6 +169,8 @@ def build_manifest(row, plan, event, world_id, *, operation_id=None):
         "actors": _runtime_actors(plan),
         "origin_event": copy.deepcopy(event),
     }
+    if plan.get("private_objects"):
+        manifest["private_objects"] = copy.deepcopy(plan["private_objects"])
     if operation_id is not None:
         if (type(operation_id) is not str or len(operation_id) != 32
                 or any(char not in "0123456789abcdef" for char in operation_id)):
@@ -193,6 +195,10 @@ def _install_runtime(stage: Path, manifest_path: Path) -> None:
     for source in MOD.glob("*.lua"):
         shutil.copyfile(source, world / "worldmods" / "society" / source.name)
     for source in COGNITION.glob("*.lua"):
+        if source.name.startswith("test_") or source.name == "test.lua":
+            continue
+        shutil.copyfile(source, world / "worldmods" / "society" / source.name)
+    for source in (ROOT / "world").glob("*.lua"):
         if source.name.startswith("test_") or source.name == "test.lua":
             continue
         shutil.copyfile(source, world / "worldmods" / "society" / source.name)

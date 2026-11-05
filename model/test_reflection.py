@@ -55,6 +55,46 @@ class ReflectionTests(unittest.TestCase):
         self.assertEqual(seen[0]["input"][1]["content"], json.dumps(request, ensure_ascii=True,
                                                                        sort_keys=True, separators=(",", ":")))
 
+    def test_anthropic_reflection_uses_messages_payload_and_parser(self):
+        request = _request()
+        seen = []
+        output = {"topic": "the well", "text": "Bob may help.", "source_ids": ["l1-1"]}
+
+        def transport(config, body):
+            seen.append(json.loads(body))
+            response = {"type": "message", "role": "assistant", "content": [
+                {"type": "text", "text": json.dumps(output)}],
+                "usage": {"input_tokens": 17, "output_tokens": 8}}
+            return json.dumps(response).encode()
+
+        config = Config.from_values("https://api.example/api/llm/anthropic", "test", "secret")
+        result = reflect(config, request, transport=transport)
+        self.assertEqual(result["reflection"], output)
+        self.assertEqual(set(seen[0]), {"model", "max_tokens", "system", "messages"})
+        self.assertEqual(seen[0]["messages"][0]["role"], "user")
+        self.assertEqual(seen[0]["messages"][0]["content"], json.dumps(
+            request, ensure_ascii=True, sort_keys=True, separators=(",", ":")))
+
+    def test_provider_errors_keep_safe_categories_through_reflection(self):
+        request = _request()
+        cases = [
+            ({'type': 'response.failed', 'response': {'error': {'message': 'private provider detail'}}},
+             'provider_response_failed'),
+            ({'type': 'response.incomplete'}, 'incomplete_response'),
+            ({'type': 'response.refusal.done'}, 'model_refusal'),
+            ({'type': 'error', 'error': {'code': 'rate_limit_exceeded',
+                                        'message': 'private provider detail'}}, 'rate_limited'),
+            ({'type': 'error', 'error': {'code': 'temporarily_unavailable',
+                                        'message': 'private provider detail'}}, 'provider_event_error'),
+        ]
+        for event, expected in cases:
+            raw = ('data: ' + json.dumps(event) + '\n\n').encode()
+            with self.subTest(error=expected), self.assertRaises(ReflectionError) as caught:
+                reflect(Config("https://example.test/v1", "test", "secret"), request,
+                        transport=lambda *_: raw)
+            self.assertEqual(str(caught.exception), expected)
+            self.assertNotIn('private provider detail', repr(caught.exception))
+
     def test_host_persists_only_after_source_grounded_provider_result(self):
         request = _request()
         persisted = []

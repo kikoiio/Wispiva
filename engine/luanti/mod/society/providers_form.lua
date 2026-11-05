@@ -12,7 +12,9 @@ M.languages = {
 		current = "当前使用",
 		add = "添加",
 		remove = "删除",
-		save = "保存",
+		save = "保存并使用",
+		provider_transfer_notice = "保存并启用后，每轮会向所选服务发送角色身份、目标、本人私有记忆与附近观察。",
+		provider_cost_notice = "也包括你直接发给角色的私信；服务可能计费。保存即授权发送。",
 		close = "关闭",
 		unnamed = "未命名",
 		current_mark = " · 当前",
@@ -49,7 +51,7 @@ M.languages = {
 		mark_node = "标记",
 		resource_node = "资源",
 		body_blocked = "这里站着人。",
-		visitor_help = "你是访客，脚和这里的人站在同一层地面。WASD 移动，鼠标转向，Esc 放开鼠标。远处只看得到名字。走近人和地点牌子，左侧会显示最近一个人刚说的话，以及最近一处地方的说明。右键牌子或人物可以再读一次。快捷栏是木材、书架、圆石、石头、石砖、砖、玻璃和火把；按 I 打开背包。你打的字他们听不见。",
+		visitor_help = "你是访客，脚和这里的人站在同一层地面。WASD 移动，鼠标转向，Esc 放开鼠标。右键故事物件查看并记录线索；右键角色打开私聊；/journal 打开调查簿。角色自主行动和回复需要模型服务；尚未配置时角色会等待。使用 /providers 前请先读服务页面的数据与费用说明。快捷栏是木材、书架、圆石、石头、石砖、砖、玻璃和火把；按 I 打开背包。",
 	},
 	en = {
 		title = "Model service",
@@ -61,7 +63,9 @@ M.languages = {
 		current = "Use this one",
 		add = "Add",
 		remove = "Remove",
-		save = "Save",
+		save = "Save and use",
+		provider_transfer_notice = "Saving and enabling sends each character's identity, goal, private memories, and nearby observations to the selected service.",
+		provider_cost_notice = "It also sends direct messages you give that character; the service may charge you. Saving authorizes these requests.",
 		close = "Close",
 		unnamed = "Unnamed",
 		current_mark = " · current",
@@ -98,7 +102,7 @@ M.languages = {
 		mark_node = "Marker",
 		resource_node = "Resource",
 		body_blocked = "A character is standing here.",
-		visitor_help = "You are a visitor, standing on the same ground as the characters. WASD moves, the mouse looks, Esc frees the mouse. From far away you only see names. Walk up to a person or a place sign and the left side shows the nearest spoken line and the nearest place description. Right-click a sign or a person to read it again. The hotbar holds wood, bookshelves, cobble, stone, stone brick, brick, glass, and torches; press I for the inventory. They do not hear what you type.",
+		visitor_help = "You are a visitor, standing on the same ground as the characters. WASD moves, the mouse looks, and Esc frees the mouse. Right-click a story object to inspect and record a clue; right-click a character to send a private message; use /journal to review your notebook. Autonomous actions and replies need a model service; without one, characters wait. Read the data and cost notice in /providers before enabling a service. The hotbar holds wood, bookshelves, cobble, stone, stone brick, brick, glass, and torches; press I for the inventory.",
 	},
 }
 
@@ -238,10 +242,10 @@ function M.build(draft, status, lang, note)
 		status = M.text(lang, status)
 	end
 	local item = draft.index and draft.providers[draft.index] or nil
-	local height = item and (note and note ~= "" and 13.2 or 12.4)
+	local height = item and (note and note ~= "" and 14.8 or 14.0)
 		or (note and note ~= "" and 4.8 or 4.0)
-	local status_y = item and 11.5 or 3.0
-	local note_y = item and 12.3 or 3.8
+	local status_y = item and 13.0 or 3.0
+	local note_y = item and 13.8 or 3.8
 	local lines = {
 		"formspec_version[6]",
 		string.format("size[16.0,%.1f]", height),
@@ -282,8 +286,10 @@ function M.build(draft, status, lang, note)
 		lines[#lines + 1] = "checkbox[0.4,9.3;current;;" ..
 			(item.id == draft.selected and "true" or "false") .. "]"
 		lines[#lines + 1] = "label[1.4,9.65;" .. escape(M.text(lang, "current")) .. "]"
-		lines[#lines + 1] = string.format("button[11.4,10.2;2,0.8;save;%s]", escape(M.text(lang, "save")))
-		lines[#lines + 1] = string.format("button[13.6,10.2;2,0.8;quit;%s]", escape(M.text(lang, "close")))
+		lines[#lines + 1] = "label[0.4,10.2;" .. escape(M.text(lang, "provider_transfer_notice")) .. "]"
+		lines[#lines + 1] = "label[0.4,10.65;" .. escape(M.text(lang, "provider_cost_notice")) .. "]"
+		lines[#lines + 1] = string.format("button[10.4,11.3;2.6,0.8;save;%s]", escape(M.text(lang, "save")))
+		lines[#lines + 1] = string.format("button[13.2,11.3;2.4,0.8;quit;%s]", escape(M.text(lang, "close")))
 	end
 	if status and status ~= "" then
 		lines[#lines + 1] = string.format("label[0.4,%.1f;%s]", status_y, escape(status))

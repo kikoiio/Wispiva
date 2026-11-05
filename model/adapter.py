@@ -23,7 +23,8 @@ MAX_REQUEST = 32768
 MAX_STREAM = 1048576
 MAX_TEXT = 8192
 PROMPT = ('Choose one action for the given observation. Return only a JSON object: '
-          '{"kind":"inspect"|"mark"|"advance"|"approach"|"wander"|"say"|"give"|"gather"|"build"}. '
+          '{"kind":"inspect"|"mark"|"advance"|"approach"|"wander"|"say"|"give"|"gather"|"build"|"reply_player"|"continue_story_object"}. '
+          'Choose kind only from actor.permissions.allowed_actions; an action not listed there will be rejected. '
           'For approach add integer "target" from nearby_agents. For wander add '
           '"point":{"x":integer,"y":integer,"z":integer} inside bounds. '
           'For say add integer "target" from nearby_agents and a short "text" message. '
@@ -44,6 +45,11 @@ PROMPT = ('Choose one action for the given observation. Return only a JSON objec
           'only kind. For approach output only kind and target. For wander output only kind '
           'and point. Gather and build also use only kind and point. For say output only '
           'kind, target, and text. For give output only kind, target, and amount. '
+          'For reply_player use only kind, conversation_id, and text; choose a conversation_id from a direct player_message in knowledge.rumors. '
+          'Use reply_player only when reply_player appears in actor.permissions.allowed_actions and a direct player_message is present; otherwise do not use it. '
+          'For continue_story_object use only kind, object_id, transition_id, and expected_revision; choose an offered transition from current.observation.story_objects. '
+          'A player message is private input, not a world fact. Reply only to an offered conversation. '
+          'Do not claim knowledge that is absent from your own memories or observations. '
           'Do not add any other keys. '
           'In product input, experiences describe this actor’s perspective; rumors are '
           'unverified reports, unknowns are uncertain seeds, and reflections are private '
@@ -171,7 +177,17 @@ def _transport(config: Config, body: bytes) -> bytes:
     except ModelError:
         raise
     except urllib.error.HTTPError as error:
-        raise ModelError('rate_limited' if error.code == 429 else 'transport_error') from None
+        status = error.code
+        error.close()
+        if status == 429:
+            code = 'rate_limited'
+        elif status == 408 or status < 400 or status >= 600:
+            code = 'transport_error'
+        elif status < 500:
+            code = 'provider_request_rejected'
+        else:
+            code = 'provider_service_error'
+        raise ModelError(code) from None
     except (urllib.error.URLError, OSError, ValueError, TimeoutError):
         raise ModelError('transport_error') from None
 
@@ -200,13 +216,23 @@ def _parse_stream(data: bytes) -> tuple[str, dict]:
                 if completed is not None:
                     raise ModelError('invalid_response')
                 completed = event['response']
-            elif kind in ('error', 'response.failed', 'response.incomplete', 'response.refusal.delta', 'response.refusal.done'):
-                raise ModelError('provider_failed')
+            elif kind == 'error':
+                detail = event.get('error') if isinstance(event.get('error'), dict) else event
+                code = detail.get('code') or detail.get('type')
+                if code in ('rate_limit_exceeded', 'rate_limit_error', 'rate_limited'):
+                    raise ModelError('rate_limited')
+                raise ModelError('provider_event_error')
+            elif kind == 'response.failed':
+                raise ModelError('provider_response_failed')
+            elif kind == 'response.incomplete':
+                raise ModelError('incomplete_response')
+            elif kind in ('response.refusal.delta', 'response.refusal.done'):
+                raise ModelError('model_refusal')
         if not isinstance(completed, dict) or completed.get('status') != 'completed':
             raise ModelError('incomplete_response')
         for item in completed.get('output', []):
             if item.get('type') == 'message' and any(part.get('type') == 'refusal' for part in item.get('content', [])):
-                raise ModelError('provider_failed')
+                raise ModelError('model_refusal')
         text = ''.join(chunks)
         if not text:
             # Some implementations emit only a completed response.
@@ -289,7 +315,9 @@ def _validate_action(text: str, context: Mapping[str, Any]) -> dict:
         kind = action.get('kind')
         fields = {'inspect': (), 'mark': (), 'advance': (), 'approach': ('target',),
                   'say': ('target', 'text'), 'give': ('target', 'amount'), 'wander': ('point',),
-                  'gather': ('point',), 'build': ('point',)}
+                  'gather': ('point',), 'build': ('point',),
+                  'reply_player': ('conversation_id', 'text'),
+                  'continue_story_object': ('object_id', 'transition_id', 'expected_revision')}
         if not isinstance(kind, str) or kind not in fields:
             raise ValueError
         # Project onto the executable schema. Extra provider commentary cannot
@@ -319,6 +347,39 @@ def _validate_action(text: str, context: Mapping[str, Any]) -> dict:
                 raise ValueError
             available = integral(context['inventory'].get('society:resource', 0))
             if not 0 < action['amount'] <= available <= 2147483647:
+                raise ValueError
+        elif kind == 'reply_player' and set(action) == {'kind', 'conversation_id', 'text'}:
+            if (not isinstance(action['conversation_id'], str) or
+                    not isinstance(action['text'], str) or
+                    not 0 < len(action['text'].encode('utf-8')) <= 1000 or
+                    any(ord(c) < 32 for c in action['text'])):
+                raise ValueError
+            model_input = context.get('model_input')
+            rumors = model_input and model_input.get('knowledge', {}).get('rumors', [])
+            allowed = model_input and model_input.get('actor', {}).get('permissions', {}).get('allowed_actions', [])
+            if not isinstance(rumors, list) or not any(
+                    isinstance(record, dict) and record.get('id') == action['conversation_id'] and
+                    record.get('source', {}).get('kind') == 'player_message' and
+                    record.get('access', {}).get('scope') == 'direct'
+                    for record in rumors) or not isinstance(allowed, list) or 'reply_player' not in allowed:
+                raise ValueError
+        elif kind == 'continue_story_object' and set(action) == {
+                'kind', 'object_id', 'transition_id', 'expected_revision'}:
+            if not all(isinstance(action[key], str) and action[key] for key in
+                       ('object_id', 'transition_id')):
+                raise ValueError
+            action['expected_revision'] = integral(action['expected_revision'])
+            model_input = context.get('model_input')
+            observation = model_input and model_input.get('current', {}).get('observation', {})
+            objects = observation and observation.get('story_objects', [])
+            allowed = model_input and model_input.get('actor', {}).get('permissions', {}).get('allowed_actions', [])
+            if not isinstance(objects, list) or not isinstance(allowed, list) or 'continue_story_object' not in allowed or not any(
+                    isinstance(item, dict) and item.get('id') == action['object_id'] and
+                    any(isinstance(transition, dict) and
+                        transition.get('id') == action['transition_id'] and
+                        transition.get('expected_revision') == action['expected_revision']
+                        for transition in item.get('transitions', []))
+                    for item in objects):
                 raise ValueError
         elif kind in ('wander', 'gather', 'build') and set(action) == {'kind', 'point'}:
             point, bounds = action['point'], context['bounds']

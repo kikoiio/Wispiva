@@ -57,20 +57,51 @@ class SpoolTests(unittest.TestCase):
         self.assertEqual([call.args[0] for call in sleep.call_args_list], [1, 2])
         self.assertEqual(runner.call_count, 3)
 
-    def test_provider_failure_retries_are_bounded_and_audited(self):
-        path = self.root / 'request-6.json'
-        path.write_text(json.dumps({'id': 6, 'context': {}}))
+    def test_terminal_provider_errors_are_not_retried(self):
+        for request_id, error in enumerate(
+                ('provider_failed', 'provider_response_failed', 'model_refusal',
+                 'provider_event_error', 'provider_request_rejected'), 6):
+            path = self.root / f'request-{request_id}.json'
+            path.write_text(json.dumps({'id': request_id, 'context': {}}))
+            runner = mock.Mock(return_value={
+                'id': request_id, 'ok': False, 'error': error,
+            })
+            with mock.patch.object(worker.time, 'sleep') as sleep:
+                worker.process_one(self.root, path, 1, runner=runner)
+            result = json.loads((self.root / f'response-{request_id}.json').read_text())
+            self.assertEqual([attempt['error'] for attempt in result['attempts']], [error])
+            runner.assert_called_once()
+            sleep.assert_not_called()
+
+    def test_provider_service_errors_use_bounded_retry(self):
+        path = self.root / 'request-12.json'
+        path.write_text(json.dumps({'id': 12, 'context': {}}))
         runner = mock.Mock(side_effect=[
-            {'id': 6, 'ok': False, 'error': 'provider_failed'},
-            {'id': 6, 'ok': True, 'action': {'kind': 'inspect'}},
+            {'id': 12, 'ok': False, 'error': 'provider_service_error'},
+            {'id': 12, 'ok': True, 'action': {'kind': 'inspect'}},
         ])
-        with mock.patch.object(worker.time, 'sleep') as sleep:
-            worker.process_one(self.root, path, 1, runner=runner)
-        result = json.loads((self.root / 'response-6.json').read_text())
+        worker.process_one(self.root, path, 1, runner=runner)
+        result = json.loads((self.root / 'response-12.json').read_text())
         self.assertEqual([attempt['error'] for attempt in result['attempts']],
-                         ['provider_failed', None])
+                         ['provider_service_error', None])
         self.assertEqual(runner.call_count, 2)
-        sleep.assert_called_once_with(1)
+
+    def test_transient_errors_stop_after_one_retry(self):
+        for request_id, error in enumerate(
+                ('transport_error', 'provider_service_error', 'rate_limited'), 20):
+            path = self.root / f'request-{request_id}.json'
+            path.write_text(json.dumps({'id': request_id, 'context': {}}))
+            runner = mock.Mock(side_effect=[
+                {'id': request_id, 'ok': False, 'error': error},
+                {'id': request_id, 'ok': False, 'error': error},
+                {'id': request_id, 'ok': True, 'action': {'kind': 'inspect'}},
+            ])
+            with mock.patch.object(worker.time, 'sleep') as sleep:
+                worker.process_one(self.root, path, 1, runner=runner)
+            result = json.loads((self.root / f'response-{request_id}.json').read_text())
+            self.assertEqual([attempt['error'] for attempt in result['attempts']], [error, error])
+            self.assertEqual(runner.call_count, 2)
+            sleep.assert_called_once_with(1)
 
     def test_atomic_response_and_bad_requests(self):
         request = {'id': 3, 'context': {'observation': {}}}

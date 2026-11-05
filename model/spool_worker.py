@@ -20,6 +20,13 @@ except ImportError:  # direct worker script execution
 NAME = re.compile(r'request-(0|[1-9][0-9]{0,15})\.json\Z')
 MAX_ID = 2**53 - 1
 MAX_WORKERS = 256
+RETRY_BUDGETS = {
+    'invalid_action': 2,
+    'invalid_response': 2,
+    'transport_error': 1,
+    'provider_service_error': 1,
+    'rate_limited': 1,
+}
 
 
 def run_bridge(request, stop, timeout):
@@ -103,16 +110,22 @@ def process_one(directory, path, timeout, runner=run_bridge):
         else:
             try:
                 attempts = []
-                retryable = ('invalid_action', 'invalid_response', 'transport_error',
-                             'provider_failed', 'rate_limited')
+                # Provider refusals and rejected requests are terminal. Allow
+                # one retry for transient service errors and two for output
+                # correction, with a three-attempt hard ceiling per request.
+                retry_counts = {}
                 for attempt in range(3):
                     result = runner(request, directory / 'STOP', timeout)
                     attempts.append({'ok': result.get('ok') is True,
                                      'error': result.get('error'),
                                      'audit': result.get('audit'),
                                      'reflection_audit': result.get('reflection_audit')})
-                    if result.get('ok') is True or result.get('error') not in retryable or attempt == 2:
+                    error = result.get('error')
+                    budget = RETRY_BUDGETS.get(error, 0)
+                    if (result.get('ok') is True or retry_counts.get(error, 0) >= budget or
+                            budget == 0 or attempt == 2):
                         break
+                    retry_counts[error] = retry_counts.get(error, 0) + 1
                     time.sleep(min(attempt + 1, 2))
                 result['attempts'] = attempts
             except Exception:

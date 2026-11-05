@@ -20,6 +20,13 @@ except ImportError:  # direct worker script execution
 MAX_EXPERIENCES = 16
 MAX_TEXT = 4096
 MAX_REQUEST = 16000
+_SAFE_PROVIDER_ERRORS = frozenset({
+    "transport_error", "rate_limited", "timeout", "invalid_content_type",
+    "response_too_large", "output_too_large", "invalid_response",
+    "incomplete_response", "provider_event_error", "provider_response_failed",
+    "provider_error", "provider_failed", "provider_request_rejected",
+    "provider_service_error", "model_refusal",
+})
 
 PROMPT = (
     "Write one private reflection for the actor from the supplied experiences. "
@@ -132,25 +139,34 @@ def reflect(config: adapter.Config, request: Mapping[str, Any], *,
         raise ReflectionError("invalid_config") from None
     payload = json.dumps(request, ensure_ascii=True, sort_keys=True,
                          separators=(",", ":"), allow_nan=False)
-    body = json.dumps({"model": config.model, "stream": True,
-                       "text": {"format": {"type": "json_object"}},
-                       "reasoning": {"effort": "none"}, "max_output_tokens": 256,
-                       "input": [{"role": "system", "content": PROMPT},
-                                 {"role": "user", "content": payload}]},
-                      ensure_ascii=True, separators=(",", ":")).encode()
+    if config.protocol == "anthropic":
+        provider_request = {
+            "model": config.model, "max_tokens": 256, "system": PROMPT,
+            "messages": [{"role": "user", "content": payload}],
+        }
+    else:
+        provider_request = {
+            "model": config.model, "stream": True,
+            "text": {"format": {"type": "json_object"}},
+            "reasoning": {"effort": "none"}, "max_output_tokens": 256,
+            "input": [{"role": "system", "content": PROMPT},
+                      {"role": "user", "content": payload}],
+        }
+    body = json.dumps(provider_request, ensure_ascii=True, separators=(",", ":")).encode()
     if len(body) > MAX_REQUEST:
         raise ReflectionError("request_too_large")
     try:
         raw = (transport or adapter._transport)(config, body)
-        output_text, usage = adapter._parse_stream(raw)
+        output_text, usage = (adapter._parse_anthropic(raw) if config.protocol == "anthropic"
+                              else adapter._parse_stream(raw))
         result = validate_output(json.loads(output_text, object_pairs_hook=_pairs), request)
     except ReflectionError:
         raise
     except adapter.ModelError as exc:
         code = str(exc)
-        raise ReflectionError(code if code in ('rate_limited', 'timeout') else 'provider_failed') from None
+        raise ReflectionError(code if code in _SAFE_PROVIDER_ERRORS else 'provider_error') from None
     except (ValueError, TypeError, UnicodeError, json.JSONDecodeError):
-        raise ReflectionError("provider_failed") from None
+        raise ReflectionError("invalid_response") from None
     return {"reflection": result,
             "audit": {"context_sha256": hashlib.sha256(payload.encode()).hexdigest(),
                       "prompt_sha256": hashlib.sha256(PROMPT.encode()).hexdigest(),

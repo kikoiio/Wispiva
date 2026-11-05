@@ -42,7 +42,9 @@ SCORE_FLAGS = ('abstained', 'wrong_source_target', 'stale_fact_used',
 SAFE_ERRORS = frozenset({
     'invalid_config', 'invalid_context', 'request_too_large', 'transport_error',
     'invalid_content_type', 'response_too_large', 'output_too_large',
-    'invalid_response', 'incomplete_response', 'provider_failed', 'invalid_action',
+    'invalid_response', 'incomplete_response', 'provider_failed', 'provider_event_error',
+    'provider_response_failed', 'provider_error', 'provider_request_rejected',
+    'provider_service_error', 'model_refusal', 'invalid_action',
     'deadline_exceeded', 'worker_failed', 'unexpected_error', 'rate_limited',
 })
 

@@ -2,6 +2,7 @@
 # --reflection-every N forms a private L2 belief every N decisions (default 3;
 # 0 disables it). --audit-model retains private input/output evidence per run.
 # --model-workers N bounds concurrent model requests (default 1, maximum 256).
+# --view-spawn-place ID starts the observer in that furnished place.
 set -uo pipefail
 umask 077
 
@@ -32,6 +33,7 @@ VISUAL_FIXTURE=0
 AUDIT_MODEL=0
 MODEL_WORKERS=1
 VIEW_GUIDE=1
+VIEW_SPAWN_PLACE_ID=""
 SUPPRESS_RESOURCES=0
 
 while [[ $# -gt 0 ]]; do
@@ -54,6 +56,7 @@ while [[ $# -gt 0 ]]; do
     --serve) SERVE=1; shift ;;
     --visual-fixture) VISUAL_FIXTURE=1; shift ;;
     --no-view-guide) VIEW_GUIDE=0; shift ;;
+    --view-spawn-place) VIEW_SPAWN_PLACE_ID="$2"; shift 2 ;;
     --no-resource-nodes) SUPPRESS_RESOURCES=1; shift ;;
     --audit-model) AUDIT_MODEL=1; shift ;;
     --model-workers) MODEL_WORKERS="$2"; shift 2 ;;
@@ -64,6 +67,10 @@ done
 
 if [[ ! "$MODEL_WORKERS" =~ ^[1-9][0-9]{0,2}$ ]] || (( MODEL_WORKERS > 256 )); then
   echo "run_product.sh: --model-workers must be between 1 and 256" >&2
+  exit 2
+fi
+if [[ -n "$VIEW_SPAWN_PLACE_ID" && ! "$VIEW_SPAWN_PLACE_ID" =~ ^[A-Za-z0-9_:-]{1,80}$ ]]; then
+  echo "run_product.sh: --view-spawn-place must be a valid place id" >&2
   exit 2
 fi
 
@@ -112,6 +119,14 @@ for src in "$ROOT/cognition"/*.lua; do
   esac
   cp "$src" "$WORLD/worldmods/society/"
 done
+for src in "$ROOT/world"/*.lua; do
+  [[ -f "$src" ]] || continue
+  base="$(basename "$src")"
+  case "$base" in
+    test.lua|test_*.lua) continue ;;
+  esac
+  cp "$src" "$WORLD/worldmods/society/"
+done
 if compgen -G "$HERE/mod/society/textures/*.png" >/dev/null; then
   mkdir -p "$WORLD/worldmods/society/textures"
   cp "$HERE/mod/society/textures/"*.png "$WORLD/worldmods/society/textures/"
@@ -151,6 +166,7 @@ society_model = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo false || echo true)
 society_cognition = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo false || echo true)
 society_visual = true
 society_view_guide = $([[ "$VIEW_GUIDE" -eq 1 ]] && echo true || echo false)
+society_view_spawn_place = $VIEW_SPAWN_PLACE_ID
 society_suppress_resource_nodes = $([[ "$SUPPRESS_RESOURCES" -eq 1 ]] && echo true || echo false)
 society_view_spawn = true
 society_view_acceptance = $([[ "$VISUAL_FIXTURE" -eq 1 ]] && echo true || echo false)

@@ -3,7 +3,7 @@ import json
 import unittest
 
 from genesis.compiler import CompileError, compile_plan, public_plan
-from genesis.test_genesis import draft
+from genesis.test_genesis import draft, scene_draft
 
 
 def with_actors(count):
@@ -128,5 +128,33 @@ class CompilerTests(unittest.TestCase):
         with self.assertRaises(CompileError) as error:
             compile_plan(d)
         self.assertEqual(error.exception.diagnostics[0]['code'], 'blueprint_overlap')
+
+    def test_narrative_scene_is_public_bounded_and_uses_clear_spawn_cells(self):
+        d = scene_draft()
+        d['actors'] = [{'id': f'person{i}', 'name': f'Name{i}', 'role': f'Role{i}',
+                        'goal': f'Goal{i}', 'placeId': 'bank'} for i in range(19)]
+        d['memories'] = []
+        plan = compile_plan(d)
+        place = plan['public']['places'][0]
+        self.assertEqual(place['scene'], d['layout']['places'][0]['scene'])
+        furnished = {tuple(item['at']) for item in place['scene']['furnishings']}
+        starts = [a['position'] for a in plan['public']['actors']]
+        self.assertEqual(len(starts), 19)
+        self.assertTrue(all((p['x'], p['z']) not in furnished for p in starts))
+        self.assertNotIn('Goal0', json.dumps(public_plan(plan)))
+        self.assertNotIn('scene', plan['private_actors']['person0'])
+        d['actors'].append({'id': 'person19', 'name': 'Name19', 'role': 'Role19',
+                            'goal': 'Goal19', 'placeId': 'bank'})
+        with self.assertRaises(CompileError) as error:
+            compile_plan(d)
+        self.assertEqual(error.exception.code, 'place_actor_capacity')
+
+    def test_narrative_scene_reserves_full_room_footprint(self):
+        d = scene_draft()
+        d['places'].append({'id': 'yard', 'name': 'Yard', 'description': 'Open yard'})
+        d['layout']['places'].append({'placeId': 'yard', 'space': 'indoor', 'grid': [1, 0]})
+        with self.assertRaises(CompileError) as error:
+            compile_plan(d)
+        self.assertEqual(error.exception.diagnostics[0]['code'], 'scene_overlap')
 
 if __name__ == '__main__': unittest.main()
