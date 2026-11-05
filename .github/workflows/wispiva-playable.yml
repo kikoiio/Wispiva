@@ -48,6 +48,7 @@ jobs:
             engine.luanti.test_recovery_journal model.test_adapter model.test_reflection \
             model.test_bridge model.test_spool_worker
           (cd cognition && lua5.1 test_persistence.lua)
+          lua5.1 cognition/test_world_events.lua
           (cd cognition && lua5.1 test_navigation.lua)
           lua5.1 world/test_narrative_state.lua
           lua5.1 engine/luanti/mod/society/test_story_runtime.lua

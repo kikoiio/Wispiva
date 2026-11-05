@@ -966,7 +966,7 @@ local function set_body_solid(solid)
 			le.object:set_properties(solid and {
 				physical = true,
 				collide_with_objects = true,
-				pointable = "blocking",
+				pointable = true,
 			} or {
 				physical = false,
 				collide_with_objects = false,

@@ -80,6 +80,7 @@ local function build(initial)
     for i = 1, array(initial) do
       local event = copy(initial[i])
       validate(event, i)
+      event.participants = participants(event.participants)
       assert(not by_operation[event.operation_id], "duplicate event operation")
       events[i], by_operation[event.operation_id] = event, event
     end
@@ -91,6 +92,7 @@ local function build(initial)
     local prior = by_operation[operation_id]
     if prior then
       local candidate = copy(data)
+      candidate.participants = participants(candidate.participants)
       candidate.seq, candidate.id, candidate.operation_id = prior.seq, prior.id, operation_id
       validate(candidate, prior.seq)
       assert(equal(prior, candidate), "idempotent operation differs")
@@ -99,6 +101,7 @@ local function build(initial)
     assert(#events < MAX_EVENTS, "world event limit reached")
     assert(type(data) == "table", "event data required")
     local event = copy(data)
+    event.participants = participants(event.participants)
     event.seq = #events + 1
     event.id = "world-event:" .. tostring(event.seq)
     event.operation_id = operation_id

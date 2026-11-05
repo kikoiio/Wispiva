@@ -34,6 +34,7 @@ end
 local function address(player, text)
   local e = actor()
   if not e then return false end
+  assert(e.object:get_properties().pointable == true, "NPC cannot be selected for right-click interaction")
   player:set_pos(vector.add(e.object:get_pos(), {x=1,y=0,z=0}))
   e:on_rightclick(player)
   submit(player, {send=true, message=text})

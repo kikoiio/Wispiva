@@ -35,3 +35,15 @@ assert(not pcall(function()
     time = 1, kind = "say", actor = "0", ok = true, reason = "ok"}}})
 end))
 print("world events tests passed")
+
+local empty = events.new()
+local data = {time=4, kind="inspect", actor="0", ok=true, reason="observed", participants={}}
+empty:commit("empty-participants", data)
+local decoded = empty:export()
+-- Luanti decodes the serialized empty table (JSON null) as a missing key.
+decoded.events[1].participants = nil
+local reloaded = events.load(decoded)
+assert(type(reloaded:get("world-event:1").participants) == "table",
+  "restored event lost its empty participants collection")
+assert(reloaded:commit("empty-participants", data).id == "world-event:1",
+  "restored empty-participant event is not idempotent")
