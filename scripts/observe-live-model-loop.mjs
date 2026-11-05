@@ -80,15 +80,17 @@ async function runAttempt(attemptNumber, expectedModel) {
     const models = [...new Set(buildCalls.map(call => call.model).filter(Boolean))];
     const buildDiagnostics = inspectVoxelSpaces(buildVoxel).issues;
     if (!build.ok) return failure(attemptNumber, 'build', build.reason ?? 'build-not-complete', {
-      model: expectedModel, models, calls: buildCalls.length, elapsedMs: buildElapsedMs, revision: buildVoxel.revision,
+      model: expectedModel, models, calls: buildCalls.length, requestSent: buildCalls.some(call => call.requestSent),
+      elapsedMs: buildElapsedMs, revision: buildVoxel.revision,
       cells: buildVoxel.cells.length, objects: buildVoxel.objects.length, diagnosticCount: buildDiagnostics.length,
     });
     if (!buildCalls.length || models.length !== 1 || models[0] !== expectedModel) return failure(attemptNumber, 'model-identity', 'unexpected-model-or-no-model-call', {
-      model: expectedModel, models, calls: buildCalls.length, elapsedMs: buildElapsedMs,
+      model: expectedModel, models, calls: buildCalls.length, requestSent: buildCalls.some(call => call.requestSent), elapsedMs: buildElapsedMs,
     });
     if (!buildVoxel.cells.length || !buildVoxel.objects.some(object => object.kind === 'building') || buildDiagnostics.length) {
       return failure(attemptNumber, 'build-validation', 'empty-or-diagnosed-building', {
-        model: expectedModel, models, calls: buildCalls.length, elapsedMs: buildElapsedMs, revision: buildVoxel.revision,
+        model: expectedModel, models, calls: buildCalls.length, requestSent: buildCalls.some(call => call.requestSent),
+        elapsedMs: buildElapsedMs, revision: buildVoxel.revision,
         cells: buildVoxel.cells.length, objects: buildVoxel.objects.length, diagnosticCount: buildDiagnostics.length,
       });
     }
@@ -146,6 +148,7 @@ async function runAttempt(attemptNumber, expectedModel) {
 
     return {
       attempt: attemptNumber, passed: true, model: expectedModel, models, buildCalls: buildCalls.length,
+      requestSent: buildCalls.some(call => call.requestSent),
       buildElapsedMs, builtRevision, builtCells, objects: buildVoxel.objects.length, injectedGap: gap.target,
       injectedRevision: gap.injectedRevision, repairMethod: repairIteration.repair.method,
       repairCalls, repairElapsedMs, finalRevision, finalCells, finalDiagnosticCount: finalIssues,
