@@ -5,9 +5,11 @@ The test mod moves the player and submits production forms; NPC decisions are
 unmodified model proposals validated by the production executor.
 """
 import argparse
+from collections import Counter
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import sys
@@ -50,11 +52,20 @@ def run(output, budget):
     deadline = started + budget
     processes = Processes(deadline + 25)
     log = world / 'private/product.log'
+    last_progress = [0]
 
     def wait(predicate, label):
         while time.monotonic() < deadline:
             processes.check()
             text = read_log(log)
+            if time.monotonic() - last_progress[0] >= 30:
+                last_progress[0] = time.monotonic()
+                print(json.dumps({'waiting_for': label,
+                                  'model_actions': text.count('ev=model-action '),
+                                  'model_attempts': text.count('ev=model-attempt '),
+                                  'player_messages_sent': text.count('player-message=true'),
+                                  'two_replies': 'two-distinct-replies-and-journal=true' in text,
+                                  'story_events': text.count('ev=story-object ')}), flush=True)
             require('SOCIETY fail=' not in text, 'runtime failure during ' + label)
             if predicate(text):
                 return
@@ -64,7 +75,9 @@ def run(output, budget):
                           'model_attempts': text.count('ev=model-attempt '),
                           'investigated': 'investigation-and-journal=true' in text,
                           'two_replies': 'two-distinct-replies-and-journal=true' in text,
-                          'story_events': text.count('ev=story-object ')}), flush=True)
+                          'story_events': text.count('ev=story-object '),
+                          'action_kinds': dict(Counter(re.findall(r'ev=model-action agent=\d+ request=\d+ kind=([a-z_]+)', text))),
+                          'attempt_errors': dict(Counter(re.findall(r'ev=model-attempt .*?error=([a-z_]+)', text)))}), flush=True)
         raise RuntimeError('acceptance deadline: ' + label)
 
     try:
@@ -107,6 +120,28 @@ def run(output, budget):
     for reply in replies:
         require(reply['source']['id'] == 'holmes' and reply['audience']['id'] == 'rhl_acceptance',
                 'private reply audience mismatch')
+    seen_messages = set()
+    audited_requests = 0
+    for path in (world / 'private/model-audit').glob('*/request-*.json'):
+        request = json.loads(path.read_text())
+        envelope = request['context']['model_input']
+        audited_requests += 1
+        for item in envelope['knowledge'].get('rumors') or []:
+            if item['source']['kind'] == 'player_message':
+                require(envelope['actor']['id'] == 'holmes', 'player message reached another actor')
+                require(item['access']['scope'] == 'direct' and
+                        item['access']['audience'] == ['holmes'], 'incorrect message scope')
+                seen_messages.add(item['source']['id'])
+    require({x['id'] for x in addresses} <= seen_messages, 'player input absent from provider audit')
+    attempt_errors = Counter()
+    for path in (world / 'private/model-audit').glob('*/response-*.json'):
+        response = json.loads(path.read_text())
+        attempts = response.get('attempts') or []
+        require(len(attempts) <= 3, 'worker retry hard ceiling exceeded')
+        attempt_errors.update(x.get('error') or 'none' for x in attempts)
+    public_events = json.dumps(first['world_events'], ensure_ascii=False)
+    require(all(x['text'] not in public_events for x in addresses + replies),
+            'private conversation text appeared in public event records')
     # Prevent a new test conversation on reload; the production narrative state
     # must survive without the driving mod being present.
     with (world / 'world.mt').open('a') as f:
@@ -127,6 +162,19 @@ def run(output, budget):
     for key in ('narrative', 'long_term', 'world_events'):
         require(first[key] == second[key], key + ' changed across paused recovery')
     require(not (world / 'wispiva-session-recovery.json').exists(), 'unclean recovered shutdown')
+    processes = Processes(time.monotonic() + 205)
+    deadline = time.monotonic() + 180
+    try:
+        processes.start('product server', base + ['--resume', '--speed', '1'],
+                        env=env, cwd=ROOT, log=work / 'continued.log')
+        wait(lambda text: 'ev=model-action ' in text, 'model continuation after recovery')
+        send_command(world, 'pause', timeout=10)
+    finally:
+        processes.close()
+    continued = checkpoint(world)
+    require(continued['narrative'] == second['narrative'],
+            'answered conversations or completed object transition replayed after recovery')
+    require(not (world / 'wispiva-session-recovery.json').exists(), 'unclean continued shutdown')
     output.mkdir(parents=True, exist_ok=False)
     summary = {'format': 'wispiva-playable-acceptance', 'version': 1,
                'driver': 'automated connected player; teleports and production form callbacks',
@@ -135,8 +183,12 @@ def run(output, budget):
                'private_player_messages': len(addresses), 'distinct_model_replies': len(replies),
                'changed_world_node': True, 'same_world_clean_recovery': True,
                'narrative_memory_events_unchanged_on_recovery': True,
+               'real_model_continued_after_recovery': True,
                'model_actions': first_log.count('ev=model-action '),
                'model_attempts': first_log.count('ev=model-attempt '),
+               'audited_requests': audited_requests, 'direct_message_scope_verified': True,
+               'private_text_absent_from_public_events': True,
+               'retry_ceiling_verified': True, 'attempt_errors': dict(attempt_errors),
                'conversation_digest': hashlib.sha256(json.dumps(interactions, sort_keys=True).encode()).hexdigest(),
                'elapsed_seconds': round(time.monotonic() - started, 1)}
     (output / 'playable-summary.json').write_text(json.dumps(summary, indent=2) + '\n')
