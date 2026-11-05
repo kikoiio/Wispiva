@@ -129,9 +129,10 @@ def run(output, budget):
         for item in envelope['knowledge'].get('rumors') or []:
             if item['source']['kind'] == 'player_message':
                 require(envelope['actor']['id'] == 'holmes', 'player message reached another actor')
-                require(item['access']['scope'] == 'direct' and
+                require(item['access']['scope'] in ('direct', 'private') and
                         item['access']['audience'] == ['holmes'], 'incorrect message scope')
-                seen_messages.add(item['source']['id'])
+                if item['access']['scope'] == 'direct':
+                    seen_messages.add(item['source']['id'])
     require({x['id'] for x in addresses} <= seen_messages, 'player input absent from provider audit')
     attempt_errors = Counter()
     for path in (world / 'private/model-audit').glob('*/response-*.json'):
