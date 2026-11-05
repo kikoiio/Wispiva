@@ -50,3 +50,9 @@ v11 曾有客户端连接与多轮模型动作，目前已经停止。恢复开�
 用户已恢复开发并授权独立验证分支及 GitHub Actions。v11 的文件后端仅存 `product_state` 和非空 `product_active_run`；产品提交版本为 1，逻辑时间为 0，角色／事件／记忆／环境组件版本均为 0。没有 `agent_state` 或 `environment_state`。这不是仅遗留 launcher marker 的窄窗口，不能通过清除标记恢复 28 项动作。地图存在不构成角色记忆一致提交的证据。原存档保持冻结。
 
 日志记录 SIGTERM 及 Server Shutting down，但没有产品 shutdown callback 的时间／prepare／commit 记录；退出原因仍未确定。启动器和恢复标记定向测试共 12 项通过。后续用干净起点验证正常停服和恢复，不把重建世界称为恢复 v11。
+
+## 云端正常启停基线（恢复开发后）
+
+独立验证分支 `validation/interior-recovery-20261105`，快照 `35057376b5279ab22c61a7270e83e0a72ba79093`。经用户授权推送并触发 [GitHub Actions 42067547430](https://github.com/kikoiio/Wispiva/actions/runs/42067547430)，只读查询确认 completed / success。119 项 Python 测试通过；Lua persistence、navigation、narrative_state（26 断言）、story_runtime、world_projection（32 项）及 interior blueprint 检查通过。真实 Luanti 客户端双视角捕获与同一干净世界正常停服恢复步骤通过，生成 allowlist artifact `wispiva-baker-interior-reference`（ID 13433223573）。模型采用 fixture，未发起新的真实 provider 调用。
+
+此结果不表示 v11 已恢复，不包含玩家私聊／真实模型回应或真人路线验收。Artifact 下载链接已由 GitHub connector 返回，但本机下载遇到 TLS EOF，因此本地未取得截图或 capture-summary，未进行新增截图的人工视觉复核。工作流成功及各检查结果来自 GitHub API 和 job log。

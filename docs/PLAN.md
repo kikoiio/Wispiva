@@ -12,6 +12,8 @@ status: active
 
 ## 当前事实
 
+- [x] 恢复开发后的云端基线：快照 `3505737` 的 [Actions 42067547430](https://github.com/kikoiio/Wispiva/actions/runs/42067547430) 通过 119 项 Python 与 Lua 叙事／导航／投影检查，并通过 fixture 模型下真实 Luanti 客户端双视角捕获和干净世界正常停服恢复；不计为 v11 恢复、真实模型回应或真人验收。
+
 - [x] 221B 固定参考图蓝图和第一段受限文本叙事空间已能编译、投影到 Luanti，并通过自动截图和保存恢复检查。真实 provider 对书房、工作室的生成草稿通过编译和发布检查；真人视觉评价仍待完成。[场景证据](../evidence/luanti/narrative-scene/2026-11-04/README.md)、[会客室截图与检查](../evidence/luanti/interior/2026-11-04/README.md)
 - [x] 产品运行时已有受校验的角色移动、观察、对白／消息、资源行动、事件记录、私有记忆和 checkpoint。部分故障恢复和客户端连接已有自动证据；它们证明基础运行链路，不等于《红发会》剧情可玩。[当前架构](architecture.md)
 - [x] 起点夹具现有四名角色、四个地点、两件带原文行号的故事物件，以及分开的公开渲染／私有状态与权限；初始线索是解散告示和明确标成推断的地窖工作面。[起点夹具](../validation/red_headed_league/moment.json)

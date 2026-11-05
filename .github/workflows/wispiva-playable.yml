@@ -1,0 +1,90 @@
+name: Wispiva real-model playable acceptance
+
+on:
+  push:
+    branches: ['validation/playable-*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: wispiva-playable-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    container: ubuntu:26.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp
+      PYTHONDONTWRITEBYTECODE: '1'
+      OMP_NUM_THREADS: '1'
+      LP_NUM_THREADS: '1'
+      WISPIVA_PROVIDER_FORM: '0'
+    steps:
+      - name: Install packaged runtime (one capture worker, no build)
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR"
+          df -h /tmp "$TMPDIR"
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+            ca-certificates git procps python3 lua5.1 luanti luanti-server \
+            luanti-game-minetest xvfb imagemagick libgl1-mesa-dri libglx-mesa0
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Targeted genesis, compiler and Red-Headed League checks
+        run: |
+          set -euo pipefail
+          mkdir -p "$TMPDIR"
+          python3 -B -m unittest -v genesis.test_genesis genesis.test_compiler \
+            genesis.test_world_create validation.red_headed_league.test_moment engine.luanti.test_launch \
+            engine.luanti.test_recovery_journal model.test_adapter model.test_reflection \
+            model.test_bridge model.test_spool_worker
+          (cd cognition && lua5.1 test_persistence.lua)
+          (cd cognition && lua5.1 test_navigation.lua)
+          lua5.1 world/test_narrative_state.lua
+          lua5.1 engine/luanti/mod/society/test_story_runtime.lua
+          lua5.1 engine/luanti/mod/society/test_world_projection.lua
+          if [[ -f engine/luanti/mod/society/test_interior_blueprints.lua ]]; then
+            lua5.1 engine/luanti/mod/society/test_interior_blueprints.lua
+          fi
+      - name: Prepare packaged product runtime
+        run: |
+          set -euo pipefail
+          free -h
+          cat /proc/pressure/memory
+          for path in /sys/fs/cgroup/memory.max /sys/fs/cgroup/memory.current; do
+            if [[ -f "$path" ]]; then cat "$path"; fi
+          done
+          rt="$GITHUB_WORKSPACE/engine/luanti/.runtime"
+          test -x /usr/libexec/luanti/luantiserver
+          test -x /usr/games/luanti
+          mkdir -p "$rt/root/usr/libexec/luanti" "$rt/root/usr/lib/x86_64-linux-gnu" \
+            "$rt/home/.luanti/games" "$rt/home/.minetest"
+          ln -s /usr/libexec/luanti/luantiserver "$rt/root/usr/libexec/luanti/luantiserver"
+          ln -s /usr/games/luanti "$rt/root/usr/libexec/luanti/luanti"
+          cp -a /usr/share/luanti/games/minetest_game "$rt/home/.luanti/games/"
+          ln -s ../.luanti/games "$rt/home/.minetest/games"
+      - name: Verify real model player dialogue, consequence and same-world recovery
+        env:
+          LLM_BASE_URL: ${{ vars.LLM_BASE_URL }}
+          MODEL_NAME: ${{ vars.MODEL_NAME }}
+          LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+        run: |
+          set -euo pipefail
+          python3 -B validation/red_headed_league/verify_playable.py \
+            --budget 600 --output "$GITHUB_WORKSPACE/.tmp/playable/artifacts"
+      - name: Upload only aggregate acceptance summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: wispiva-playable-acceptance
+          path: .tmp/playable/artifacts/playable-summary.json
+          if-no-files-found: error
+          retention-days: 14

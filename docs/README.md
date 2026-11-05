@@ -2,7 +2,7 @@
 
 分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的完整产品尝试。后两条线独立演进，不整体合入 `main`。
 
-当前执行状态（2026-11-05）：用户已恢复开发并授权独立验证分支及 GitHub Actions。v11 缺少角色／环境 checkpoint，保留冻结；启动器与恢复标记 12 项定向测试通过。接下来验证干净起点的正常提交与恢复，再完成玩家调查、交流和真实后果。详见[实施计划](PLAN.md)和[运行记录](../evidence/luanti/red-headed-league/2026-11-05/README.md)。
+当前执行状态（2026-11-05）：用户已恢复开发并授权独立验证分支及 GitHub Actions。v11 缺少角色／环境 checkpoint，保留冻结；启动器与恢复标记 12 项定向测试通过。[云端基线](https://github.com/kikoiio/Wispiva/actions/runs/42067547430) 已通过 119 项 Python、Lua 及 fixture 世界客户端正常停服恢复检查；接下来完成玩家调查、交流和真实后果。详见[实施计划](PLAN.md)和[运行记录](../evidence/luanti/red-headed-league/2026-11-05/README.md)。
 
 | 类型 | 状态 | 更新 / 核对 | 文档 |
 | --- | --- | --- | --- |
