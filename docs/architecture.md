@@ -1,6 +1,6 @@
 # 原型架构
 
-核对日期：2026-11-04。本页描述当前工作树；产品目标见[项目意图](intent.md)，计划与历史验收证据见[工作计划](PLAN.md)。
+核对日期：2026-11-05。本页描述当前工作树；产品目标见[项目意图](intent.md)，计划与历史验收证据见[工作计划](PLAN.md)。
 
 ## 入口与数据流
 
@@ -10,7 +10,7 @@
 
 `world-definition.mjs`、`core.mjs` 和 `actor.mjs` 管理规则、事实和角色观察；角色通过自身可见的观察选择行动，程序裁定结果。`activity.mjs` 将已提交变化投影为动态。作者界面是全知视图，角色输入受到信息边界约束。
 
-`model/` 负责模型配置、请求和素材检索。`loadModelConfig()` 从进程环境变量或 `.env` 读取 `WISPIVA_LLM_MODEL`、API 基址和凭据；进程环境变量优先，`WISPIVA_ENV_FILE` 可指定配置文件。模型 ID 没有写死在应用代码中。本机当前 CLI 配置来自 `.env`，模型为 `spark-x2.6`。GitHub Actions 的 `prototype-preview.yml` 使用合成模型，不读取模型配置。新增 `live-model-loop.yml` 将仓库级 `WISPIVA_LLM_MODEL`、`WISPIVA_LLM_BASE_URL`、`WISPIVA_LLM_API_KEY`（或已支持的 Qoder URL／key 回退）映射到当前单模型验收脚本；run [41967391134](https://github.com/kikoiio/Wispiva/actions/runs/41967391134) 的预检显示这些值在该 job 中为空，因此尚未发起模型请求。workflow 目前未绑定 GitHub Environment；若配置放在某个 Environment 中，还需将该环境绑定到 job。该结果不说明模型 ID 被写死，也不代表模型质量或 GitHub 登录失败。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
+`model/` 负责模型配置、请求和素材检索。`loadModelConfig()` 从进程环境变量或 `.env` 读取 `WISPIVA_LLM_MODEL`、API 基址和凭据；进程环境变量优先，`WISPIVA_ENV_FILE` 可指定配置文件。模型 ID 没有写死在应用代码中。本机 CLI 的 `.env` 使用 `spark-x2.6`。GitHub Actions 的 `prototype-preview.yml` 使用合成模型，不读取真实模型配置。仓库级 Actions Variables 当前配置为 `MODEL_NAME=GLM-5.3-Flash`、`LLM_BASE_URL=https://api.scnet.cn/api/llm/anthropic`，Secret 名称为 `LLM_API_KEY`（不记录其值）；Environment `phase1-g0-provider-acceptance` 没有模型变量或密钥。`live-model-loop.yml` 将这些现有名称映射到应用配置，并从 `/anthropic` 基址推断 Anthropic Messages 协议。Actions run [42000591823](https://github.com/kikoiio/Wispiva/actions/runs/42000591823) 使用该配置完成三次隔离建造／修复回路，指标 artifact 不含原始模型回复或密钥。早期 run [41967391134](https://github.com/kikoiio/Wispiva/actions/runs/41967391134) 因旧映射未接上这些名称而未发请求；run [41998490841](https://github.com/kikoiio/Wispiva/actions/runs/41998490841) 也在客户端修正前于发请求前失败，二者都不是模型质量结论。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
 
 ## 创建与反馈
 
@@ -30,7 +30,7 @@
 
 `WISPIVA_LLM_REASONING_EFFORT` 是可选的服务参数，留空沿用供应商默认；兼容性和输出质量需实测，不设通用推荐值。起点使用 NDJSON，不强制与之冲突的 JSON object 输出模式。
 
-当前 `model-client.mjs` 支持 OpenAI Responses、OpenAI 兼容 Chat Completions，以及 Anthropic Messages。默认协议是 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择，也可从 `/chat/completions` 或 `/anthropic` 基址推断。三种协议都会记录请求、流式响应、首段正文、空正文、截断、取消和供应商错误；Anthropic Messages 将 system 提示分离，并使用 JSON 指令提示而不依赖供应商专有 JSON 模式。真实供应商是否完整兼容，仍需用对应端点和模型 ID 实测，离线协议检查不构成供应商可用性证明。
+当前 `model-client.mjs` 支持 OpenAI Responses、OpenAI 兼容 Chat Completions，以及 Anthropic Messages。默认协议是 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择，也可从 `/chat/completions` 或 `/anthropic` 基址推断。三种协议都会记录请求、流式响应、首段正文、空正文、截断、取消和供应商错误；Anthropic Messages 将 system 提示分离，并使用 JSON 指令提示而不依赖供应商专有 JSON 模式。SCNet 官方将 `https://api.scnet.cn/api/llm/anthropic` 定义为 Anthropic 兼容基址，其消息端点为 `/v1/messages`，鉴权使用 Bearer token；此协议已由 run 42000591823 对当前模型和场景实测通过。[SCNet Anthropic API 文档](https://www2.scnet.cn/ac/openapi/doc/2.0/moduleapi/api/chat.html)。协议实现和一次供应商验收不代表所有模型、端点与输出模式均兼容。
 
 ## 保存与边界
 
