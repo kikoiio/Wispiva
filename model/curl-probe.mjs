@@ -17,13 +17,16 @@ function main() {
   if (/[\r\n]/.test(llm.apiKey)) throw new Error('Invalid credential format');
   const protocol = resolveModelProtocol(llm);
   const endpoint = buildModelEndpoint(llm.baseUrl, protocol);
-  const body = protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
-    ? { model: llm.model, messages: [{ role: 'user', content: 'Reply with exactly OK.' }], stream: false }
-    : { model: llm.model, input: 'Reply with exactly OK.', stream: false };
+  const body = protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+    ? { model: llm.model, max_tokens: 64, messages: [{ role: 'user', content: 'Reply with exactly OK.' }], stream: false }
+    : protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
+      ? { model: llm.model, messages: [{ role: 'user', content: 'Reply with exactly OK.' }], stream: false }
+      : { model: llm.model, input: 'Reply with exactly OK.', stream: false };
   const config = [
     `url = ${JSON.stringify(endpoint)}`,
     `header = ${JSON.stringify(`Authorization: Bearer ${llm.apiKey}`)}`,
     'header = "Content-Type: application/json"',
+    ...(protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES ? ['header = "anthropic-version: 2023-06-01"'] : []),
     `data = ${JSON.stringify(JSON.stringify(body))}`,
   ].join('\n') + '\n';
   const result = spawnSync('curl', [
@@ -55,15 +58,19 @@ function main() {
   });
   mkdirSync(join(root, '.tmp/shared-model'), { recursive: true });
   writeFileSync(join(root, '.tmp/shared-model/curl-latest.json'), JSON.stringify(report, null, 2) + '\n', { mode: 0o600 });
-  const texts = protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
-    ? report.response?.choices?.[0]?.message?.content
-    : (Array.isArray(report.response?.output) ? report.response.output : [])
+  const texts = protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+    ? (Array.isArray(report.response?.content) ? report.response.content : []).filter(item => item.type === 'text').map(item => item.text).join('')
+    : protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
+      ? report.response?.choices?.[0]?.message?.content
+      : (Array.isArray(report.response?.output) ? report.response.output : [])
         .flatMap((item) => Array.isArray(item.content) ? item.content : [])
         .filter((item) => item.type === 'output_text').map((item) => item.text).join('');
   console.log(JSON.stringify({ ...report, response: undefined,
-    responseStatus: protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
-      ? report.response?.choices?.[0]?.finish_reason ?? null
-      : report.response?.status ?? null,
+    responseStatus: protocol === MODEL_PROTOCOLS.ANTHROPIC_MESSAGES
+      ? report.response?.stop_reason ?? null
+      : protocol === MODEL_PROTOCOLS.CHAT_COMPLETIONS
+        ? report.response?.choices?.[0]?.finish_reason ?? null
+        : report.response?.status ?? null,
     outputText: texts || null, usage: report.response?.usage ?? null,
     providerError: report.response?.error ?? null,
     nonJsonBody: typeof report.response === 'string' ? report.response.slice(0, 2000) : undefined,
