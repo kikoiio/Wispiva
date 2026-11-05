@@ -1,9 +1,5 @@
 export { findRegion, findObject, sceneLayout, validateSceneDocument, validateSpatialLayout, formatDiagnostic, islandContains } from './scene-validation.js';
 
-export function createLibraryDescription(document) {
-  return `创建“${document.title}”：可进入的临水藏书屋、门廊、桥和室内阅读空间，保留物件身份与可编辑尺寸。`;
-}
-
 // 村庄级示例：一栋 library（书院）、多栋 house、path 石板路。兼作村庄生成的字段参考与测试夹具。
 export const villageScene = {
   schemaVersion: 1,

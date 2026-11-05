@@ -174,18 +174,6 @@ export function rng(seed = 83) {
   return () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 }
 
-export function collectStats(root) {
-  let triangles = 0, meshes = 0, instances = 0;
-  root.traverse(node => {
-    if (!node.isMesh) return;
-    meshes++;
-    const count = node.isInstancedMesh ? node.count : 1;
-    if (node.isInstancedMesh) instances += node.count;
-    triangles += (node.geometry.index ? node.geometry.index.count : node.geometry.attributes.position.count) / 3 * count;
-  });
-  return { triangles: Math.round(triangles), meshes, instances };
-}
-
 export function batchStaticMeshes(root) {
   root.updateWorldMatrix(true, true);
   const inverse = root.matrixWorld.clone().invert();

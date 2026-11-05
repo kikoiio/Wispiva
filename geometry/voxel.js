@@ -1,9 +1,7 @@
 import * as THREE from 'three';
 import { group, mesh, instances, exposedVoxelMesh } from './primitives.js';
-import { solidCamera } from './solid.js';
 import { libraryScene } from './scene-document.js';
 
-export const voxelCamera = solidCamera;
 const DEFAULT_UNIT = 0.42;
 const PARTS = ['terrain', 'library', 'interior', 'porch', 'bridge', 'nature'];
 const key = (x, y, z) => `${x},${y},${z}`;

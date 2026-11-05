@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { libraryScene, villageScene, validateSceneDocument, validateSpatialLayout } from '../geometry/scene-document.js';
 import { compileScene, compileSceneParts, disposeWorld } from '../geometry/scene-compiler.js';
 import { createUnfamiliarScene } from '../geometry/scene-fixtures.js';
-import { bridgePoint, localToWorld } from '../geometry/scene-validation.js';
+import { localToWorld } from '../geometry/scene-validation.js';
 import { validateCompiledSpatial } from '../geometry/compiled-spatial.js';
 import { buildSolid } from '../geometry/solid.js';
 import { buildVoxel } from '../geometry/voxel.js';

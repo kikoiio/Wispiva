@@ -1,5 +1,3 @@
-const CJK = /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/u;
-const WORD = /[a-z0-9_]/iu;
 const normalize = value => String(value ?? '').normalize('NFKC').toLowerCase();
 
 function terms(value) {
@@ -61,8 +59,4 @@ export function retrieveSource(source, queries, { limit = 6, excerptLimit = 1100
 export function sourceContextText(context) {
   if (!context?.hits?.length) return '';
   return context.hits.map((hit, index) => `【素材片段 ${index + 1}｜${hit.start}-${hit.end}】\n${hit.text}`).join('\n\n');
-}
-
-export function sourceSearchTerms(...values) {
-  return [...new Set(values.flatMap(value => terms(value)))].filter(term => CJK.test(term) || WORD.test(term)).slice(0, 40);
 }

@@ -1,6 +1,6 @@
 # 原型架构
 
-核对日期：2026-11-05。本页描述当前工作树；产品目标见[项目意图](intent.md)，计划与历史验收证据见[工作计划](PLAN.md)。
+核对日期：2026-11-05。本页描述当前实现；产品目标见[项目意图](intent.md)，验收范围与结果见[建造闭环验收归档](plans/2026-11-03-creation-loop-acceptance.md)。
 
 ## 入口与数据流
 
@@ -10,7 +10,7 @@
 
 `world-definition.mjs`、`core.mjs` 和 `actor.mjs` 管理规则、事实和角色观察；角色通过自身可见的观察选择行动，程序裁定结果。`activity.mjs` 将已提交变化投影为动态。作者界面是全知视图，角色输入受到信息边界约束。
 
-`model/` 负责模型配置、请求和素材检索。`loadModelConfig()` 从进程环境变量或 `.env` 读取 `WISPIVA_LLM_MODEL`、API 基址和凭据；进程环境变量优先，`WISPIVA_ENV_FILE` 可指定配置文件。模型 ID 没有写死在应用代码中。本机 CLI 的 `.env` 使用 `spark-x2.6`。GitHub Actions 的 `prototype-preview.yml` 使用合成模型，不读取真实模型配置。仓库级 Actions Variables 当前配置为 `MODEL_NAME=GLM-5.3-Flash`、`LLM_BASE_URL=https://api.scnet.cn/api/llm/anthropic`，Secret 名称为 `LLM_API_KEY`（不记录其值）；Environment `phase1-g0-provider-acceptance` 没有模型变量或密钥。`live-model-loop.yml` 将这些现有名称映射到应用配置，并从 `/anthropic` 基址推断 Anthropic Messages 协议。Actions run [42000591823](https://github.com/kikoiio/Wispiva/actions/runs/42000591823) 使用该配置完成三次隔离建造／修复回路，指标 artifact 不含原始模型回复或密钥。早期 run [41967391134](https://github.com/kikoiio/Wispiva/actions/runs/41967391134) 因旧映射未接上这些名称而未发请求；run [41998490841](https://github.com/kikoiio/Wispiva/actions/runs/41998490841) 也在客户端修正前于发请求前失败，二者都不是模型质量结论。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
+`model/` 负责模型配置、请求和素材检索。`loadModelConfig()` 从进程环境变量或 `.env` 读取模型 ID、API 基址和凭据；进程环境变量优先，`WISPIVA_ENV_FILE` 可指定配置文件。模型 ID 通过配置提供，不写死在应用逻辑中。GitHub Actions 的浏览器预览使用合成模型；独立实时回路工作流从仓库级 Variables 和 Secret 读取真实服务配置。素材保存在本机，创建对话按需提供检索片段，模型可请求一次补充检索；这不证明长文档理解可靠。
 
 ## 创建与反馈
 
@@ -30,7 +30,7 @@
 
 `WISPIVA_LLM_REASONING_EFFORT` 是可选的服务参数，留空沿用供应商默认；兼容性和输出质量需实测，不设通用推荐值。起点使用 NDJSON，不强制与之冲突的 JSON object 输出模式。
 
-当前 `model-client.mjs` 支持 OpenAI Responses、OpenAI 兼容 Chat Completions，以及 Anthropic Messages。默认协议是 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择，也可从 `/chat/completions` 或 `/anthropic` 基址推断。三种协议都会记录请求、流式响应、首段正文、空正文、截断、取消和供应商错误；Anthropic Messages 将 system 提示分离，并使用 JSON 指令提示而不依赖供应商专有 JSON 模式。SCNet 官方将 `https://api.scnet.cn/api/llm/anthropic` 定义为 Anthropic 兼容基址，其消息端点为 `/v1/messages`，鉴权使用 Bearer token；此协议已由 run 42000591823 对当前模型和场景实测通过。[SCNet Anthropic API 文档](https://www2.scnet.cn/ac/openapi/doc/2.0/moduleapi/api/chat.html)。协议实现和一次供应商验收不代表所有模型、端点与输出模式均兼容。
+`model-client.mjs` 支持 OpenAI Responses、OpenAI 兼容 Chat Completions 和 Anthropic Messages。默认协议为 Responses；可通过 `WISPIVA_LLM_PROTOCOL` 明确选择，也可根据 `/chat/completions` 或 `/anthropic` 基址推断。客户端记录流式响应、正文、截断、取消和供应商错误；Anthropic Messages 将 system 提示分离，并使用 JSON 指令提示，不依赖供应商专有 JSON 模式。不同供应商与模型的兼容性仍需按实际端点验证。
 
 ## 保存与边界
 
@@ -42,10 +42,10 @@
 
 ## 检查
 
-`node verify.mjs` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试，`scripts/` 包含手动和浏览器观察脚本；`.github/workflows/prototype-preview.yml` 定义云端浏览器验收。结构方案提交 `2c8d395` 的 [run 41772518381](https://github.com/kikoiio/Wispiva/actions/runs/41772518381) 通过离线与浏览器流程。之后的 [run 41783501746](https://github.com/kikoiio/Wispiva/actions/runs/41783501746) 通过离线检查、对话／活动、体素建造、创建恢复和截图步骤；合成场景包含 532 格湖岸、室内石桌和两位有支撑地点的人物，水面人物不作虚构投影，确认后的全景和室内截图已人工检查。该运行也覆盖生成失败的诊断显示修复。全应用请求增加 180 秒默认超时后的实现由 [run 41787319530](https://github.com/kikoiio/Wispiva/actions/runs/41787319530) 再次通过完整离线与浏览器流程。[run 41792778203](https://github.com/kikoiio/Wispiva/actions/runs/41792778203) 验证了确定性地板缺口修复、无模型回复时的持久化保护和完整浏览器流程。[run 41822596843](https://github.com/kikoiio/Wispiva/actions/runs/41822596843) 在提交 `662a2ad` 上通过离线检查、对话／活动、体素建造、创建恢复和截图观察步骤。[run 41825456201](https://github.com/kikoiio/Wispiva/actions/runs/41825456201) 在提交 `073aaa6` 上通过相同完整流程，覆盖诊断驱动的隐私修复提示及其回归。渲染地面高程修复提交 `72e4d77` 的 [run 41838838255](https://github.com/kikoiio/Wispiva/actions/runs/41838838255) 已由 GitHub 连接器确认完整通过离线检查、三段浏览器流程和 artifact 步骤；这些流程使用固定合成样本，不代表真实模型输出稳定或真实模型生成的完整场景已通过。
+`npm run check` 串行运行离线行为检查，使用合成模型，不读取私有模型配置、不调用真实模型，也不启动浏览器。`tests/` 包含定向测试与观察脚本；`scripts/` 包含基准、soak 和浏览器流程。`.github/workflows/prototype-preview.yml` 运行合成模型浏览器验收，`live-model-loop.yml` 使用仓库配置验证真实模型回路，`prototype-soak.yml` 在合成世界上运行重启 soak。最近一次范围验收和历史结果见[建造闭环验收归档](plans/2026-11-03-creation-loop-acceptance.md)。
 
 `npm run benchmark:voxel` 用 756 和 5,000 方块的确定性样本输出上下文字节数、快照文件大小、重载后的方块数，以及样本写入、上下文生成和重载的总耗时；它不单独测磁盘读取延迟，不测浏览器／GPU 渲染，也不替代真实场景验收。
 
-`npm run soak:simulation` 和 `.github/workflows/prototype-soak.yml` 使用合成世界做 1–14 个模拟日的进程重启测试，按天记录 RSS、存档大小、历史长度、cgroup 与临时目录空间，只上传指标文件。[Actions run 41683058142](https://github.com/kikoiio/Wispiva/actions/runs/41683058142) 完成了 7 日运行：最终历史 10,081 条、归档 22,480,522 字节、最大 RSS 478,092 KiB。该数据只描述合成场景，不代表真实世界或长期墙钟运行。
+`npm run soak:simulation` 和 `.github/workflows/prototype-soak.yml` 使用合成世界做 1–14 个模拟日的进程重启测试，按天记录 RSS、存档大小、历史长度、cgroup 与临时目录空间，只上传指标文件。Soak 结果只描述合成场景，不代表真实世界或长期墙钟运行；具体验收结果见计划归档。
 
 本分支只维护主原型；Luanti 社会实验位于独立分支，不是原型运行依赖。
