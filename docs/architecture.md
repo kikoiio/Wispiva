@@ -8,10 +8,10 @@
 
 | 模块 | 入口与职责 | 允许依赖的其他模块 |
 | --- | --- | --- |
-| `ui/` 页面交互 | `app.js` 管理页面状态与操作；`transport.js` 负责浏览器请求、事件订阅和回复流解析 | rendering、spatial、residents 的地点摘要 |
+| `ui/` 页面交互 | `app.js` 保留页面状态、请求顺序与事件绑定；`scenes.js` 独立管理场景挂载与释放；`activity.js` 管理动态列表及阅读位置；`transport.js` 处理通信 | rendering、spatial、residents 的地点摘要 |
 | `rendering/` 三维呈现 | `scene.js`、`world-scene.js`、`voxel-scene.js` 管理画面、相机与释放；`scene-compiler.js` 编译几何；`scene-check.mjs` 封装候选编译检查与清理 | spatial |
 | `transport/` HTTP 与实时通信 | `http-server.mjs` 接收注入的应用实例，处理 API、SSE、请求边界；`assets.mjs` 维护浏览器文件白名单 | 无业务模块 |
-| `creation/` 世界创建流程 | `index.mjs` 装配应用；`world-creation.mjs` 协调讨论、建造与起点确认；`world-runtime.mjs` 调度运行中的世界；`recovery.mjs` 恢复中断的创建 | simulation、residents、model、voxel、spatial、rendering、storage |
+| `creation/` 世界创建流程 | `world-creation.mjs` 装配工作区、请求会话、控制操作和独立流程；`world-runtime.mjs` 调度运行中的世界；职责细分见下文 | simulation、residents、model、voxel、spatial、rendering、storage |
 | `voxel/` 体素编辑 | `voxel-world.mjs` 管理事务与撤销／重做；`voxel-tools.mjs`、`creation-attempt.mjs` 校验命令；`context.mjs` 投影模型可读的当前场景 | spatial、storage |
 | `spatial/` 空间规则 | 场景数据契约、空间诊断、局部修复命令与世界地点绑定；不加载 Three.js | 无 |
 | `simulation/` 世界模拟 | `core.mjs` 推进时间与提交状态；`world-definition.mjs` 定义规则和行动效果；`activity.mjs` 投影已提交的变化 | spatial、storage |
@@ -37,7 +37,21 @@ flowchart TD
   simulation --> storage
 ```
 
-图中虚线表示通信或装配关系；HTTP 模块不导入创建模块。完整允许依赖见表格，跨模块循环会使验证失败。浏览器依赖另做递归检查，确保不会意外加载 Node.js 模块；空间和模拟代码不能反向导入渲染器。新增浏览器文件必须加入显式白名单，配置和存档不会通过静态路由公开。
+图中虚线表示通信或装配关系；HTTP 模块不导入创建模块。完整允许依赖见表格，跨模块循环会使验证失败。`scripts/module-graph.mjs` 递归发现子目录中的源文件，以词法扫描识别导入，拒绝无法静态检查的计算式动态导入；语法有效性由 Node.js 检查。浏览器依赖另做递归检查，确保不会意外加载 Node.js 模块；空间和模拟代码不能反向导入渲染器。新增浏览器文件必须加入显式白名单，配置和存档不会通过静态路由公开。
+
+## 创建流程内部边界
+
+| 组件 | 状态与责任 |
+| --- | --- |
+| `workspace.mjs` | 持有创建数据和体素草稿，生成公开视图及保存快照；同步控制操作先保存候选状态，再替换当前状态 |
+| `request-session.mjs` | 独占当前创建请求，管理取消信号、进度和待恢复标记；完成后移除监听器，忽略旧请求的迟到进度 |
+| `flows/discussion.mjs` | 讨论、建造命令验证、有限自动修复循环与逐轮提交；通过工作区保存，不管理运行世界或模型协议 |
+| `flows/genesis.mjs` | 分阶段生成起点、保存检查点、校验候选和恢复失败阶段；复用请求会话及模型网关 |
+| `model-gateway.mjs` | 集中加载模型配置、附加请求时限、调用协议客户端和写入审计摘要；流程只传入消息、信号与进度回调 |
+| `controls.mjs` | 校验作者控制指令，将素材、撤销／重做、修复和世界切换交给各自的所有者 |
+| `world-lifecycle.mjs` | 持有运行世界实例，处理确认起点、归档、打开与关闭；不执行创建对话 |
+
+工作区一次只允许一条创建流程运行。流程获得本次创建数据和体素编辑器，创建请求会话负责取消与完成，工作区负责保存；控制操作只在空闲时替换创建状态。调用者仍使用原有的 `state`、`control`、`discussStep` 和 `worldStep` 接口，存档版本不变。
 
 ## 数据流
 
@@ -49,7 +63,7 @@ flowchart TD
 
 `model/config.mjs` 从进程环境变量或 `.env` 读取配置，环境变量优先；`WISPIVA_ENV_FILE` 可指定配置文件。字段见 [`.env.example`](../.env.example)。客户端支持 Responses、Chat Completions 和 Anthropic Messages，兼容性需按实际端点验证。
 
-`.data/prototype/` 保存创建过程、世界状态与归档，现有文件名和版本保持兼容。体素、对象归属、撤销／重做历史和对话结果一起写入 `creation.json` 的 `voxelSnapshot`，文件替换成功后才更新内存；旧独立体素文件仍可迁移。文件操作集中在 `storage/`，领域模块保留数据校验与提交顺序。损坏或不支持的创建存档会阻止启动并保留原文件。运行状态与创建状态分文件保存，不具备跨文件事务。
+`.data/prototype/` 保存创建过程、世界状态与归档，现有文件名和版本保持兼容。体素、对象归属、撤销／重做历史和对话结果一起写入 `creation.json` 的 `voxelSnapshot`，文件替换成功后才更新内存；旧独立体素文件仍可迁移。更换素材、重置草稿等控制操作也先写盘再替换状态，保存失败保留原来的素材、讨论版本和草稿标识。确认或打开世界时，活动世界先写入自己的文件；此时即使创建元数据保存失败，内存仍反映已生效的世界，已确认草稿不会再次提供确认。文件操作集中在 `storage/`，领域模块保留数据校验与提交顺序。损坏或不支持的创建存档会阻止启动并保留原文件。运行状态与创建状态分文件保存，不具备跨文件事务。
 
 页面关闭后，仍在运行的服务可以继续推进世界；服务退出时冻结，重启不补算离线时间。完整历史仍驻留内存并整体写入文件，长期容量和断电耐久性尚未验证。
 
@@ -57,7 +71,7 @@ flowchart TD
 
 | 入口 | 范围 |
 | --- | --- |
-| `npm run check` | 检查十个模块与启动入口的 JavaScript 语法，自动发现并串行运行 `tests/*.test.mjs`、`tests/observe-*.mjs`、`model/observe-*.mjs`；覆盖模块依赖、浏览器依赖链、HTTP 文件边界和存档失败；使用合成模型，不读取私有配置、不调用真实模型、不启动浏览器 |
+| `npm run check` | 递归发现仓库源文件并检查语法，串行运行 `tests/` 的测试以及 `tests/`、`model/` 的观察检查；覆盖嵌套模块依赖、浏览器依赖链、HTTP 文件边界、请求生命周期和保存失败；使用合成模型，不读取私有配置、不调用真实模型、不启动浏览器 |
 | `npm run benchmark:voxel` | 756 与 5,000 方块样本的上下文大小、快照大小、重载数量及总耗时 |
 | `npm run soak:simulation` | 1–14 个模拟日的合成世界与进程重启检查 |
 | `.github/workflows/prototype-preview.yml` | 离线检查与合成模型浏览器流程 |

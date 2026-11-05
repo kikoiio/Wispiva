@@ -3,6 +3,8 @@
 const browserModules = [
   'ui/app.js',
   'ui/transport.js',
+  'ui/scenes.js',
+  'ui/activity.js',
   'residents/actor-location-summary.mjs',
   'rendering/scene.js',
   'rendering/world-scene.js',
@@ -37,8 +39,7 @@ const assets = {
 
 // Preserve the previous public URLs through explicit aliases only.
 const aliases = {
-  '/app.js': '/ui/app.js',
-  '/transport.js': '/ui/transport.js',
+  ...Object.fromEntries(browserModules.filter(file => file.startsWith('ui/')).map(file => [file.slice(2), `/${file}`])),
   '/style.css': '/ui/style.css',
   '/actor-location-summary.mjs': '/residents/actor-location-summary.mjs',
   '/scene.js': '/rendering/scene.js',

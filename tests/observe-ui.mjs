@@ -9,6 +9,8 @@ const html = readFileSync(new URL('../ui/index.html', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../ui/style.css', import.meta.url), 'utf8');
 const app = readFileSync(new URL('../ui/app.js', import.meta.url), 'utf8');
 const transport = readFileSync(new URL('../ui/transport.js', import.meta.url), 'utf8');
+const scenesModule = readFileSync(new URL('../ui/scenes.js', import.meta.url), 'utf8');
+const activityModule = readFileSync(new URL('../ui/activity.js', import.meta.url), 'utf8');
 const sceneSource = readFileSync(new URL('../rendering/scene.js', import.meta.url), 'utf8');
 const clone = (value) => structuredClone(value);
 const settle = async () => { for (let i = 0; i < 8; i++) await flush(); };
@@ -186,7 +188,13 @@ async function page(initial = emptyState(), options = {}) {
     if (path === '/api/state') return options.initialGet ? options.initialGet() : Response.json(server);
     throw new Error(`Unexpected UI request ${path}`);
   };
-  const memoryScene = (host, state) => ({ host, mode: '3d', disposed: false, updates: [clone(state)], update(next) { assert(!this.disposed); this.updates.push(clone(next)); }, dispose() { this.disposed = true; host.replaceChildren(); } });
+  const memoryScene = (host, state) => ({
+    host, mode: '3d', disposed: false, updates: [clone(state)], frames: 0, cutaways: [],
+    update(next) { assert(!this.disposed); this.updates.push(clone(next)); },
+    frame() { assert(!this.disposed); this.frames++; },
+    cutaway(value) { assert(!this.disposed); this.cutaways.push(value); },
+    dispose() { this.disposed = true; host.replaceChildren(); },
+  });
   const loadScene = async () => ({ createScene: async (host, state) => {
     if (failScenes) { failScenes--; throw new Error('Synthetic scene failure'); }
     const instance = memoryScene(host, state);
@@ -199,19 +207,27 @@ async function page(initial = emptyState(), options = {}) {
     voxelScenes.push(instance);
     return instance;
   } });
-  assert.equal(app.split("import('../rendering/scene.js')").length, 2);
-  assert.equal(app.split("import('../rendering/voxel-scene.js')").length, 2);
+  assert.equal(scenesModule.split("import('../rendering/scene.js')").length, 2);
+  assert.equal(scenesModule.split("import('../rendering/voxel-scene.js')").length, 2);
   const context = vm.createContext({ document, window, inspectVoxelSpaces, buildVoxelRepairCommands, actorLocationSummary, EventSource: MemorySource, performance: { now: () => now }, fetch: fetchUI, AbortController, TextDecoder, console, __loadSceneModule: loadScene, __loadVoxelSceneModule: loadVoxelScene });
   // vm.Script needs no experimental module flags. Remove only the ESM export
   // declarations and evaluate the production module in its own lexical scope.
-  const transportModule = new vm.Script(`(() => {\n${transport.replace(/^export (?=function )/gm, '')}\nreturn { createTransport };\n})()`, { filename: 'ui/transport.js' }).runInContext(context);
-  context.createTransport = transportModule.createTransport;
+  for (const [filename, source, factory] of [
+    ['ui/transport.js', transport, 'createTransport'],
+    ['ui/scenes.js', scenesModule
+      .replace("import('../rendering/scene.js')", '__loadSceneModule()')
+      .replace("import('../rendering/voxel-scene.js')", '__loadVoxelSceneModule()'), 'createSceneSlots'],
+    ['ui/activity.js', activityModule, 'createActivityView'],
+  ]) {
+    const module = new vm.Script(`(() => {\n${source.replace(/^export (?=function )/gm, '')}\nreturn { ${factory} };\n})()`, { filename }).runInContext(context);
+    context[factory] = module[factory];
+  }
   const script = app
     .replace("import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';", '')
     .replace("import { actorLocationSummary } from '../residents/actor-location-summary.mjs';", '')
     .replace("import { createTransport } from './transport.js';", '')
-    .replace("import('../rendering/scene.js')", '__loadSceneModule()')
-    .replace("import('../rendering/voxel-scene.js')", '__loadVoxelSceneModule()');
+    .replace("import { createSceneSlots } from './scenes.js';", '')
+    .replace("import { createActivityView } from './activity.js';", '');
   new vm.Script(script, { filename: 'ui/app.js' }).runInContext(context);
   const api = {
     document, elements, requests, sources, scenes, voxelScenes, timers, sceneStarts,
@@ -244,7 +260,7 @@ await check('single entry preserves palette and local dependencies, removes obso
   assert.match(css, /--paper: #e8e0d0/); assert.match(css, /--night: #0e1317/); assert.match(css, /--red: #a64f4a/);
   assert.match(css, /focus-visible/); assert.match(css, /prefers-reduced-motion/); assert.match(css, /max-width: 480px/);
   assert.match(sceneSource, /export async function createScene\(host, state\)/);
-  assert.doesNotMatch(app, /innerHTML|insertAdjacentHTML|setTimeout|localStorage/);
+  assert.doesNotMatch(app + scenesModule + activityModule, /innerHTML|insertAdjacentHTML|setTimeout|localStorage/);
 });
 await check('world view reports semantic actor locations without implying exact coordinates', () => withPage(worldState(), async (p) => {
   assert.equal(p.$('actor-location-summary').textContent, '人物地点（地点级）：林：灯室');
@@ -541,6 +557,46 @@ await check('spatial repair action sends only the first diagnostic with its obje
   await inspection.children[1].dispatch('click').done; await settle();
   assert.equal(p.requests.filter((entry) => entry.path === '/api/creation-chat').length, 1);
 }));
+await check('page camera controls preserve interior mode across updates and reset with a new voxel slot', () => {
+  const next = emptyState();
+  next.creation.voxelId = 'voxel-one';
+  next.creation.voxel = { revision: 0, cells: [{ position: [0, 0, 0], material: 'wood' }], objects: [] };
+  return withPage(next, async (p) => {
+    const scene = p.voxelScenes[0];
+    await p.click('voxel-frame'); assert.equal(scene.frames, 1);
+    await p.click('voxel-interior');
+    assert.deepEqual(scene.cutaways, [true]);
+    assert.equal(p.$('voxel-interior').attributes['aria-pressed'], 'true');
+    assert.equal(p.$('voxel-interior').textContent, '显示屋顶');
+    next.creation.voxel.revision++;
+    await p.push(next);
+    assert.equal(p.voxelScenes.length, 1);
+    await p.click('voxel-interior'); assert.deepEqual(scene.cutaways, [true, false]);
+    await p.click('voxel-interior');
+    next.creation.voxelId = 'voxel-two';
+    await p.push(next);
+    assert.equal(scene.disposed, true);
+    assert.equal(p.$('voxel-interior').attributes['aria-pressed'], 'false');
+    assert.equal(p.$('voxel-interior').textContent, '查看室内');
+    await p.click('voxel-interior'); assert.deepEqual(p.voxelScenes[1].cutaways, [true]);
+  });
+});
+await check('voxel world scenes update moving actors once without remounting or enabling creation camera controls', () => {
+  const next = worldState();
+  next.genesis = { voxel: { revision: 0, cells: [{ position: [0, 0, 0], material: 'wood' }], objects: [] } };
+  next.voxelActors = [{ id: 'lin', position: [0, 1, 0] }];
+  return withPage(next, async (p) => {
+    const scene = p.voxelScenes[0], count = scene.updates.length;
+    next.voxelActors[0].position = [1, 1, 0];
+    await p.push(next); await p.push(next);
+    assert.equal(p.voxelScenes.length, 1);
+    assert.equal(scene.updates.length, count + 1);
+    assert.deepEqual(scene.updates.at(-1).actors, next.voxelActors);
+    assert.equal(p.$('voxel-frame').disabled, true);
+    assert.equal(p.$('voxel-interior').disabled, true);
+    assert.equal(p.$('scene-host').dataset.revision, '0');
+  });
+});
 await check('malformed response reports a recoverable error and does not restore a suppressed draft', () => withPage(draftState(), async (p) => {
   p.route('/api/world-generate', () => new Response('event: result\ndata: {broken}\n\n', { headers: { 'content-type': 'text/event-stream' } }));
   await p.click('world-generate'); await settle();

@@ -1,55 +1,40 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { discoverModuleFiles, inspectModuleImports, resolveModuleImport, validateModuleGraph } from '../scripts/module-graph.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const layers = {
-  ui: ['rendering', 'spatial', 'residents'],
-  rendering: ['spatial'],
-  transport: [],
-  creation: ['simulation', 'residents', 'model', 'voxel', 'spatial', 'rendering', 'storage'],
-  voxel: ['spatial', 'storage'],
-  spatial: [],
-  simulation: ['spatial', 'storage'],
-  residents: ['simulation'],
-  model: [],
-  storage: [],
-};
-const moduleFiles = Object.keys(layers).flatMap(layer => readdirSync(resolve(root, layer))
-  .filter(name => /\.(?:mjs|js)$/.test(name) && !name.startsWith('observe-'))
-  .map(name => resolve(root, layer, name)));
-const imports = source => [...source.matchAll(/\b(?:import|export)\s+(?:[^'";]*?\s+from\s*)?['"]([^'"]+)['"]|\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g)]
-  .map(match => match[1] ?? match[2]);
+const moduleFiles = discoverModuleFiles(root);
+const imports = file => inspectModuleImports(readFileSync(file, 'utf8'), relative(root, file));
 const layerOf = file => relative(root, file).split(sep)[0];
 
 test('ten module boundaries resolve their imports and have no dependency cycles', () => {
-  const edges = new Map(Object.keys(layers).map(layer => [layer, new Set()]));
-  for (const file of moduleFiles) {
-    const owner = layerOf(file);
-    for (const specifier of imports(readFileSync(file, 'utf8'))) {
-      if (!specifier.startsWith('.') && !specifier.startsWith('/')) continue;
-      if (specifier.startsWith('/vendor/')) continue;
-      const target = specifier.startsWith('/') ? resolve(root, `.${specifier}`) : resolve(dirname(file), specifier);
-      assert(existsSync(target), `${relative(root, file)} has missing import ${specifier}`);
-      const dependency = layerOf(target);
-      if (dependency === owner) continue;
-      assert(layers[owner].includes(dependency), `${owner} must not depend on ${dependency}: ${relative(root, file)}`);
-      edges.get(owner).add(dependency);
+  validateModuleGraph(root);
+});
+
+test('creation flows receive request, persistence and runtime capabilities instead of constructing them', () => {
+  const forbidden = new Set([
+    'creation/world-creation.mjs', 'creation/workspace.mjs', 'creation/request-session.mjs',
+    'creation/world-lifecycle.mjs', 'creation/controls.mjs', 'creation/model-gateway.mjs',
+    'model/config.mjs', 'model/model-client.mjs',
+  ]);
+  for (const file of moduleFiles.filter(file => relative(root, file).startsWith(`creation${sep}flows${sep}`))) {
+    for (const specifier of imports(file)) {
+      const target = resolveModuleImport(root, file, specifier);
+      if (!target) continue;
+      const local = relative(root, target).split(sep).join('/');
+      assert(!forbidden.has(local) && !['storage', 'transport', 'ui', 'simulation'].includes(layerOf(target)),
+        `${relative(root, file)} must use injected capabilities instead of ${local}`);
     }
   }
-  const visit = (layer, path) => {
-    assert(!path.includes(layer), `Module dependency cycle: ${[...path, layer].join(' → ')}`);
-    for (const dependency of edges.get(layer)) visit(dependency, [...path, layer]);
-  };
-  for (const layer of Object.keys(layers)) visit(layer, []);
 });
 
 test('domain modules delegate file access and spatial rules do not load a rendering engine', () => {
   for (const file of moduleFiles) {
     const owner = layerOf(file);
-    const dependencies = imports(readFileSync(file, 'utf8'));
+    const dependencies = imports(file);
     if (['creation', 'simulation', 'residents', 'voxel', 'spatial'].includes(owner)) {
       assert(!dependencies.some(specifier => /^(?:node:)?fs(?:\/|$)/.test(specifier)), `${relative(root, file)} bypasses storage`);
     }
@@ -64,13 +49,12 @@ test('browser entry imports stay browser compatible through their full dependenc
   const visit = file => {
     if (seen.has(file)) return;
     seen.add(file);
-    for (const specifier of imports(readFileSync(file, 'utf8'))) {
+    for (const specifier of imports(file)) {
       assert(!specifier.startsWith('node:'), `Browser dependency ${relative(root, file)} loads ${specifier}`);
-      if (specifier === 'three' || specifier.startsWith('three/') || specifier.startsWith('/vendor/')) continue;
+      if (specifier === 'three' || specifier.startsWith('three/')) continue;
       assert(specifier.startsWith('.') || specifier.startsWith('/'), `Unknown browser import ${specifier}`);
-      const target = specifier.startsWith('/') ? resolve(root, `.${specifier}`) : resolve(dirname(file), specifier);
-      assert(existsSync(target), `Missing browser module ${specifier} from ${relative(root, file)}`);
-      visit(target);
+      const target = resolveModuleImport(root, file, specifier);
+      if (target) visit(target);
     }
   };
   visit(resolve(root, 'ui/app.js'));

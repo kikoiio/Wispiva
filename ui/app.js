@@ -1,6 +1,8 @@
 import { buildVoxelRepairCommands, inspectVoxelSpaces } from '../spatial/voxel-inspection.js';
 import { actorLocationSummary } from '../residents/actor-location-summary.mjs';
 import { createTransport } from './transport.js';
+import { createSceneSlots } from './scenes.js';
+import { createActivityView } from './activity.js';
 
 const transport = createTransport({ fetch, EventSource: typeof EventSource === 'function' ? EventSource : null, TextDecoder });
 
@@ -19,7 +21,6 @@ const ui = Object.fromEntries([
   'activity-scroll', 'activity-log', 'activity-empty', 'activity-new', 'world-status',
   'request-status', 'model-progress', 'model-phase', 'model-elapsed', 'model-cancel', 'operation-error',
 ].map((id) => [id, $(id)]));
-const kinds = { origin: '起点', action: '行动', speech: '说话', environment: '环境', failure: '未完成' };
 const list = (value) => Array.isArray(value) ? value : [];
 const text = (value, fallback = '') => typeof value === 'string' && value.trim() ? value : fallback;
 const finite = (value) => typeof value === 'number' && Number.isFinite(value);
@@ -41,17 +42,18 @@ let stateVersion = 0, eventVersion = 0, syncController = null;
 let localTask = null, controlBusy = false, cancelBusy = false, cancelRequested = false;
 let localError = '', composing = false, suppressEnterUntil = 0, suppressedDraft = null;
 let progress = null, progressTimer = null, archiveSignature = '', draftSignature = '';
-let activityWorld = null, activityRevision = null, activities = new Map(), activityNodes = new Map();
-let following = true, unread = 0;
-let pendingActivityScrollTop = null;
 const messageNodes = new Map();
 let dialogueNotice = null;
 const requests = new Set();
-const slots = {
-  draft: { host: ui['world-draft-scene'], key: null, token: 0, scene: null, latest: null, signature: '' },
-  voxel: { host: ui['voxel-scene'], key: null, token: 0, scene: null, latest: null, signature: '' },
-  world: { host: ui['scene-host'], key: null, token: 0, scene: null, latest: null, signature: '' },
-};
+const activityView = createActivityView({
+  scroll: ui['activity-scroll'], log: ui['activity-log'], empty: ui['activity-empty'],
+  newButton: ui['activity-new'], createNode: node, formatMinute: minute,
+});
+const sceneSlots = createSceneSlots({
+  hosts: { draft: ui['world-draft-scene'], voxel: ui['voxel-scene'], world: ui['scene-host'] },
+  createNode: node,
+  onVoxelChange: renderVoxelStatus,
+});
 const creating = () => state?.creation?.mode !== 'world';
 const pending = () => Boolean(localTask || state?.model?.pending);
 const activeKind = () => state?.model?.pending ? state.model.kind : localTask?.kind;
@@ -91,8 +93,8 @@ function updateControls() {
   ui['creation-mode'].disabled = locked || !creating();
   ui['creation-retry'].disabled = locked || !creating() || !latestRetry();
   ui['creation-adjust'].disabled = locked || !creating() || !latestRetry();
-  ui['voxel-frame'].disabled = !slots.voxel.scene;
-  ui['voxel-interior'].disabled = !slots.voxel.scene || !state?.creation?.voxel?.cells?.length;
+  ui['voxel-frame'].disabled = !sceneSlots.voxelReady;
+  ui['voxel-interior'].disabled = !sceneSlots.voxelReady || !state?.creation?.voxel?.cells?.length;
   ui['creation-input'].disabled = locked || !creating();
   ui['creation-send'].disabled = locked || !creating() || composing || !ui['creation-input'].value.trim();
   ui['source-input'].disabled = locked || !creating();
@@ -287,7 +289,7 @@ function renderDraft() {
   const draft = currentDraft();
   ui['world-draft'].hidden = !draft;
   ui['world-create'].classList.toggle('has-draft', Boolean(draft));
-  if (!draft) { releaseScene(slots.draft); draftSignature = ''; return; }
+  if (!draft) { sceneSlots.release('draft'); draftSignature = ''; return; }
   const world = draft.definition?.world;
   if (!world) return;
   setText(ui['world-draft-title'], text(world.title, '世界草稿'));
@@ -304,157 +306,29 @@ function renderDraft() {
       return [node('dt', title), description];
     }));
   }
-  if (list(state.creation.voxel?.cells).length) { syncVoxel(slots.draft, `voxel-draft:${draft.id}`, state.creation.voxel); return; }
-  syncScene(slots.draft, draft.id, { world, scene: { document: draft.definition.scene, revision: 0 }, paused: true, worldMinute: 0, revision: 0 });
+  activityView.restoreScroll();
+  if (list(state.creation.voxel?.cells).length) { sceneSlots.syncVoxel('draft', `voxel-draft:${draft.id}`, state.creation.voxel); return; }
+  sceneSlots.syncScene('draft', draft.id, { world, scene: { document: draft.definition.scene, revision: 0 }, paused: true, worldMinute: 0, revision: 0 });
 }
 
-function updateUnread() {
-  ui['activity-new'].hidden = following || unread === 0;
-  setText(ui['activity-new'], `${unread} 条新动态 · 回到底部`);
-}
-const changePattern = /^(.*?)(\d+)\s*(?:→|->)\s*(\d+)(.*)$/u;
-function renderActivityText(element, value) {
-  const match = changePattern.exec(value || '');
-  if (!match) { element.textContent = value || ''; return; }
-  const [, label, before, after, tail] = match;
-  if (!label.trim()) { element.textContent = value; return; }
-  renderActivityChange(element, label, before, after, tail);
-}
-function renderActivityChange(element, label, before, after, tail) {
-  const signature = `${label}|${before}|${after}|${tail}`;
-  if (element.dataset.change === signature) return;
-  element.dataset.change = signature;
-  const line = node('span', '', 'activity-change');
-  line.append(node('span', label.trim(), 'change-label'));
-  const delta = Number(after) - Number(before);
-  const chip = node('span', '', `change-chip ${delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : 'is-flat'}`);
-  chip.append(node('b', before), node('span', '→', 'change-arrow'), node('b', after));
-  line.append(chip);
-  if (tail.trim()) line.append(node('span', tail.trim(), 'change-tail'));
-  element.replaceChildren(line);
-}
-function isLegacyBaseEnvironmentEntry(entry) {
-  return entry.kind === 'environment' && entry.revision === 0 && !entry.detail;
-}
-function renderActivity(next) {
-  const key = next.instanceId || next.genesis?.instanceId || next.genesis?.draftId || next.world?.title;
-  const reset = key !== activityWorld || finite(activityRevision) && finite(next.revision) && next.revision < activityRevision;
-  if (reset) {
-    activities.clear(); activityNodes.clear(); ui['activity-log'].replaceChildren();
-    following = true; unread = 0; pendingActivityScrollTop = null; activityWorld = key;
+function renderVoxelStatus(phase, world) {
+  if (phase === 'loading') {
+    setText(ui['voxel-status'], '正在更新画布…');
+    ui['voxel-empty'].hidden = true;
+    ui['voxel-interior'].setAttribute('aria-pressed', 'false');
+    setText(ui['voxel-interior'], '查看室内');
+  } else if (phase === 'ready') {
+    setText(ui['voxel-status'], world.error || `画布版本 ${world.revision} · ${list(world.cells).length} 个方块 · ${list(world.objects).length} 个对象`);
+    ui['voxel-empty'].hidden = Boolean(world.error || list(world.cells).length);
+  } else if (phase === 'failed') {
+    setText(ui['voxel-status'], '草稿状态已收到，画面载入失败。');
+    ui['voxel-empty'].hidden = true;
   }
-  activityRevision = next.revision;
-  const scroll = ui['activity-scroll'];
-  const wasFollowing = following;
-  const top = scroll.getBoundingClientRect().top;
-  const anchor = !wasFollowing ? [...ui['activity-log'].children].find((entry) => entry.getBoundingClientRect().bottom > top) : null;
-  const anchorTop = anchor?.getBoundingClientRect().top;
-  const previous = new Set(activities.keys());
-  for (const entry of list(next.activity)) {
-    if (!entry || typeof entry.id !== 'string' || !entry.id || !Object.hasOwn(kinds, entry.kind) || typeof entry.text !== 'string') continue;
-    activities.set(entry.id, { id: entry.id, revision: finite(entry.revision) ? entry.revision : 0, minute: entry.minute, kind: entry.kind, text: entry.text, detail: text(entry.detail) });
-  }
-  const entries = [...activities.values()]
-    .filter((entry) => !isLegacyBaseEnvironmentEntry(entry))
-    .sort((a, b) => a.revision - b.revision).slice(-300);
-  activities = new Map(entries.map((entry) => [entry.id, entry]));
-  for (const [id, item] of activityNodes) if (!activities.has(id)) { item.remove(); activityNodes.delete(id); }
-  entries.forEach((entry, index) => {
-    let item = activityNodes.get(entry.id);
-    if (!item) {
-      item = node('li'); item.dataset.activityId = entry.id;
-      const meta = node('div', '', 'activity-meta'); meta.append(node('time'), node('span'));
-      item.append(meta, node('p', '', 'activity-text'), node('p', '', 'activity-detail'));
-      activityNodes.set(entry.id, item);
-    }
-    item.className = `activity-${entry.kind}`;
-    setText(item.children[0].children[0], minute(entry.minute));
-    setText(item.children[0].children[1], kinds[entry.kind]);
-    renderActivityText(item.children[1], entry.text);
-    setText(item.children[2], entry.detail);
-    item.children[2].hidden = !entry.detail;
-    if (ui['activity-log'].children[index] !== item) ui['activity-log'].insertBefore(item, ui['activity-log'].children[index] || null);
-  });
-  ui['activity-empty'].hidden = entries.length > 0;
-  if (wasFollowing) { scroll.scrollTop = scroll.scrollHeight; pendingActivityScrollTop = scroll.scrollTop; unread = 0; }
-  else {
-    if (anchor?.parentNode) scroll.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
-    unread = Math.min(300, unread + entries.filter((entry) => !previous.has(entry.id)).length);
-  }
-  updateUnread();
+  updateControls();
 }
 
-function releaseScene(slot) {
-  if (!slot.key && !slot.scene) return;
-  slot.token++;
-  disposeSceneSafely(slot.scene);
-  slot.scene = null; slot.key = null; slot.signature = ''; slot.latest = null;
-  slot.host.replaceChildren();
-}
-function disposeSceneSafely(scene) {
-  try { scene?.dispose(); } catch {}
-}
-function sceneLoading(message = '正在载入画面…') {
-  const loading = node('div', '', 'scene-loading');
-  loading.setAttribute('role', 'status');
-  loading.append(node('span', '', 'scene-loading-mark'), node('span', message));
-  return loading;
-}
-function sceneFailure(slot, token, cause = null) {
-  if (token !== slot.token || closed) return;
-  disposeSceneSafely(slot.scene);
-  slot.scene = null;
-  const error = node('div', '', 'scene-error');
-  error.append(node('p', '场景暂时无法显示，可以继续查看文字。'));
-  if (cause?.message) error.append(node('p', `载入原因：${cause.message}`, 'scene-error-detail'));
-  const retry = node('button', '重新载入场景', 'button secondary'); retry.type = 'button';
-  retry.addEventListener('click', () => {
-    const key = slot.key, latest = slot.latest;
-    releaseScene(slot);
-    if (latest && !closed) syncScene(slot, key, latest);
-  });
-  error.append(retry); slot.host.replaceChildren(error);
-}
-function restorePendingActivityScrollTop() {
-  if (pendingActivityScrollTop === null) return;
-  ui['activity-scroll'].scrollTop = pendingActivityScrollTop;
-  pendingActivityScrollTop = null;
-}
-function isCurrentSceneMount(slot, token) {
-  return !closed && token === slot.token;
-}
-async function mountCurrentScene(slot, mount, token) {
-  const { createScene } = await import('../rendering/scene.js');
-  if (!isCurrentSceneMount(slot, token)) return;
-  const scene = await createScene(mount, slot.latest);
-  if (!isCurrentSceneMount(slot, token)) { disposeSceneSafely(scene); return; }
-  slot.scene = scene;
-  scene.update(slot.latest);
-}
-function syncScene(slot, key, next) {
-  if (closed || !next.world || !next.scene?.document) { releaseScene(slot); return; }
-  restorePendingActivityScrollTop();
-  const signature = `${next.revision}:${next.worldMinute}:${next.paused}:${next.scene.revision ?? 0}:${next.world.environment?.weather ?? ''}`;
-  if (slot.key === key) {
-    slot.latest = next;
-    if (slot.scene && slot.signature !== signature) {
-      try { slot.scene.update(next); } catch { sceneFailure(slot, slot.token); }
-    }
-    slot.signature = signature;
-    return;
-  }
-  releaseScene(slot);
-  slot.key = key; slot.latest = next; slot.signature = signature;
-  const token = ++slot.token;
-  const mount = node('div', '', 'scene-mount');
-  mount.append(sceneLoading());
-  slot.host.replaceChildren(mount);
-  void mountCurrentScene(slot, mount, token).catch(error => sceneFailure(slot, token, error));
-}
-
-function syncVoxel(slot, key, world) {
-  restorePendingActivityScrollTop();
-  if (slot === slots.voxel && ui['voxel-inspection'].dataset.signature !== `${key}/${world.revision}`) {
+function renderVoxelInspection(key, world) {
+  if (ui['voxel-inspection'].dataset.signature !== `${key}/${world.revision}`) {
     const inspection = inspectVoxelSpaces(world), host = ui['voxel-inspection'];
     host.dataset.signature = `${key}/${world.revision}`;
     host.replaceChildren();
@@ -485,68 +359,6 @@ function syncVoxel(slot, key, world) {
         ...inspection.issues.map(i => node('p', i.message)), node('p', '检查仅覆盖单层矩形建筑。保存的变化可以继续修改，外观仍需你查看。'));
     }
   }
-  const signature = JSON.stringify([world.revision, world.actors || []]);
-  const accepted = () => {
-    slot.host.dataset.revision = String(world.revision);
-    if (slot === slots.voxel) {
-      setText(ui['voxel-status'], world.error || `画布版本 ${world.revision} · ${list(world.cells).length} 个方块 · ${list(world.objects).length} 个对象`);
-      ui['voxel-empty'].hidden = Boolean(world.error || list(world.cells).length);
-      updateControls();
-    }
-  };
-  if (slot.key === key) {
-    slot.latest = world;
-    if (slot.scene && slot.signature !== signature) {
-      try { slot.scene.update(world); slot.signature = signature; accepted(); } catch { voxelFailure(slot, slot.token); }
-    }
-    return;
-  }
-  releaseScene(slot);
-  slot.key = key; slot.latest = world;
-  if (slot === slots.voxel) {
-    setText(ui['voxel-status'], '正在更新画布…');
-    ui['voxel-empty'].hidden = true;
-    ui['voxel-interior'].setAttribute('aria-pressed', 'false');
-    setText(ui['voxel-interior'], '查看室内');
-  }
-  const token = ++slot.token;
-  const mount = node('div', '', 'scene-mount');
-  mount.append(sceneLoading('正在载入体素画面…'));
-  slot.host.replaceChildren(mount);
-  void import('../rendering/voxel-scene.js').then(async ({ createVoxelScene }) => {
-    if (closed || token !== slot.token) return;
-    const scene = await createVoxelScene(mount, slot.latest);
-    if (closed || token !== slot.token) { scene?.dispose(); return; }
-    mount.querySelector?.('.scene-loading')?.remove();
-    slot.scene = scene;
-    scene.update(slot.latest);
-    slot.signature = JSON.stringify([slot.latest.revision, slot.latest.actors || []]);
-    slot.host.dataset.revision = String(slot.latest.revision);
-    if (slot === slots.voxel) {
-      const latest = slot.latest;
-      setText(ui['voxel-status'], latest.error || `画布版本 ${latest.revision} · ${list(latest.cells).length} 个方块 · ${list(latest.objects).length} 个对象`);
-      ui['voxel-empty'].hidden = Boolean(latest.error || list(latest.cells).length);
-      updateControls();
-    }
-  }).catch(error => voxelFailure(slot, token, error));
-}
-function voxelFailure(slot, token, cause = null) {
-  if (closed || token !== slot.token) return;
-  disposeSceneSafely(slot.scene);
-  slot.scene = null;
-  if (slot === slots.voxel) { setText(ui['voxel-status'], '草稿状态已收到，画面载入失败。'); ui['voxel-empty'].hidden = true; }
-  const error = node('div', '', 'scene-error');
-  error.append(node('p', '画面暂时无法显示，你仍可以继续对话。'));
-  if (cause?.message) error.append(node('p', `载入原因：${cause.message}`, 'scene-error-detail'));
-  const retry = node('button', '重新载入画面', 'button secondary');
-  retry.type = 'button';
-  retry.addEventListener('click', () => {
-    const key = slot.key, latest = slot.latest;
-    releaseScene(slot);
-    if (!closed) syncVoxel(slot, key, latest);
-  });
-  error.append(retry);
-  slot.host.replaceChildren(error);
 }
 
 function applyState(next) {
@@ -572,18 +384,25 @@ function applyState(next) {
   if (ui['request-status'].parentNode !== target) target.append(ui['request-status']);
   renderMenu();
   if (isCreate) {
-    releaseScene(slots.world); renderDialogue(); renderDraft();
-    if (currentDraft()) releaseScene(slots.voxel);
-    else syncVoxel(slots.voxel, next.creation.voxelId || 'creation', next.creation.voxel || { revision: 0, cells: [], objects: [] });
+    sceneSlots.release('world'); renderDialogue(); renderDraft();
+    if (currentDraft()) sceneSlots.release('voxel');
+    else {
+      const key = next.creation.voxelId || 'creation';
+      const voxel = next.creation.voxel || { revision: 0, cells: [], objects: [] };
+      activityView.restoreScroll();
+      renderVoxelInspection(key, voxel);
+      sceneSlots.syncVoxel('voxel', key, voxel);
+    }
   }
   else {
-    releaseScene(slots.draft); releaseScene(slots.voxel);
+    sceneSlots.release('draft'); sceneSlots.release('voxel');
     setText(ui['world-time'], minute(next.worldMinute));
-    renderActivity(next);
+    activityView.render(next);
+    activityView.restoreScroll();
     const worldKey = next.instanceId || next.genesis?.instanceId || next.genesis?.draftId || next.world.title;
     const voxel = next.genesis?.voxel;
-    if (list(voxel?.cells).length) syncVoxel(slots.world, `voxel:${worldKey}`, { ...voxel, actors: list(next.voxelActors) });
-    else syncScene(slots.world, `world:${worldKey}`, next);
+    if (list(voxel?.cells).length) sceneSlots.syncVoxel('world', `voxel:${worldKey}`, { ...voxel, actors: list(next.voxelActors) });
+    else sceneSlots.syncScene('world', `world:${worldKey}`, next);
   }
   updateControls(); renderStatus();
   if (previousMode && previousMode !== next.creation.mode) {
@@ -726,10 +545,9 @@ ui['creation-adjust'].addEventListener('click', () => {
   ui['creation-mode'].value = a.mode === 'discuss' ? 'discuss' : a.mode === 'loop' ? 'loop' : 'build';
   updateControls(); ui['creation-input'].focus();
 });
-ui['voxel-frame'].addEventListener('click', () => slots.voxel.scene?.frame?.());
+ui['voxel-frame'].addEventListener('click', () => sceneSlots.frameVoxel());
 ui['voxel-interior'].addEventListener('click', () => {
-  const cutaway = ui['voxel-interior'].getAttribute('aria-pressed') !== 'true';
-  slots.voxel.scene?.cutaway?.(cutaway);
+  const cutaway = sceneSlots.toggleVoxelInterior();
   ui['voxel-interior'].setAttribute('aria-pressed', String(cutaway));
   setText(ui['voxel-interior'], cutaway ? '显示屋顶' : '查看室内');
 });
@@ -780,20 +598,8 @@ ui['world-resume'].addEventListener('click', () => control({ type: 'creation-res
 ui['world-open'].addEventListener('click', () => control({ type: 'world-open', worldId: ui['world-archives'].value }));
 ui['world-archives'].addEventListener('change', updateControls);
 ui['connection-retry'].addEventListener('click', connect);
-ui['activity-scroll'].addEventListener('scroll', () => {
-  const scroll = ui['activity-scroll'];
-  if (pendingActivityScrollTop !== null && scroll.scrollTop !== pendingActivityScrollTop) pendingActivityScrollTop = null;
-  following = nearBottom(scroll);
-  if (following) unread = 0;
-  updateUnread();
-});
-ui['activity-new'].addEventListener('click', () => {
-  following = true; unread = 0;
-  ui['activity-scroll'].focus({ preventScroll: true });
-  ui['activity-scroll'].scrollTop = ui['activity-scroll'].scrollHeight;
-  pendingActivityScrollTop = ui['activity-scroll'].scrollTop;
-  updateUnread();
-});
+ui['activity-scroll'].addEventListener('scroll', () => activityView.onScroll());
+ui['activity-new'].addEventListener('click', () => activityView.followLatest());
 ui['more-menu'].addEventListener('keydown', (event) => {
   if (event.key === 'Escape') { ui['more-menu'].open = false; ui['more-menu'].querySelector('summary').focus(); }
 });
@@ -808,11 +614,12 @@ window.addEventListener('pagehide', () => {
   for (const controller of requests) controller.abort();
   requests.clear();
   window.clearInterval(progressTimer); progressTimer = null;
-  releaseScene(slots.world); releaseScene(slots.draft); releaseScene(slots.voxel);
+  sceneSlots.suspend();
 });
 window.addEventListener('pageshow', (event) => {
   if (!event.persisted) return;
   closed = false; controlBusy = false; cancelBusy = false; cancelRequested = false;
+  sceneSlots.resume();
   progressTimer = window.setInterval(renderStatus, 1000);
   connect();
 });

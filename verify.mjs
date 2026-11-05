@@ -1,17 +1,17 @@
 import { spawnSync } from 'node:child_process';
-import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, relative, sep } from 'node:path';
+import { discoverSourceFiles } from './scripts/module-graph.mjs';
 
 const repoRoot = dirname(fileURLToPath(import.meta.url));
-const files = (directory, pattern) => readdirSync(resolve(repoRoot, directory))
-  .filter(name => pattern.test(name)).sort().map(name => resolve(repoRoot, directory, name));
-const testFiles = files('tests', /\.test\.mjs$/);
-const observationFiles = ['tests', 'model'].flatMap(directory => files(directory, /^observe-.*\.mjs$/));
-const modules = ['ui', 'rendering', 'transport', 'creation', 'voxel', 'spatial', 'simulation', 'residents', 'model', 'storage'];
+const sourceFiles = discoverSourceFiles(repoRoot);
+const topDirectory = file => relative(repoRoot, file).split(sep)[0];
+const testFiles = sourceFiles.filter(file => topDirectory(file) === 'tests' && /\.test\.mjs$/.test(basename(file)));
+const observationFiles = ['tests', 'model'].flatMap(directory => sourceFiles
+  .filter(file => topDirectory(file) === directory && /^observe-.*\.mjs$/.test(basename(file))));
 
 const jobs = [
-  ...['server.mjs', ...modules.flatMap(directory => files(directory, /\.(?:js|mjs)$/))].map(file => ['--check', file]),
+  ...sourceFiles.map(file => ['--check', file]),
   [
     '--test',
     '--test-isolation=none',
