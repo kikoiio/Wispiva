@@ -1,0 +1,37 @@
+{
+  "format": "wispiva-checkpoint-interruptions",
+  "version": 1,
+  "model": "deterministic fixture; no provider calls",
+  "stages": {
+    "after_map": {
+      "interruption_observed": true,
+      "recovery_rejected": true,
+      "marker_retained": true,
+      "owned_processes_exited": true
+    },
+    "after_environment": {
+      "interruption_observed": true,
+      "recovery_rejected": true,
+      "marker_retained": true,
+      "owned_processes_exited": true
+    },
+    "after_agents": {
+      "interruption_observed": true,
+      "recovery_rejected": true,
+      "marker_retained": true,
+      "owned_processes_exited": true
+    },
+    "before_commit": {
+      "interruption_observed": true,
+      "recovery_rejected": true,
+      "marker_retained": true,
+      "owned_processes_exited": true
+    },
+    "after_commit": {
+      "interruption_observed": true,
+      "recovery_rejected": true,
+      "marker_retained": true,
+      "owned_processes_exited": true
+    }
+  }
+}

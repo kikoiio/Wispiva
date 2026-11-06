@@ -94,3 +94,9 @@ v12 曾正常停服并提交版本 2（28 个事件、41 条记忆），launcher
 [Actions 42155489862](https://github.com/kikoiio/Wispiva/actions/runs/42155489862)，快照 `df9ecaf02b586b4fc5ca2a362be89314c6eea1a6`，completed / success。汇总见 [playable-42155489862.json](playable-42155489862.json)。真实客户端约一秒下爬 2.804 格、上爬 3.001 格；室外 `(48,48)` 地面站立、从 y=-40 的自动安全返回及 `/return` 均通过真实物理检查。两条私信／两次不同真实回复、节点变化、范围与公开事件隐私、正常恢复、恢复后模型决策全部通过。6 次尝试产生 5 项有效动作，其中 1 次 transport_error；该单次运行不代表全部故障类别覆盖。
 
 本机 v13 地形升级正常提交后再次严格恢复，叙事、记忆、事件与升级前一致，世界身份保留。客户端重新连接并解除世界暂停；只剩最终真人体验反馈，自动驱动不被记为真人验收。
+
+## 保存中断边界
+
+[Actions 42157068589](https://github.com/kikoiio/Wispiva/actions/runs/42157068589)，快照 `60686db2f28607803ce2dfdf877dea81db9664b0`，completed / success。汇总见 [checkpoint-42157068589.json](checkpoint-42157068589.json)。仅用夹具模型，在叙事 checkpoint v2 的 after_map、after_environment、after_agents、before_commit、after_commit 五处中断，均观察到指定故障；恢复拒绝、不完整会话标记保留，测试创建的进程全部退出。它验证不拼接不完整状态的围栏，不意味着具有跨存储原子回滚或能恢复未提交的全部行动。真实模型、真人和夹具证据分别记账。
+
+工程验证已完成；游戏服务和客户端保留用于最终真人复测。尚未收到最新地面、受控攀爬、人物眼高及完整调查体验的最终确认，因此不把完整真人里程碑写为完成。
