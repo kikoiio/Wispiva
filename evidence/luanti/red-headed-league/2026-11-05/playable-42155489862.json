@@ -1,0 +1,34 @@
+{
+  "format": "wispiva-playable-acceptance",
+  "version": 1,
+  "driver": "automated connected player; teleports and production form callbacks",
+  "model": "GLM-5.3-Flash",
+  "real_model": true,
+  "human_playtest": false,
+  "investigation_and_journal": true,
+  "private_player_messages": 2,
+  "distinct_model_replies": 2,
+  "changed_world_node": true,
+  "same_world_clean_recovery": true,
+  "real_client_keyboard_climbing": {
+    "down": 2.804,
+    "up": 3.001,
+    "ground": true,
+    "void": true,
+    "return": true
+  },
+  "narrative_memory_events_unchanged_on_recovery": true,
+  "real_model_continued_after_recovery": true,
+  "model_actions": 5,
+  "model_attempts": 6,
+  "audited_requests": 8,
+  "direct_message_scope_verified": true,
+  "private_text_absent_from_public_events": true,
+  "retry_ceiling_verified": true,
+  "attempt_errors": {
+    "none": 5,
+    "transport_error": 1
+  },
+  "conversation_digest": "e879472d33d3b226c9d1195abaa62bc9e315242fe668d6c1fb15156869abfcc1",
+  "elapsed_seconds": 241.1
+}
