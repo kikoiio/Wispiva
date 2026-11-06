@@ -152,6 +152,10 @@ test('vertical connection builds a cellar ladder and keeps horizontal paths on t
   assert(find(plan,'node:6,0,2').value.param2 == 3)
   assert(find(plan,'node:6,-7,2').value.name == 'default:ladder_wood')
   assert(find(plan,'node:5,-4,2').value.name == 'default:cobble')
+  assert(find(plan,'node:7,0,1').value == false,
+    'ladder shaft floor is not wide enough for player entry')
+  assert(find(plan,'node:7,-4,1').value == false,
+    'ladder shaft ceiling blocks the player body')
   assert(find(plan,'node:8,-8,0').value.name == 'default:stone')
   assert(find(plan,'node:8,1,-2').value == false)
   assert(find(plan,'node:12,0,0').value.name == 'default:stone')

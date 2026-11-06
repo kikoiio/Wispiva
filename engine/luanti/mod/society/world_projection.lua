@@ -263,7 +263,8 @@ function M.accept_binding(manifest)
   return uuid(manifest.world_id) and id(manifest.origin_event_id) and true or false
 end
 
-function M.plan(manifest)
+function M.plan(manifest, options)
+  options = options or {}
   check(M.accept_binding(manifest), 'invalid origin binding')
   local view = manifest.public
   check(type(view) == 'table', 'public spatial view required')
@@ -374,6 +375,19 @@ function M.plan(manifest)
         node(ladder, 'default:ladder_wood', 3)
         vertical_cells[key(ladder)] = true
         vertical_cells[key(support)] = true
+      end
+      if not options.legacy_vertical then
+        for y = lower_y, math.max(a.anchor.y, b.anchor.y) + 1 do
+          for x = ladder_x, ladder_x + 1 do
+            for z = ladder_z - 1, ladder_z do
+              local cell = point(x,y,z)
+              if x ~= ladder_x or z ~= ladder_z or y >= math.max(a.anchor.y,b.anchor.y) then
+                node(cell, nil)
+              end
+              vertical_cells[key(cell)] = true
+            end
+          end
+        end
       end
     end
   end

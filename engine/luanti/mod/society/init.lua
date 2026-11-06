@@ -1057,7 +1057,7 @@ if minetest.register_on_joinplayer then
 	minetest.register_on_joinplayer(function(player)
 		free_blocked_agents()
 		set_body_solid(true)
-		if VIEW_SPAWN then
+		if VIEW_SPAWN and not RESTORE then
 			local spawn_place_id = cfg("society_view_spawn_place", "")
 			local room
 			for _, place in ipairs(genesis_manifest and genesis_manifest.public.places or {}) do
@@ -1069,7 +1069,7 @@ if minetest.register_on_joinplayer then
 			end
 			if room then
 				local z = room.scene and room.anchor.z-1.5 or room.anchor.z-2.8
-				player:set_pos({x=room.anchor.x+1.5, y=0.6, z=z})
+				player:set_pos({x=room.anchor.x+1.5, y=room.anchor.y-0.5, z=z})
 				player:set_look_horizontal(0.25)
 				player:set_look_vertical(0.12)
 				ev("view spawn player=%s place=%s", player:get_player_name(), room.id)
@@ -2097,10 +2097,10 @@ local function spawn_agents()
 				-- The stock player.png is a flat green stand-in. This skin keeps a face, hair and clothes.
 				-- The box matches a standing body. Physics stays off until a player is here.
 				le._nametag_key = "waiting"
-				obj:set_properties({visual="mesh", mesh="character.b3d", visual_size={x=1, y=1},
+				obj:set_properties({visual="mesh", mesh="society_person.b3d", visual_size={x=1, y=1},
 					textures={"society_person.png"},
-					collisionbox={-0.3, 0, -0.3, 0.3, 1.75, 0.3},
-					selectionbox={-0.35, 0, -0.35, 0.35, 1.8, 0.35, rotate=false},
+					collisionbox={-0.3, -0.5, -0.3, 0.3, 1.2, 0.3},
+					selectionbox={-0.35, -0.5, -0.35, 0.35, 1.3, 0.35, rotate=false},
 					nametag=reader.agent_tag(le), nametag_color="#ffffff"})
 			end
 			le._home = at
@@ -2207,8 +2207,11 @@ local function apply_product_projection()
 	local plan = world_projection.plan(genesis_manifest)
 	dofile(minetest.get_modpath("society") .. "/origin_protection.lua").install(minetest, plan.operations)
 	local components = product_state:components()
+	local upgrading = components.map > 0 and components.map < 2
+	local write_operations = plan.operations
 	if components.map > 0 then
-		for _, operation in ipairs(plan.operations) do
+		local previous_plan = upgrading and world_projection.plan(genesis_manifest, {legacy_vertical=true}) or plan
+		for _, operation in ipairs(previous_plan.operations) do
 			if operation.kind == "node" then
 				local expected = operation.value and operation.value.name or "air"
 				-- Non-air origin nodes are immutable projection facts. Air
@@ -2230,17 +2233,41 @@ local function apply_product_projection()
 				end
 			end
 		end
-		ev("origin projection verified world_id=%s origin_event=%s operations=%d", plan.world_id,
-			plan.origin_event_id, #plan.operations)
-		injected_fault("after_map")
-		return true
+		if not upgrading then
+			ev("origin projection verified world_id=%s origin_event=%s operations=%d", plan.world_id,
+				plan.origin_event_id, #plan.operations)
+			injected_fault("after_map")
+			return true
+		end
+		local previous = {}
+		for _, operation in ipairs(previous_plan.operations) do previous[operation.key] = operation end
+		write_operations = {}
+		for _, operation in ipairs(plan.operations) do
+			if operation.kind == "node" then
+				local old = previous[operation.key]
+				local old_name = old and old.value and old.value.name or "air"
+				local new_name = operation.value and operation.value.name or "air"
+				local old_param2 = old and old.value and old.value.param2 or 0
+				local new_param2 = operation.value and operation.value.param2 or 0
+				if old_name ~= new_name or old_param2 ~= new_param2 then
+					local actual = minetest.get_node_or_nil(operation.position)
+					if not actual or actual.name ~= old_name or actual.param2 ~= old_param2 then
+						freeze_product_state("scene upgrade source differs")
+						fail("product-reconcile", "scene-upgrade=%s source-mismatch", operation.key)
+						return false
+					end
+					write_operations[#write_operations + 1] = operation
+				end
+			end
+		end
 	end
 	local target = components
-	target.map = 1
-	product_state:prepare("origin-projection:" .. genesis_manifest.origin_event_id, target)
+	target.map = 2
+	local projection_operation = (upgrading and "scene-layout-v2:" or "origin-projection:") .. genesis_manifest.origin_event_id
+	product_state:prepare(projection_operation, target)
 	save_product_state()
 	local projection_floor, projection_height = -16, 4
-	for _, operation in ipairs(plan.operations) do
+	for _, operation in ipairs(write_operations) do
 		if operation.kind == "node" then
 			projection_height = math.max(projection_height, operation.position.y)
 			local desired = operation.value
@@ -2271,7 +2298,7 @@ local function apply_product_projection()
 	local sx, sy = maxp.x - minp.x + 1, maxp.y - minp.y + 1
 	local map_data = vm:get_data()
 	local map_param2 = vm:get_param2_data()
-	for _, operation in ipairs(plan.operations) do
+	for _, operation in ipairs(write_operations) do
 		if operation.kind == "node" then
 			local p = operation.position
 			local name = operation.object_id and S.story_runtime:projected_node(operation)
@@ -2285,7 +2312,7 @@ local function apply_product_projection()
 	vm:set_data(map_data)
 	vm:set_param2_data(map_param2)
 	vm:write_to_map()
-	for _, operation in ipairs(plan.operations) do
+	for _, operation in ipairs(write_operations) do
 		if operation.kind == "node" and operation.object_id then
 			if not S.story_runtime:bind_node(operation) or
 					not S.story_runtime:verify_node(operation, minetest.get_node(operation.position)) then
@@ -2295,12 +2322,13 @@ local function apply_product_projection()
 		end
 	end
 	injected_fault("after_map")
-	local committed = product_state:commit("origin-projection:" .. genesis_manifest.origin_event_id, target)
+	local committed = product_state:commit(projection_operation, target)
 	local encoded = minetest.write_json(committed)
 	storage:set_string("product_state", encoded)
 	assert(storage:get_string("product_state") == encoded, "origin projection state write/readback failed")
 	ev("origin projection world_id=%s origin_event=%s operations=%d", plan.world_id,
 		plan.origin_event_id, #plan.operations)
+	if upgrading then ev("origin projection upgraded layout=2 changed=%d", #write_operations) end
 	return true
 end
 
