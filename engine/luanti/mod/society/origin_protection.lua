@@ -4,7 +4,7 @@ function M.install(engine, operations)
   local protected = {}
   local function key(p) return p.x .. "," .. p.y .. "," .. p.z end
   for _, operation in ipairs(operations) do
-    if operation.kind == "node" then protected[key(operation.position)] = true end
+    if operation.kind == "node" and not operation.terrain then protected[key(operation.position)] = true end
   end
   local previous = engine.is_protected
   engine.is_protected = function(position, name)

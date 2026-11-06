@@ -51,7 +51,7 @@ M.languages = {
 		mark_node = "标记",
 		resource_node = "资源",
 		body_blocked = "这里站着人。",
-		visitor_help = "你是访客，脚和这里的人站在同一层地面。WASD 移动，鼠标转向，Esc 放开鼠标。梯子内按空格上爬、Shift 下爬，松开停留。右键故事物件查看并记录线索；右键角色打开私聊；/journal 打开调查簿。角色自主行动和回复需要模型服务；尚未配置时角色会等待。使用 /providers 前请先读服务页面的数据与费用说明。快捷栏是木材、书架、圆石、石头、石砖、砖、玻璃和火把；按 I 打开背包。",
+		visitor_help = "你是访客，脚和这里的人站在同一层地面。WASD 移动，鼠标转向，Esc 放开鼠标。梯子内按空格上爬、Shift 下爬，松开停留。右键故事物件查看并记录线索；右键角色打开私聊；/journal 打开调查簿；/return 返回入口并保留进度。角色自主行动和回复需要模型服务；尚未配置时角色会等待。使用 /providers 前请先读服务页面的数据与费用说明。快捷栏是木材、书架、圆石、石头、石砖、砖、玻璃和火把；按 I 打开背包。",
 	},
 	en = {
 		title = "Model service",
@@ -102,7 +102,7 @@ M.languages = {
 		mark_node = "Marker",
 		resource_node = "Resource",
 		body_blocked = "A character is standing here.",
-		visitor_help = "You are a visitor, standing on the same ground as the characters. WASD moves, the mouse looks, and Esc frees the mouse. On ladders, Space climbs up, Shift climbs down, and releasing the keys holds position. Right-click a story object to inspect and record a clue; right-click a character to send a private message; use /journal to review your notebook. Autonomous actions and replies need a model service; without one, characters wait. Read the data and cost notice in /providers before enabling a service. The hotbar holds wood, bookshelves, cobble, stone, stone brick, brick, glass, and torches; press I for the inventory.",
+		visitor_help = "You are a visitor, standing on the same ground as the characters. WASD moves, the mouse looks, and Esc frees the mouse. On ladders, Space climbs up, Shift climbs down, and releasing the keys holds position. Right-click a story object to inspect and record a clue; right-click a character to send a private message; use /journal to review your notebook, or /return to return to the entrance while keeping progress. Autonomous actions and replies need a model service; without one, characters wait. Read the data and cost notice in /providers before enabling a service. The hotbar holds wood, bookshelves, cobble, stone, stone brick, brick, glass, and torches; press I for the inventory.",
 	},
 }
 

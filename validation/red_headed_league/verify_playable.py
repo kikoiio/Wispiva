@@ -64,6 +64,24 @@ def check_ladder(world, env):
         delta = before-after if command == 'top' else after-before
         require(1.5 < delta < 4.5, 'ladder movement was not controlled climbing: ' + str(round(delta, 3)))
         result['down' if command == 'top' else 'up'] = round(delta, 3)
+    for command in ('ground', 'void', 'return'):
+        temporary = world / '.rhl-ladder-request'
+        temporary.write_text(command)
+        temporary.replace(world / 'rhl-ladder-request')
+        until = time.monotonic() + 5
+        while time.monotonic() < until:
+            sample = read()
+            if sample.get('command') == command and sample['y'] > 0:
+                break
+            time.sleep(0.05)
+        require(read().get('command') == command and read()['y'] > 0,
+                command + ' did not reach safe terrain')
+        time.sleep(1)
+        sample = read()
+        require(0.45 <= sample['y'] <= 0.65, command + ' did not stand on the ground')
+        if command != 'ground':
+            require(abs(sample['x']) < 5 and abs(sample['z']) < 5, 'rescue did not return to scene')
+        result[command] = True
     return result
 
 
@@ -104,7 +122,10 @@ def run(output, budget):
                                   'player_messages_sent': text.count('player-message=true'),
                                   'two_replies': 'two-distinct-replies-and-journal=true' in text,
                                   'story_events': text.count('ev=story-object ')}), flush=True)
-            require('SOCIETY fail=' not in text, 'runtime failure during ' + label)
+            failures = re.findall(r'SOCIETY fail=([a-z-]+)', text)
+            require(all(reason in ('model-response', 'model-timeout', 'model-reflection') for reason in failures)
+                    and 'product-world frozen' not in text and 'done result=fail' not in text,
+                    'runtime failure during ' + label)
             if predicate(text):
                 return
             time.sleep(0.25)

@@ -1053,10 +1053,40 @@ local function give_visitor_materials(player)
 	end
 end
 
+function S.return_to_scene(player)
+	for _, place in ipairs(genesis_manifest and genesis_manifest.public.places or {}) do
+		if place.blueprint == "victorian_sitting_room_v1" or place.scene then
+			player:set_pos({x=place.anchor.x+1.5,y=place.anchor.y-0.5,z=place.anchor.z-2.8})
+			player:set_velocity({x=0,y=0,z=0})
+			return true
+		end
+	end
+	return false
+end
+if WORLD_PRODUCT then
+	minetest.register_chatcommand("return", {description="返回世界入口，保留进度", func=function(name)
+		local player = minetest.get_player_by_name(name)
+		return player and S.return_to_scene(player) or false, "已返回入口；世界进度保留。"
+	end})
+	local rescue_tick = 0
+	minetest.register_globalstep(function(dt)
+		rescue_tick = rescue_tick + dt
+		if rescue_tick < 0.25 then return end
+		rescue_tick = 0
+		for _, player in ipairs(minetest.get_connected_players()) do
+			local position = player:get_pos()
+			if position and position.y < -24 and S.return_to_scene(player) then
+				view_send(player, "已回到安全入口。需要时可输入 /return 返回，进度会保留。")
+			end
+		end
+	end)
+end
+
 if minetest.register_on_joinplayer then
 	minetest.register_on_joinplayer(function(player)
 		free_blocked_agents()
 		set_body_solid(true)
+		if WORLD_PRODUCT and player:get_pos().y < -24 then S.return_to_scene(player) end
 		if VIEW_SPAWN and not RESTORE then
 			local spawn_place_id = cfg("society_view_spawn_place", "")
 			local room
@@ -2204,21 +2234,21 @@ end
 
 local function apply_product_projection()
 	if not WORLD_PRODUCT then return end
-	local plan = world_projection.plan(genesis_manifest)
+	local plan = world_projection.plan(genesis_manifest, {terrain=true})
 	dofile(minetest.get_modpath("society") .. "/origin_protection.lua").install(minetest, plan.operations)
 	local components = product_state:components()
-	local upgrading = components.map > 0 and components.map < 3
+	local upgrading = components.map > 0 and components.map < 4
 	local write_operations = plan.operations
 	if components.map > 0 then
 		local previous_plan = upgrading and world_projection.plan(genesis_manifest,
-			{legacy_vertical=components.map < 2, vertical_version=2}) or plan
+			{legacy_vertical=components.map < 2, vertical_version=components.map < 3 and 2 or 3}) or plan
 		for _, operation in ipairs(previous_plan.operations) do
 			if operation.kind == "node" then
 				local expected = operation.value and operation.value.name or "air"
 				-- Non-air origin nodes are immutable projection facts. Air
 				-- clearances are the dynamic surface for resources, marks and
 				-- later interactions, so they must not freeze a valid world.
-				if expected ~= "air" then
+				if expected ~= "air" and not operation.terrain then
 					local actual = minetest.get_node_or_nil(operation.position)
 					local matches
 					if actual then
@@ -2252,19 +2282,23 @@ local function apply_product_projection()
 				local new_param2 = operation.value and operation.value.param2 or 0
 				if old_name ~= new_name or old_param2 ~= new_param2 then
 					local actual = minetest.get_node_or_nil(operation.position)
-					if not actual or actual.name ~= old_name or actual.param2 ~= old_param2 then
-						freeze_product_state("scene upgrade source differs")
-						fail("product-reconcile", "scene-upgrade=%s source-mismatch", operation.key)
-						return false
+					local preserve = operation.terrain and not old and actual
+						and actual.name ~= "air" and actual.name ~= "ignore"
+					if not preserve then
+						if not actual or actual.name ~= old_name or actual.param2 ~= old_param2 then
+							freeze_product_state("scene upgrade source differs")
+							fail("product-reconcile", "scene-upgrade=%s source-mismatch", operation.key)
+							return false
+						end
+						write_operations[#write_operations + 1] = operation
 					end
-					write_operations[#write_operations + 1] = operation
 				end
 			end
 		end
 	end
 	local target = components
-	target.map = 3
-	local projection_operation = (upgrading and "scene-layout-v3:" or "origin-projection:") .. genesis_manifest.origin_event_id
+	target.map = 4
+	local projection_operation = (upgrading and "scene-layout-v4:" or "origin-projection:") .. genesis_manifest.origin_event_id
 	product_state:prepare(projection_operation, target)
 	save_product_state()
 	local projection_floor, projection_height = -16, 4
@@ -2294,7 +2328,7 @@ local function apply_product_projection()
 	-- origin region through VoxelManip before publishing the product commit,
 	-- so a restart cannot observe a committed projection with an old map.
 	local vm = minetest.get_voxel_manip(
-		{x = -BOUND, y = projection_floor, z = -BOUND}, {x = BOUND, y = projection_height, z = BOUND})
+		{x = -64, y = projection_floor, z = -64}, {x = 64, y = projection_height, z = 64})
 	local minp, maxp = vm:get_emerged_area()
 	local sx, sy = maxp.x - minp.x + 1, maxp.y - minp.y + 1
 	local map_data = vm:get_data()
@@ -2329,7 +2363,7 @@ local function apply_product_projection()
 	assert(storage:get_string("product_state") == encoded, "origin projection state write/readback failed")
 	ev("origin projection world_id=%s origin_event=%s operations=%d", plan.world_id,
 		plan.origin_event_id, #plan.operations)
-	if upgrading then ev("origin projection upgraded layout=3 changed=%d", #write_operations) end
+	if upgrading then ev("origin projection upgraded layout=4 changed=%d", #write_operations) end
 	return true
 end
 
@@ -2337,7 +2371,8 @@ end
 -- 顺序不能改：无玩家时区块不被激活，实体不会被 step；而在 emerge 完成前生成，
 -- 实体会在活跃区块管理周期里被静默删除，而 add_entity 返回有效对象、不报错。
 minetest.after(1, function()
-	local lo, hi = math.floor(-BOUND / 16), math.floor(BOUND / 16)
+	local projection_bound = WORLD_PRODUCT and 64 or BOUND
+	local lo, hi = math.floor(-projection_bound / 16), math.floor(projection_bound / 16)
 	local ok, tried = 0, 0
 	for _, by in ipairs({-16, 0}) do
 		for bx = lo, hi do
@@ -2349,15 +2384,14 @@ minetest.after(1, function()
 			end
 		end
 	end
-	ev("forceload blocks=%d/%d bound=%d levels=surface,cellar", ok, tried, BOUND)
+	ev("forceload blocks=%d/%d bound=%d levels=surface,cellar", ok, tried, projection_bound)
 	if GENESIS_PREVIEW and ok ~= tried then fail("preview-forceload", "loaded=%d expected=%d", ok, tried); return end
 
-	minetest.emerge_area({x = -BOUND, y = -16, z = -BOUND}, {x = BOUND, y = 16, z = BOUND},
+	minetest.emerge_area({x = -projection_bound, y = -16, z = -projection_bound},
+		{x = projection_bound, y = 16, z = projection_bound},
 		function(blockpos, action, calls_remaining)
 			if calls_remaining == 0 then
-				local first_product_projection = WORLD_PRODUCT
-					and product_state:components().map == 0
-				if (VISUAL and not WORLD_PRODUCT) or first_product_projection then
+				if VISUAL and not WORLD_PRODUCT then
 					for x = -BOUND, BOUND do
 						for z = -BOUND, BOUND do
 							minetest.set_node({x=x, y=0, z=z}, {name="default:dirt_with_grass"})

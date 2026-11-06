@@ -102,14 +102,24 @@ minetest.register_globalstep(function(dt)
   local request = io.open(world .. "/rhl-ladder-request", "r")
   if request then
     local command = request:read("*a"); request:close()
-    if command ~= ladder_command and (command == "top" or command == "bottom") then
+    if command ~= ladder_command and (command == "top" or command == "bottom"
+        or command == "ground" or command == "void" or command == "return") then
       minetest.close_formspec(player_name, forms.current or "")
+      if command == "ground" then
+        player:set_pos({x=48,y=2,z=48})
+      elseif command == "void" then
+        player:set_pos({x=0,y=-40,z=0})
+      elseif command == "return" then
+        player:set_pos({x=48,y=0.5,z=48})
+        minetest.registered_chatcommands["return"].func(player_name)
+      else
       local place
       for _, p in ipairs(manifest.public.places) do
         if p.id == (command == "top" and "pawnshop" or "cellar") then place=p end
       end
       assert(place, "ladder endpoint missing")
       player:set_pos({x=place.anchor.x-1.5, y=place.anchor.y-0.5, z=place.anchor.z+1.5})
+      end
       player:set_velocity({x=0,y=0,z=0})
       ladder_command = command
     end
@@ -117,6 +127,6 @@ minetest.register_globalstep(function(dt)
   if ladder_command then
     local pos, controls = player:get_pos(), player:get_player_control()
     minetest.safe_file_write(world .. "/private/ladder-status.json", minetest.write_json({
-      command=ladder_command, y=pos.y, jump=controls.jump, sneak=controls.sneak}))
+      command=ladder_command, x=pos.x, y=pos.y, z=pos.z, jump=controls.jump, sneak=controls.sneak}))
   end
 end)

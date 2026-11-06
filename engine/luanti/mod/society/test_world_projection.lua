@@ -176,6 +176,18 @@ test('vertical connection builds a cellar ladder and keeps horizontal paths on t
   fails(function() projection.plan(doc) end,'invalid vertical connection')
 end)
 
+test('terrain supports the play area and embeds cellar rooms in soil', function()
+  local doc=fixture()
+  doc.public.places={{id='room',space='indoor',anchor={x=0,y=1,z=0}},
+    {id='cellar',space='indoor',anchor={x=8,y=-7,z=0}}}
+  doc.public.semantic_connections={}; doc.public.actors={}; doc.public.objects={}
+  local plan=projection.plan(doc,{terrain=true})
+  assert(find(plan,'node:48,0,48').value.name == 'default:dirt_with_grass', 'play area has no ground')
+  assert(find(plan,'node:48,-7,48').value.name == 'default:dirt', 'underground is an empty void')
+  assert(find(plan,'node:8,-7,0').value == false, 'terrain filled the cellar interior')
+  assert(find(plan,'node:48,0,48').terrain == true, 'terrain must remain editable')
+end)
+
 test('narrative scenes reject invalid cells, schemas and blocked actor starts', function()
   local doc = fixture()
   doc.public.places[1].scene = {version=1, palette='archive', furnishings={

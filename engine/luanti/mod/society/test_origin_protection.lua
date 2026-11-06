@@ -9,11 +9,13 @@ protection.install(engine, {
   {kind="node",position={x=1,y=0,z=2},value={name="society:rug_center"}},
   {kind="node",position={x=1,y=1,z=2},value=false},
   {kind="actor",position={x=3,y=1,z=2}},
+  {kind="node",position={x=4,y=0,z=2},value={name="default:dirt"},terrain=true},
 })
 assert(engine.is_protected({x=1,y=0,z=2},"alice"), "scene floor can be dug")
 assert(engine.is_protected({x=1,y=1,z=2},"alice"), "scene passage can be blocked")
 assert(not called)
 assert(not engine.is_protected({x=3,y=1,z=2},"alice"), "actor position should not claim terrain")
+assert(not engine.is_protected({x=4,y=0,z=2},"alice"), "terrain must remain editable")
 assert(engine.is_protected({x=99,y=1,z=2},"alice"), "existing protection was bypassed")
 warning({x=1,y=0,z=2},"alice")
 print("origin protection: scene structure, passages and existing protection passed")

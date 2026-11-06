@@ -275,9 +275,18 @@ function M.plan(manifest, options)
   local vertical_cells = {}
   check(array(view.places, 16) > 0, 'no places')
   array(view.semantic_connections, 64); array(view.actors, 64); array(objects, 64)
-  local function node(p, name, param2)
+  local function node(p, name, param2, terrain)
     nodes[key(p)] = {kind='node', key='node:' .. key(p), position=p,
-      value=name and {name=name, param2=param2 or 0} or false}
+      value=name and {name=name, param2=param2 or 0} or false, terrain=terrain or nil}
+  end
+  if options.terrain then
+    for x=-64,64 do
+      for z=-64,64 do
+        for y=-8,0 do
+          node(point(x,y,z), y==0 and 'default:dirt_with_grass' or 'default:dirt', 0, true)
+        end
+      end
+    end
   end
   for _, place in ipairs(view.places) do
     check(type(place) == 'table' and id(place.id) and not places[place.id], 'duplicate/invalid place')
