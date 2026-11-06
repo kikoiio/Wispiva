@@ -35,7 +35,7 @@ jobs:
           apt-get update
           DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
             ca-certificates git procps python3 lua5.1 luanti luanti-server \
-            luanti-game-minetest xvfb imagemagick libgl1-mesa-dri libglx-mesa0
+            luanti-game-minetest xvfb imagemagick xdotool libgl1-mesa-dri libglx-mesa0
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

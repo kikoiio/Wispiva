@@ -91,3 +91,32 @@ minetest.register_globalstep(function(dt)
     end
   end
 end)
+
+local ladder_command, ladder_tick = nil, 0
+minetest.register_globalstep(function(dt)
+  ladder_tick = ladder_tick + dt
+  if ladder_tick < 0.1 then return end
+  ladder_tick = 0
+  local player = minetest.get_player_by_name(player_name)
+  if not player then return end
+  local request = io.open(world .. "/rhl-ladder-request", "r")
+  if request then
+    local command = request:read("*a"); request:close()
+    if command ~= ladder_command and (command == "top" or command == "bottom") then
+      minetest.close_formspec(player_name, forms.current or "")
+      local place
+      for _, p in ipairs(manifest.public.places) do
+        if p.id == (command == "top" and "pawnshop" or "cellar") then place=p end
+      end
+      assert(place, "ladder endpoint missing")
+      player:set_pos({x=place.anchor.x-1.5, y=place.anchor.y-0.5, z=place.anchor.z+1.5})
+      player:set_velocity({x=0,y=0,z=0})
+      ladder_command = command
+    end
+  end
+  if ladder_command then
+    local pos, controls = player:get_pos(), player:get_player_control()
+    minetest.safe_file_write(world .. "/private/ladder-status.json", minetest.write_json({
+      command=ladder_command, y=pos.y, jump=controls.jump, sneak=controls.sneak}))
+  end
+end)

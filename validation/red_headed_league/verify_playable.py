@@ -13,6 +13,7 @@ import os
 import re
 from pathlib import Path
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -28,6 +29,42 @@ def checkpoint(world):
     fields, _ = _checkpoint_fields(world)
     _verify_product_checkpoint(world, (world / 'wispiva-world-id').read_text().strip())
     return json.loads(fields['agent_state'])
+
+
+def check_ladder(world, env):
+    window = subprocess.check_output(['xdotool', 'search', '--onlyvisible', '--name', 'Luanti'],
+                                     env=env, text=True, timeout=5).splitlines()[0]
+    subprocess.run(['xdotool', 'windowfocus', '--sync', window], env=env, check=True, timeout=5)
+    status = world / 'private/ladder-status.json'
+
+    def read():
+        return json.loads(status.read_text()) if status.exists() else {}
+
+    result = {}
+    for command, key, control in [('top', 'Shift_L', 'sneak'), ('bottom', 'space', 'jump')]:
+        temporary = world / '.rhl-ladder-request'
+        temporary.write_text(command)
+        temporary.replace(world / 'rhl-ladder-request')
+        until = time.monotonic() + 5
+        while read().get('command') != command and time.monotonic() < until:
+            time.sleep(0.05)
+        require(read().get('command') == command, 'ladder endpoint setup failed')
+        time.sleep(0.4)
+        before = read()['y']
+        subprocess.run(['xdotool', 'keydown', key], env=env, check=True, timeout=5)
+        try:
+            until = time.monotonic() + 2
+            while not read().get(control) and time.monotonic() < until:
+                time.sleep(0.05)
+            require(read().get(control), 'client did not receive climbing key')
+            time.sleep(1)
+            after = read()['y']
+        finally:
+            subprocess.run(['xdotool', 'keyup', key], env=env, check=True, timeout=5)
+        delta = before-after if command == 'top' else after-before
+        require(1.5 < delta < 4.5, 'ladder movement was not controlled climbing: ' + str(round(delta, 3)))
+        result['down' if command == 'top' else 'up'] = round(delta, 3)
+    return result
 
 
 def run(output, budget):
@@ -104,6 +141,7 @@ def run(output, budget):
                         '--logfile', str(work / 'client.log')], env=env, cwd=ROOT,
                         log=work / 'client-launch.log')
         wait(lambda text: 'RHL_PLAYABLE complete=true' in text, 'player replies and model consequence')
+        ladder = check_ladder(world, env)
         send_command(world, 'pause', timeout=10)
     finally:
         processes.close()
@@ -193,6 +231,7 @@ def run(output, budget):
                'human_playtest': False, 'investigation_and_journal': True,
                'private_player_messages': len(addresses), 'distinct_model_replies': len(replies),
                'changed_world_node': True, 'same_world_clean_recovery': True,
+               'real_client_keyboard_climbing': ladder,
                'narrative_memory_events_unchanged_on_recovery': True,
                'real_model_continued_after_recovery': True,
                'model_actions': first_log.count('ev=model-action '),

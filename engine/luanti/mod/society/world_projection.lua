@@ -265,6 +265,7 @@ end
 
 function M.plan(manifest, options)
   options = options or {}
+  local vertical_version = options.legacy_vertical and 1 or options.vertical_version or 3
   check(M.accept_binding(manifest), 'invalid origin binding')
   local view = manifest.public
   check(type(view) == 'table', 'public spatial view required')
@@ -376,7 +377,7 @@ function M.plan(manifest, options)
         vertical_cells[key(ladder)] = true
         vertical_cells[key(support)] = true
       end
-      if not options.legacy_vertical then
+      if vertical_version >= 2 then
         for y = lower_y, math.max(a.anchor.y, b.anchor.y) + 1 do
           for x = ladder_x, ladder_x + 1 do
             for z = ladder_z - 1, ladder_z do
@@ -386,6 +387,17 @@ function M.plan(manifest, options)
               end
               vertical_cells[key(cell)] = true
             end
+          end
+        end
+      end
+      if vertical_version >= 3 then
+        for y=lower_y,math.max(a.anchor.y,b.anchor.y) do
+          for z=ladder_z-1,ladder_z do
+            node(point(ladder_x-1,y,z), 'default:cobble')
+            node(point(ladder_x+2,y,z), 'default:cobble')
+            node(point(ladder_x,y,z), 'default:ladder_wood', 3)
+            node(point(ladder_x+1,y,z), 'default:ladder_wood', 2)
+            for x=ladder_x-1,ladder_x+2 do vertical_cells[key(point(x,y,z))] = true end
           end
         end
       end

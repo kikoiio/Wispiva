@@ -2207,10 +2207,11 @@ local function apply_product_projection()
 	local plan = world_projection.plan(genesis_manifest)
 	dofile(minetest.get_modpath("society") .. "/origin_protection.lua").install(minetest, plan.operations)
 	local components = product_state:components()
-	local upgrading = components.map > 0 and components.map < 2
+	local upgrading = components.map > 0 and components.map < 3
 	local write_operations = plan.operations
 	if components.map > 0 then
-		local previous_plan = upgrading and world_projection.plan(genesis_manifest, {legacy_vertical=true}) or plan
+		local previous_plan = upgrading and world_projection.plan(genesis_manifest,
+			{legacy_vertical=components.map < 2, vertical_version=2}) or plan
 		for _, operation in ipairs(previous_plan.operations) do
 			if operation.kind == "node" then
 				local expected = operation.value and operation.value.name or "air"
@@ -2262,8 +2263,8 @@ local function apply_product_projection()
 		end
 	end
 	local target = components
-	target.map = 2
-	local projection_operation = (upgrading and "scene-layout-v2:" or "origin-projection:") .. genesis_manifest.origin_event_id
+	target.map = 3
+	local projection_operation = (upgrading and "scene-layout-v3:" or "origin-projection:") .. genesis_manifest.origin_event_id
 	product_state:prepare(projection_operation, target)
 	save_product_state()
 	local projection_floor, projection_height = -16, 4
@@ -2328,7 +2329,7 @@ local function apply_product_projection()
 	assert(storage:get_string("product_state") == encoded, "origin projection state write/readback failed")
 	ev("origin projection world_id=%s origin_event=%s operations=%d", plan.world_id,
 		plan.origin_event_id, #plan.operations)
-	if upgrading then ev("origin projection upgraded layout=2 changed=%d", #write_operations) end
+	if upgrading then ev("origin projection upgraded layout=3 changed=%d", #write_operations) end
 	return true
 end
 
