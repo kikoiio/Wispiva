@@ -86,6 +86,8 @@ test('every street, doorway, staircase and tunnel route is physically walkable i
 });
 
 test('each chapter places characters on a floor without intersections with walls or furniture', () => {
+  assert.equal(world.residents.find(resident => resident.id === 'archie-duncan-ross').states.investigation, undefined,
+    'Ross has disappeared by the investigation; he cannot be found at the false address');
   for (const notice of world.props.filter(prop => prop.text?.includes('红发会已解散'))) {
     assert(!notice.chapters?.includes('league'), 'the closure notice must not appear while the league is operating');
     assert(notice.chapters?.includes('investigation'));

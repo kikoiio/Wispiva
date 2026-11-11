@@ -916,7 +916,6 @@ export function createRedHeadedWorld() {
       id: 'archie-duncan-ross', name: '罗斯', role: '红发会经理', coat: '#7b3c32', hair: '#d94f2c',
       states: {
         league: { position: [-7, 0, -34.5], placeId: 'league-office' },
-        investigation: { position: [43.5, 0, -27.5], placeId: 'king-edward' },
         heist: { position: [33.25, -7.5, 9.0], placeId: 'tunnel' },
         aftermath: { position: [52, 0, -18], placeId: 'commercial-street' },
       },
