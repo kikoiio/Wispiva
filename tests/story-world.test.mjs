@@ -51,6 +51,7 @@ test('all story destinations connect and their original entries support an unobs
     assert(point(place.entry) && point(place.position), place.id);
     assert(point(place.bounds.min) && point(place.bounds.max), place.id);
     assert(point(place.camera.position) && point(place.camera.target), place.id);
+    if (!place.interior) assert(navigation.canStand(place.camera.position), `exterior camera begins inside geometry: ${place.id}`);
     assert(navigation.canStand(place.entry), `blocked original entry: ${place.id}`);
     assert.equal(navigation.floorAt(place.entry[0], place.entry[2], place.entry[1]), place.entry[1], `unsupported entry: ${place.id}`);
     assert.deepEqual(navigation.spawn(place), place.entry, `spawn must not hide a blocked entry: ${place.id}`);

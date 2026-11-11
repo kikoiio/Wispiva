@@ -270,7 +270,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     const place = placeMap.get(activePlace);
     if (!place?.interior || walking || !(cutaway || autoCutaway)) return null;
     const sites = new Set([place.site]);
-    if (['pawn-cellar', 'bank-vault'].includes(place.id)) sites.add('tunnel');
+    if (place.id === 'pawn-cellar') sites.add('tunnel');
     return sites;
   }
   function updateVisibility() {

@@ -826,10 +826,10 @@ export function createRedHeadedWorld() {
     site,
   });
   const places = [
-    addPlace('baker-street', '贝克街 · 221B', '烟熏砖墙与煤气灯下的伦敦街面', [-50, 0, -29], [-46.5, 0, -29], { min: [-56, -0.5, -40], max: [-45, 8, -16] }, [-49, 8, -19], [-48, 1, -29], false, undefined, 'baker-street'),
+    addPlace('baker-street', '贝克街 · 221B', '烟熏砖墙与煤气灯下的伦敦街面', [-50, 0, -29], [-46.5, 0, -29], { min: [-56, -0.5, -40], max: [-45, 8, -16] }, [-52.5, 6, -21], [-45.5, 2.5, -29], false, undefined, 'baker-street'),
     addPlace('sitting-room', '221B 起居室', '绿墙纸、壁炉、茶桌与散落的案件笔记', [-43, 3, -27.3], [-42.5, 3, -32.75], { min: [-45.5, 2.5, -34.5], max: [-34.5, 9, -23.5] }, [-34, 7, -28], [-40, 4, -29], true, 4.8, 'baker-221b'),
-    addPlace('fleet-street', '舰队街', '马车、煤气灯与报馆招牌交织的商路', [0, 0, -44], [0, 0, -44], { min: [-60, -0.5, -50], max: [60, 6, -39] }, [5, 11, -34], [0, 0, -44], false, undefined, 'fleet-street'),
-    addPlace('pope-court', '蒲柏巷', '舰队街后侧的窄巷；申请日曾挤满红发人群', [-13.5, 0, -40], [-6.5, 0, -41], { min: [-16, -0.5, -42], max: [-5, 6, -25] }, [-6, 8, -30], [-11, 0, -34], false, undefined, 'pope-court'),
+    addPlace('fleet-street', '舰队街', '马车、煤气灯与报馆招牌交织的商路', [0, 0, -44], [0, 0, -44], { min: [-60, -0.5, -50], max: [60, 6, -39] }, [-4, 5, -45], [-15, 2, -37], false, undefined, 'fleet-street'),
+    addPlace('pope-court', '蒲柏巷', '舰队街后侧的窄巷；申请日曾挤满红发人群', [-13.5, 0, -40], [-6.5, 0, -41], { min: [-16, -0.5, -42], max: [-5, 6, -25] }, [-7, 3.5, -42], [-10, 1.4, -36.5], false, undefined, 'pope-court'),
     addPlace('league-office', '红发会办公室 · 7号', '十点到两点抄写《大英百科全书》；周薪 £4', [-13, 0, -34.5], [-10, 0, -36.5], { min: [-14.5, -0.5, -37], max: [-5.5, 7, -27.5] }, [-5, 5, -31], [-10, 1, -33], true, 2.35, 'pope-court-no7'),
     addPlace('coburg-square', '科堡广场', '四排两层旧砖屋围住荒草与几簇月桂', [10.5, 0, 10.5], [-1, 0, 9], { min: [-14, -0.5, -12], max: [34, 10, 32] }, [7, 6.8, 21], [23, 2.2, 9], false, undefined, 'coburg-square'),
     addPlace('pawnshop', '威尔逊当铺', '三枚金球招牌；柜台、旧钟与暗房入口', [25, 0, 9], [22.5, 0, 9], { min: [22, -0.5, 3], max: [34, 8, 15] }, [33, 7, 10], [28, 1, 9], true, 2.35, 'jabez-wilson-pawnshop'),
@@ -843,7 +843,7 @@ export function createRedHeadedWorld() {
     addPlace('restaurant', '素食餐馆', '热汤、蔬菜与几张紧凑的餐桌', [42.5, 0, 21], [46, 0, 19], { min: [34, -0.5, 15], max: [46, 8, 23] }, [48, 6, 22], [40, 1, 19], true, 2.35, 'vegetarian-restaurant'),
     addPlace('carriage-depot', '麦克法兰马车厂', '街区商路尽头的车厢与轮轴工坊', [44.5, 0, 31], [46, 0, 28], { min: [34, -0.5, 23], max: [46, 8, 33] }, [48, 7, 31], [40, 1, 28], true, 2.35, 'mcfarlanes-carriage-depot'),
     addPlace('music-hall', '圣詹姆斯音乐厅', '萨拉萨泰登台；中央走道贯穿红绒座席', [13.95, 0, -32.8], [14, 0, -27.5], { min: [6, -0.5, -38], max: [22, 9, -27] }, [25, 10, -25], [14, 1, -32], true, 2.35, 'st-jamess-hall'),
-    addPlace('king-edward', '国王爱德华街 · 17号', '人工膝盖护具厂门面；威廉·莫里斯的假地址', [43, 0, -26.5], [47, 0, -26.5], { min: [38, -0.5, -32], max: [48, 9, -21] }, [51, 8, -23], [43, 1, -26], false, undefined, 'king-edward-kneecap-factory'),
+    addPlace('king-edward', '国王爱德华街 · 17号', '人工膝盖护具厂门面；威廉·莫里斯的假地址', [43, 0, -26.5], [47, 0, -26.5], { min: [38, -0.5, -32], max: [48, 9, -21] }, [55, 5.5, -24], [47, 2, -26.5], false, undefined, 'king-edward-kneecap-factory'),
     addPlace('knee-cap-factory', '人工膝盖护具厂', '工人从未听说过威廉·莫里斯或邓肯·罗斯', [41.5, 0, -25], [47, 0, -26.5], { min: [38, -0.5, -32], max: [47, 8, -21] }, [50, 7, -23], [42, 1, -26], true, 2.35, 'king-edward-kneecap-factory'),
   ];
 
