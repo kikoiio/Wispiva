@@ -27,7 +27,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   host.appendChild(canvas);
   const sky = new THREE.Color('#929fa5');
   scene.background = sky;
-  scene.fog = new THREE.Fog(sky, 95, 270);
+  scene.fog = new THREE.Fog(sky, 200, 600);
   const hemisphere = new THREE.HemisphereLight('#e3edf1', '#80735a', 2.4);
   scene.add(hemisphere);
   const indoorFill = new THREE.PointLight('#f1dfc5', 0, 30, 1.5);
@@ -50,6 +50,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   const placeMap = new Map(world.places.map(place => [place.id, place]));
   const navigation = createStoryNavigation(world);
   const clipping = new THREE.Plane(new THREE.Vector3(0, -1, 0), 2);
+  const bottomClipping = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   const lights = Array.from({ length: 4 }, () => {
     const light = new THREE.PointLight('#ffd28a', 0, 12, 2); scene.add(light); return light;
   });
@@ -259,7 +260,8 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     const place = placeMap.get(activePlace);
     const enabled = !walking && (cutaway || autoCutaway);
     clipping.constant = place?.interior ? (place.clipHeight ?? place.position[1] + 1.75) : 1.8;
-    renderer.clippingPlanes = enabled ? [clipping] : [];
+    bottomClipping.constant = -(place?.position[1] - 0.5);
+    renderer.clippingPlanes = enabled ? (place?.interior ? [clipping, bottomClipping] : [clipping]) : [];
     updateVisibility();
     host.dataset.cutaway = String(enabled);
     requestRender();
@@ -311,10 +313,14 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     return center.addScaledVector(direction, distance * 1.12).toArray();
   }
   function placeCamera(place) {
+    if (!place.interior) return place.camera.position;
     const bounds = { min: [...place.bounds.min], max: [...place.bounds.max] };
     bounds.min[1] = place.position[1] - 0.5;
     bounds.max[1] = place.interior ? (place.clipHeight ?? place.position[1] + 1.75) : 9;
-    return framedPosition(place.camera.position, place.camera.target, bounds);
+    return framedPosition(place.camera.position, placeTarget(place), bounds);
+  }
+  function placeTarget(place) {
+    return place.interior ? [place.camera.target[0], place.position[1] + 0.65, place.camera.target[2]] : place.camera.target;
   }
   function setOrbit(position, lookAt, animate = true) {
     const nextTarget = new THREE.Vector3(...lookAt), offset = new THREE.Vector3(...position).sub(nextTarget);
@@ -337,7 +343,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       feet = spawn;
       yaw = Math.atan2(place.camera.target[0] - feet[0], place.camera.target[2] - feet[2]); pitch = 0;
       canvas.focus({ preventScroll: true });
-    } else setOrbit(placeCamera(place), place.camera.target);
+    } else setOrbit(placeCamera(place), placeTarget(place));
     applyClipping(); onPlace(id); return true;
   }
   function overview() {
@@ -354,7 +360,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       walking = true; transition = null; canvas.focus({ preventScroll: true });
     } else {
       walking = false; pressed.clear();
-      const place = placeMap.get(activePlace); if (place) setOrbit(placeCamera(place), place.camera.target);
+      const place = placeMap.get(activePlace); if (place) setOrbit(placeCamera(place), placeTarget(place));
     }
     host.dataset.walking = String(walking); applyClipping(); return walking;
   }
@@ -415,7 +421,8 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2), camera);
     const hit = raycaster.intersectObjects([meshes, residents], true).find(item => {
       for (let object = item.object; object; object = object.parent) if (!object.visible) return false;
-      return !renderer.clippingPlanes.length || item.point.y <= clipping.constant;
+      return !renderer.clippingPlanes.length || item.point.y <= clipping.constant &&
+        (renderer.clippingPlanes.length < 2 || item.point.y >= -bottomClipping.constant);
     });
     if (!hit) return;
     let object = hit.object;
