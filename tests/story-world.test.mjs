@@ -157,7 +157,7 @@ test('surrounding blocks are deterministic, detailed and keep authored architect
   for (const [ix, iz] of [[0, 0], [-6, -4], [-3, 0], [15, -12]]) {
     const block = createLondonBlock(world.environment, ix, iz);
     assert.deepEqual(block, createLondonBlock(world.environment, ix, iz));
-    assert(block.props.length < 2400, 'street detail must remain bounded per streamed block');
+    assert(block.props.length < 2600, 'street detail must remain bounded per streamed block');
     for (const prop of block.props) {
       assert(point(prop.position) && point(prop.size) && prop.size.every(value => value > 0), prop.id);
       assert(world.materials[prop.material], prop.material);

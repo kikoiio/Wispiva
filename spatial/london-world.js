@@ -133,7 +133,7 @@ export function createLondonStoryWorld() {
     bounds.max[0] = Math.max(bounds.max[0], (cell[0] + 1) * 0.5); bounds.max[1] = Math.max(bounds.max[1], (cell[2] + 1) * 0.5);
   }
   const exclusions = [...extraExclusions,
-    { min: [-20, -20], max: [61, 36] },
+    { min: [-20, -20], max: [60, 36] },
     { min: [-542, -282], max: [-506, -245] },
     { min: [-208, -10], max: [-183, 25] },
     ...[...footprints.values()].map(bounds => ({ min: bounds.min.map(value => value - 2), max: bounds.max.map(value => value + 2) })),

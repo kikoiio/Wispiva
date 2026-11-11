@@ -9,6 +9,34 @@ export function createLondonEnvironment(scene, world, materialFor) {
   const windowMaterial = materialFor('glass').clone();
   windowMaterial.transparent = false; windowMaterial.opacity = 1; windowMaterial.depthWrite = true;
   windowMaterial.color.set('#526b72'); windowMaterial.roughness = 0.38;
+  const cityMaterials = new Map();
+  function cityMaterial(name) {
+    if (/glass/.test(name)) return windowMaterial;
+    if (cityMaterials.has(name)) return cityMaterials.get(name);
+    const material = materialFor(name).clone();
+    // A sixteen-meter facade needs brick-sized texels rather than one enlarged
+    // tile stretched over an entire instanced box.
+    material.onBeforeCompile = shader => {
+      shader.vertexShader = 'varying vec3 cityPosition; varying vec3 cityNormal;\n' + shader.vertexShader;
+      shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+        vec4 cityWorldPosition = vec4(transformed, 1.0); vec3 cityWorldNormal = normal;
+        #ifdef USE_INSTANCING
+          cityWorldPosition = instanceMatrix * cityWorldPosition;
+          cityWorldNormal = mat3(instanceMatrix) * cityWorldNormal;
+        #endif
+        cityPosition = (modelMatrix * cityWorldPosition).xyz;
+        cityNormal = normalize(mat3(modelMatrix) * cityWorldNormal);`);
+      shader.fragmentShader = 'varying vec3 cityPosition; varying vec3 cityNormal;\n' + shader.fragmentShader;
+      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `
+        #ifdef USE_MAP
+          vec3 cityAxis = abs(normalize(cityNormal));
+          vec2 cityUv = cityAxis.y > 0.5 ? cityPosition.xz : cityAxis.x > 0.5 ? cityPosition.zy : cityPosition.xy;
+          diffuseColor *= texture2D(map, cityUv * 1.5);
+        #endif`);
+    };
+    material.customProgramCacheKey = () => 'london-world-texture-v1';
+    cityMaterials.set(name, material); return material;
+  }
   const skyGeometry = new THREE.SphereGeometry(3500, 24, 16);
   const skyMaterial = new THREE.ShaderMaterial({
     side: THREE.BackSide, depthWrite: false, fog: false,
@@ -70,7 +98,7 @@ export function createLondonEnvironment(scene, world, materialFor) {
     }
     for (const records of buckets.values()) {
       const first = records[0], mesh = new THREE.InstancedMesh(box,
-        /glass/.test(first.material) ? windowMaterial : materialFor(`${first.kind === 'lamp' ? 'lamp:' : ''}${first.material}`), records.length);
+        cityMaterial(`${first.kind === 'lamp' ? 'lamp:' : ''}${first.material}`), records.length);
       records.forEach((record, index) => {
         transform.position.set(...record.position); transform.scale.set(...record.size); transform.rotation.set(0, record.rotation || 0, 0);
         transform.updateMatrix(); mesh.setMatrixAt(index, transform.matrix);
@@ -126,7 +154,8 @@ export function createLondonEnvironment(scene, world, materialFor) {
   function dispose() {
     for (const key of [...blocks.keys()]) removeBlock(key);
     for (const geometry of laneGeometries) geometry.dispose();
-    box.dispose(); groundGeometry.dispose(); skyGeometry.dispose(); skyMaterial.dispose(); windowMaterial.dispose(); scene.remove(root, sky);
+    box.dispose(); groundGeometry.dispose(); skyGeometry.dispose(); skyMaterial.dispose(); windowMaterial.dispose();
+    for (const material of cityMaterials.values()) material.dispose(); scene.remove(root, sky);
   }
   return { update, dispose, stats: () => ({ blocks: blocks.size, buildings: [...blocks.values()].reduce((count, block) => count + block.buildings, 0) }) };
 }

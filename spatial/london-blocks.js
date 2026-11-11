@@ -311,6 +311,17 @@ export function createLondonBlock(environment = {}, ix, iz) {
       }
     }
 
+    const backPlan = { ...plan, normal: [-normal[0], -normal[1]],
+      face: plan.axis === 'z' ? (normal[0] < 0 ? body.x1 : body.x0) : (normal[1] < 0 ? body.z1 : body.z0) };
+    for (let floor = 0; floor < stories; floor++) {
+      const y = floor === 0 ? 1.6 : 4.02 + (floor - 1) * 2.52;
+      for (const fraction of [0.28, 0.72]) {
+        const along = body.along0 + width * fraction;
+        facadeBox(backPlan, along, y, 1.32, 1.68, 'stone', 'detail', 0.13, 0.05);
+        facadeBox(backPlan, along, y, 1.08, 1.42, 'glass', 'detail', 0.07, 0.19);
+      }
+    }
+
     if (style.shop) {
       const awningY = 3.02;
       const awning = facadePoint(plan, (body.along0 + body.along1) / 2, awningY, 0.82);
