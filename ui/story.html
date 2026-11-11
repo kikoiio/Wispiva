@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111719">
+    <title>红发会 · Wispiva</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="/ui/story.css">
+    <script type="importmap">{"imports":{"three":"/vendor/three.module.js","three/addons/utils/BufferGeometryUtils.js":"/vendor/BufferGeometryUtils.js"}}</script>
+    <script type="module" src="/ui/story-app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Wispiva 首页">Wispiva</a>
+      <span class="brand-divider" aria-hidden="true">/</span>
+      <span class="story-title">红发会</span>
+    </header>
+
+    <main class="story-layout">
+      <section class="world-panel" aria-label="红发会世界">
+        <div class="world-tools">
+          <div class="select-wrap">
+            <label class="sr-only" for="place-select">地点</label>
+            <select id="place-select" aria-label="选择地点">
+              <option value="">全景</option>
+            </select>
+          </div>
+          <div class="select-wrap chapter-wrap">
+            <label class="sr-only" for="chapter-select">故事章节</label>
+            <select id="chapter-select" aria-label="选择故事章节"></select>
+          </div>
+          <div class="world-actions" role="group" aria-label="世界视图">
+            <button id="overview-button" type="button" title="查看整个世界" aria-label="全景">全景</button>
+            <button id="cutaway-button" type="button" aria-pressed="false" aria-label="切换剖面">剖面</button>
+            <button id="walking-button" type="button" aria-pressed="false" aria-label="切换步行">步行</button>
+          </div>
+        </div>
+
+        <div class="scene-shell">
+          <div id="scene-host" class="scene-host" tabindex="0" role="application" aria-label="红发会三维世界。拖动旋转，滚轮缩放，WASD 或方向键行走。" title="拖动旋转，滚轮缩放；WASD / 方向键行走"></div>
+          <p id="scene-loading" class="scene-loading" role="status">正在载入世界…</p>
+          <div id="scene-error" class="scene-error" role="alert" hidden>
+            <p id="scene-error-text">三维场景暂时无法载入。</p>
+            <button id="scene-retry" type="button">重试</button>
+          </div>
+          <p id="scene-hint" class="scene-hint" aria-hidden="true">拖动旋转 · 滚轮缩放</p>
+        </div>
+      </section>
+
+      <aside class="chat-panel" aria-label="故事对话">
+        <header class="chat-header">
+          <h1>对话</h1>
+          <span id="chat-status" role="status" aria-live="polite"></span>
+        </header>
+        <div id="chat-thread" class="chat-thread" role="log" aria-label="故事对话记录" aria-live="polite" aria-relevant="additions text" tabindex="0"></div>
+        <div id="chat-error" class="chat-error" role="alert" hidden>
+          <p id="chat-error-text"></p>
+          <button id="chat-retry" type="button">重试</button>
+        </div>
+        <form id="chat-form" class="chat-composer">
+          <label class="sr-only" for="message-input">说说你想看什么</label>
+          <textarea id="message-input" rows="2" maxlength="4000" placeholder="说说你想看什么…" aria-describedby="composer-help"></textarea>
+          <div class="composer-buttons">
+            <button id="cancel-button" class="cancel-button" type="button" hidden>停止</button>
+            <button id="send-button" class="send-button" type="submit" aria-label="发送">发送</button>
+          </div>
+          <p id="composer-help" class="composer-help">Enter 发送 · Shift + Enter 换行</p>
+        </form>
+      </aside>
+    </main>
+  </body>
+</html>

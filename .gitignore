@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.local
+.env
+.env.*
+!.env.example
+/config.json
+.DS_Store
+.vite/
+
+.tmp/
+.data/

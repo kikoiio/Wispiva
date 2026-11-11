@@ -1,0 +1,40 @@
+name: Red-Headed League world
+on:
+  workflow_dispatch:
+  push:
+    branches: ['prototype-story-preview-*']
+permissions:
+  contents: read
+jobs:
+  story-world:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+      TMPDIR: ${{ github.workspace }}/.tmp/ci
+      WAYLAND_DISPLAY: ''
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: mkdir -p .tmp/ci
+      - run: npm ci
+      - name: Story, geometry, navigation and transport checks
+        run: node --test --test-concurrency=1 tests/story-experience.test.mjs tests/story-geometry.test.mjs tests/story-transport.test.mjs tests/story-world.test.mjs
+      - name: Browser tooling
+        run: npm install --no-save --package-lock=false --ignore-scripts --no-audit --no-fund playwright@1.64.0
+      - name: Chinese font
+        run: |
+          mkdir -p "$HOME/.local/share/fonts"
+          curl --fail --location --max-time 60 https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf -o "$HOME/.local/share/fonts/NotoSansCJKsc-Regular.otf"
+          fc-cache -f "$HOME/.local/share/fonts"
+      - name: Scene and conversation in Chrome
+        run: node scripts/observe-story-browser.mjs
+      - name: Scene screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: red-headed-league-world
+          path: .tmp/story-world/browser/
+          retention-days: 7

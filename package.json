@@ -1,0 +1,15 @@
+{
+  "name": "wispiva-prototype",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "check": "node verify.mjs",
+    "benchmark:voxel": "node scripts/benchmark-voxel-scale.mjs",
+    "soak:simulation": "node scripts/soak-simulation.mjs"
+  },
+  "dependencies": {
+    "three": "^0.180.0"
+  }
+}
