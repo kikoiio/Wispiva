@@ -97,6 +97,10 @@ export function createRedHeadedWorld() {
     'paint-cream': { color: '#c3b69a', pattern: 'plain' },
     'paint-black': { color: '#17191a', pattern: 'plain' },
     'soot-black': { color: '#272624', pattern: 'brick' },
+    'fire-orange': { color: '#e67b27', pattern: 'plain', emissive: '#c55216' },
+    'fire-gold': { color: '#ffd077', pattern: 'plain', emissive: '#eea63e' },
+    'autumn-ochre': { color: '#a17d3d', pattern: 'plain' },
+    'autumn-russet': { color: '#81543a', pattern: 'plain' },
   };
 
   // The ground plane is continuous; streets, lanes, square, paths and lawns are
@@ -279,6 +283,11 @@ export function createRedHeadedWorld() {
         box(facePoint(b, center, level - 0.67), axis === 'z' ? [0.09, 0.08, 1.2] : [1.2, 0.08, 0.09], 'wood', b.id, 'exterior');
         box(facePoint(b, center, level + 0.67), axis === 'z' ? [0.09, 0.08, 1.2] : [1.2, 0.08, 0.09], 'wood', b.id, 'exterior');
         box(p, axis === 'z' ? [0.07, 1.25, 0.07] : [0.07, 1.25, 0.07], 'wood', b.id, 'exterior');
+        const outward = ({ west: [-0.2, 0], east: [0.6, 0], north: [0, -0.2], south: [0, 0.6] })[b.front];
+        const sill = facePoint(b, center, level - 0.7);
+        sill[0] += outward[0]; sill[2] += outward[1];
+        box(sill, axis === 'z' ? [0.24, 0.14, 1.45] : [1.45, 0.14, 0.24], 'stone', b.id, 'exterior');
+        box([p[0] + outward[0], level, p[2] + outward[1]], axis === 'z' ? [0.08, 0.08, 1.05] : [1.05, 0.08, 0.08], 'paint-cream', b.id, 'exterior');
       }
     }
     // Roof stacks, rainwater pipes and drain shoes give each narrow terrace a
@@ -333,6 +342,7 @@ export function createRedHeadedWorld() {
     [-15.1, -40.1, '#d9a153'], [-8.8, -40.2, '#8d422e'],
   ];
   for (const [i, [x, z, hair]] of crowd.entries()) {
+    const crowdStart = props.length;
     const hairMaterial = 'crowd-hair-' + i;
     materials[hairMaterial] = { color: hair, pattern: 'plain' };
     box([x, 0.75, z], [0.38, 1.25, 0.32], 'cloth', 'pope-court', 'exterior');
@@ -340,6 +350,9 @@ export function createRedHeadedWorld() {
     box([x, 1.86, z], [0.38, 0.18, 0.38], hairMaterial, 'pope-court', 'exterior');
     box([x - 0.12, 0.14, z], [0.12, 0.28, 0.18], 'leather', 'pope-court', 'exterior');
     box([x + 0.12, 0.14, z], [0.12, 0.28, 0.18], 'leather', 'pope-court', 'exterior');
+    for (let piece = crowdStart; piece < props.length; piece++) {
+      Object.assign(props[piece], { chapters: ['league'], solid: false });
+    }
   }
 
   // Saxe-Coburg Square: four dingy two-storey rows around a railed green.
@@ -359,19 +372,43 @@ export function createRedHeadedWorld() {
     wallMaterial: 'brick-red', roofMaterial: 'roof-red' }, { label: 'JABEZ WILSON', number: '3', lampAtDoor: true, bay: true });
   blockHouse({ id: 'square-east-south', x0: 22, x1: 34, z0: 15, z1: 27, front: 'west', doorAt: 21, wallMaterial: 'brick-soot', roofMaterial: 'roof-ochre' }, { number: '5' });
 
-  // The railed enclosure and weed-choked lawn described by Watson.
-  for (const [x0, z0, x1, z1] of [[5, 3, 17, 3.5], [5, 16.5, 17, 17], [5, 3.5, 5.5, 16.5], [16.5, 3.5, 17, 16.5]]) {
-    fillBox(x0, 0.5, z0, x1, 1.0, z1, 'iron-rust', 'coburg-square', 'exterior');
+  // Slender rusted ironwork, with a full two-meter western gate opening.
+  const gardenRail = (x0, z0, x1, z1) => {
+    const length = Math.hypot(x1 - x0, z1 - z0), alongX = x0 !== x1;
+    for (const y of [0.28, 0.96]) {
+      box([(x0 + x1) / 2, y, (z0 + z1) / 2], alongX ? [length, 0.055, 0.055] : [0.055, 0.055, length], 'iron-rust', 'coburg-square', 'exterior');
+    }
+    const count = Math.ceil(length / 0.55);
+    for (let i = 0; i <= count; i++) {
+      const x = x0 + (x1 - x0) * i / count, z = z0 + (z1 - z0) * i / count;
+      box([x, 0.58, z], [0.055, 1.16, 0.055], 'iron-rust', 'coburg-square', 'exterior');
+      box([x, 1.18, z], [0.085, 0.1, 0.085], 'iron', 'coburg-square', 'exterior');
+    }
+  };
+  gardenRail(5.25, 3.25, 16.75, 3.25);
+  gardenRail(5.25, 16.75, 16.75, 16.75);
+  gardenRail(16.75, 3.25, 16.75, 16.75);
+  gardenRail(5.25, 3.25, 5.25, 9);
+  gardenRail(5.25, 11, 5.25, 16.75);
+  // Three sparse autumn trees and a few benches leave the weedy enclosure open.
+  for (const [x, z] of [[2, 15], [19, 5], [3, 20]]) {
+    box([x, 1.45, z], [0.22, 2.9, 0.22], 'timber', 'coburg-square', 'exterior');
+    for (const [dx, dy, dz, size, material] of [[-0.55, 3.0, 0, 1.1, 'autumn-ochre'], [0.45, 3.35, 0.2, 1.25, 'autumn-russet'], [0, 3.95, -0.25, 0.9, 'autumn-ochre']]) {
+      box([x + dx, dy, z + dz], [size, 0.65, size * 0.8], material, 'coburg-square', 'exterior', { solid: false });
+    }
+    box([x + 0.34, 2.6, z], [0.78, 0.12, 0.12], 'timber', 'coburg-square', 'exterior');
+    for (let i = 0; i < 9; i++) {
+      box([x - 1.1 + (i % 3) * 0.7, 0.015, z - 0.8 + Math.floor(i / 3) * 0.67], [0.19, 0.025, 0.13], i % 2 ? 'autumn-russet' : 'autumn-ochre', 'coburg-square', 'exterior', { rotation: i * 0.8, solid: false });
+    }
   }
-  for (let x = 5.25; x < 17; x += 1) {
-    for (const z of [3.25, 16.75]) box([x, 0.72, z], [0.08, 0.65, 0.08], 'iron-rust', 'coburg-square', 'exterior');
+  for (const [x, z] of [[8, 20], [16, 20]]) {
+    for (const dx of [-0.75, 0.75]) {
+      for (const dz of [-0.25, 0.25]) box([x + dx, 0.23, z + dz], [0.09, 0.46, 0.09], 'iron', 'coburg-square', 'exterior');
+      box([x + dx, 0.77, z + 0.29], [0.08, 0.64, 0.08], 'iron', 'coburg-square', 'exterior');
+    }
+    for (const dz of [-0.22, 0, 0.22]) box([x, 0.49, z + dz], [2.0, 0.09, 0.16], 'wood', 'coburg-square', 'exterior');
+    for (const y of [0.79, 1.02]) box([x, y, z + 0.3], [2.0, 0.15, 0.09], 'wood', 'coburg-square', 'exterior');
   }
-  for (let z = 3.75; z < 16.5; z += 1) {
-    if (z >= 8.75 && z < 11.25) continue;
-    for (const x of [5.25, 16.75]) box([x, 0.72, z], [0.08, 0.65, 0.08], 'iron-rust', 'coburg-square', 'exterior');
-  }
-  // Gate in the western railing, aligned with the entry alley.
-  eraseBox(5, 0.5, 9.0, 5.5, 1.0, 11.0);
   for (const [x, z] of [[7, 6], [13, 13], [9, 15], [15, 7]]) {
     box([x, 0.55, z], [1.3, 0.9, 1.2], 'laurel', 'coburg-square', 'exterior');
     box([x, 1.05, z], [0.7, 0.35, 0.75], 'laurel', 'coburg-square', 'exterior');
@@ -492,13 +529,33 @@ export function createRedHeadedWorld() {
   sign([21.45, 2.0, 9], [3.8, 0.7, 0.08], 'JABEZ WILSON', 'jabez-wilson-pawnshop', -Math.PI / 2, 'exterior', 'paper');
   box([27.8, 1.05, 5.7], [5.2, 0.22, 1.1], 'wood', 'jabez-wilson-pawnshop');
   box([27.8, 0.7, 5.7], [5.0, 0.45, 0.9], 'panel-walnut', 'jabez-wilson-pawnshop');
-  box([27.8, 1.22, 5.7], [5.3, 0.12, 1.2], 'brass', 'jabez-wilson-pawnshop');
+  box([27.8, 1.22, 5.7], [5.3, 0.12, 1.2], 'wood', 'jabez-wilson-pawnshop');
+  for (const x of [25.8, 27.1, 28.4, 29.7]) {
+    box([x, 0.7, 6.17], [1.05, 0.64, 0.07], 'wood', 'jabez-wilson-pawnshop');
+    box([x, 0.7, 6.22], [0.84, 0.43, 0.035], 'panel-walnut', 'jabez-wilson-pawnshop');
+  }
+  box([26.2, 1.31, 5.7], [0.83, 0.07, 0.57], 'leather', 'jabez-wilson-pawnshop');
+  box([26.2, 1.36, 5.7], [0.76, 0.025, 0.51], 'paper', 'jabez-wilson-pawnshop');
+  for (let i = 0; i < 4; i++) box([26.2, 1.377, 5.53 + i * 0.1], [0.6, 0.008, 0.012], 'ink', 'jabez-wilson-pawnshop');
+  box([28.6, 1.34, 5.7], [0.7, 0.12, 0.38], 'wood', 'jabez-wilson-pawnshop');
+  box([28.6, 1.66, 5.7], [0.065, 0.55, 0.065], 'brass', 'jabez-wilson-pawnshop');
+  box([28.6, 1.93, 5.7], [1.18, 0.06, 0.07], 'brass', 'jabez-wilson-pawnshop');
+  for (const x of [28.1, 29.1]) {
+    box([x, 1.75, 5.7], [0.025, 0.34, 0.025], 'brass', 'jabez-wilson-pawnshop');
+    box([x, 1.57, 5.7], [0.35, 0.045, 0.32], 'brass', 'jabez-wilson-pawnshop');
+  }
   for (const x of [23.5, 32.2]) {
     for (let z = 4.2; z <= 7.0; z += 1.1) {
       box([x, 1.4, z], [0.35, 2.3, 0.3], 'wood', 'jabez-wilson-pawnshop');
       box([x - 0.18, 0.65, z], [0.75, 0.16, 0.65], 'wood', 'jabez-wilson-pawnshop');
       box([x - 0.18, 1.25, z], [0.75, 0.14, 0.65], 'wood', 'jabez-wilson-pawnshop');
       box([x - 0.18, 1.85, z], [0.75, 0.14, 0.65], 'wood', 'jabez-wilson-pawnshop');
+      box([x - 0.18, 0.9, z], [0.34, 0.32, 0.36], 'wood', 'jabez-wilson-pawnshop');
+      box([x - 0.18, 1.49, z], [0.32, 0.33, 0.14], 'panel-walnut', 'jabez-wilson-pawnshop');
+      box([x - 0.18, 1.49, z + 0.08], [0.23, 0.23, 0.035], 'paper', 'jabez-wilson-pawnshop');
+      box([x - 0.18, 1.49, z + 0.105], [0.025, 0.1, 0.02], 'ink', 'jabez-wilson-pawnshop');
+      for (let book = 0; book < 3; book++) box([x - 0.4 + book * 0.16, 2.1, z], [0.11, 0.34, 0.27], ['paint-blue', 'paint-red', 'paper'][book], 'jabez-wilson-pawnshop');
+      box([x + 0.08, 2.04, z], [0.16, 0.24, 0.17], 'tile-cream', 'jabez-wilson-pawnshop');
     }
   }
   for (let i = 0; i < 5; i++) {
@@ -651,34 +708,55 @@ export function createRedHeadedWorld() {
   // Inner wall treatments sit just inside the outer shell, leaving the stair and door aisles open.
   for (let z = -33.5; z < -24; z += 1.5) {
     if (Math.abs(z + 29) < 1.5) continue;
-    box([-45.18, 3.85, z], [0.12, 1.65, 1.35], 'panel-walnut', 'baker-221b', 'interior');
-    box([-45.10, 4.95, z], [0.08, 0.44, 1.2], 'wallpaper-green', 'baker-221b', 'interior');
-    box([-34.82, 3.85, z], [0.12, 1.65, 1.35], 'panel-walnut', 'baker-221b', 'interior');
-    box([-34.9, 4.95, z], [0.08, 0.44, 1.2], 'wallpaper-green', 'baker-221b', 'interior');
+    box([-45.18, 3.5, z], [0.12, 1.0, 1.35], 'panel-walnut', 'baker-221b', 'interior');
+    box([-45.10, 4.75, z], [0.08, 1.5, 1.35], 'wallpaper-green', 'baker-221b', 'interior');
+    box([-34.82, 3.5, z], [0.12, 1.0, 1.35], 'panel-walnut', 'baker-221b', 'interior');
+    box([-34.9, 4.75, z], [0.08, 1.5, 1.35], 'wallpaper-green', 'baker-221b', 'interior');
   }
-  box([-40.0, 3.85, -34.78], [8.8, 1.65, 0.12], 'panel-walnut', 'baker-221b', 'interior');
-  box([-40.0, 4.95, -34.7], [8.4, 0.44, 0.08], 'wallpaper-green', 'baker-221b', 'interior');
-  box([-40.0, 3.85, -23.22], [8.8, 1.65, 0.12], 'panel-walnut', 'baker-221b', 'interior');
-  box([-40.0, 4.95, -23.3], [8.4, 0.44, 0.08], 'wallpaper-green', 'baker-221b', 'interior');
+  box([-40.0, 3.5, -34.4], [8.8, 1.0, 0.12], 'panel-walnut', 'baker-221b', 'interior');
+  box([-40.0, 4.75, -34.38], [8.8, 1.5, 0.08], 'wallpaper-green', 'baker-221b', 'interior');
+  box([-40.0, 3.5, -23.62], [8.8, 1.0, 0.12], 'panel-walnut', 'baker-221b', 'interior');
+  box([-40.0, 4.75, -23.65], [8.8, 1.5, 0.08], 'wallpaper-green', 'baker-221b', 'interior');
   box([-39.5, 2.96, -29.0], [3.5, 0.08, 2.0], 'rug-red', 'baker-221b', 'interior');
-  // Fireplace and mantel along the eastern wall.
-  box([-35.1, 3.85, -31.4], [0.58, 1.7, 2.1], 'brick-soot', 'baker-221b', 'interior');
-  box([-34.68, 3.75, -31.4], [0.2, 0.16, 2.5], 'wood', 'baker-221b', 'interior');
-  box([-34.85, 3.55, -31.4], [0.18, 0.48, 1.0], 'soot', 'baker-221b', 'interior');
-  box([-35.02, 3.58, -31.4], [0.12, 0.36, 0.58], 'paint-red', 'baker-221b', 'interior');
-  box([-34.58, 4.72, -31.4], [0.16, 0.48, 0.16], 'brass', 'baker-221b', 'interior');
-  box([-34.45, 4.95, -31.4], [0.25, 0.12, 0.4], 'wood', 'baker-221b', 'interior');
-  // Opposing armchairs, tea table, newspaper, and settee.
-  box([-44.0, 3.55, -28.1], [1.45, 0.9, 1.35], 'leather', 'baker-221b', 'interior');
-  box([-44.0, 4.12, -28.55], [1.48, 1.05, 0.32], 'leather', 'baker-221b', 'interior');
-  box([-37.5, 3.55, -30.8], [1.45, 0.9, 1.35], 'leather', 'baker-221b', 'interior');
-  box([-37.5, 4.12, -31.25], [1.48, 1.05, 0.32], 'leather', 'baker-221b', 'interior');
-  box([-40.1, 3.5, -29.1], [2.1, 0.58, 1.25], 'wood', 'baker-221b', 'interior');
-  box([-40.1, 3.82, -29.1], [2.2, 0.12, 1.34], 'panel-walnut', 'baker-221b', 'interior');
+  // A black firebox opens toward the room beneath a broad walnut mantel.
+  box([-35.38, 3.06, -31.4], [0.9, 0.12, 2.25], 'stone', 'baker-221b');
+  box([-35.42, 3.65, -31.4], [0.1, 1.06, 1.5], 'paint-black', 'baker-221b');
+  for (const z of [-32.28, -30.52]) box([-35.37, 3.68, z], [0.52, 1.28, 0.27], 'brick-soot', 'baker-221b');
+  box([-35.43, 4.31, -31.4], [0.75, 0.17, 2.35], 'panel-walnut', 'baker-221b');
+  box([-35.53, 3.19, -31.4], [0.24, 0.13, 1.05], 'coal', 'baker-221b');
+  for (const [z, height] of [[-31.78, 0.23], [-31.4, 0.4], [-31.07, 0.29]]) {
+    box([-35.55, 3.25 + height / 2, z], [0.12, height, 0.22], 'fire-orange', 'baker-221b', 'interior', { emissive: true });
+    box([-35.62, 3.26 + height / 3, z], [0.06, height * 0.65, 0.1], 'fire-gold', 'baker-221b', 'interior', { emissive: true });
+  }
+  box([-35.4, 4.58, -31.4], [0.25, 0.38, 0.4], 'wood', 'baker-221b');
+  box([-35.55, 4.58, -31.4], [0.05, 0.26, 0.27], 'brass', 'baker-221b');
+  // Upholstered chairs have separate seats, backs, arms and exposed feet.
+  for (const [x, z] of [[-44, -28.1], [-37.5, -30.8]]) {
+    box([x, 3.36, z], [1.26, 0.13, 1.14], 'panel-walnut', 'baker-221b');
+    box([x, 3.53, z], [1.16, 0.22, 1.05], 'leather', 'baker-221b');
+    box([x, 4.0, z - 0.46], [1.22, 0.92, 0.22], 'leather', 'baker-221b');
+    for (const dx of [-0.6, 0.6]) box([x + dx, 3.74, z], [0.16, 0.4, 1.1], 'leather', 'baker-221b');
+    for (const dx of [-0.51, 0.51]) for (const dz of [-0.43, 0.43]) box([x + dx, 3.16, z + dz], [0.1, 0.32, 0.1], 'wood', 'baker-221b');
+  }
+  // Tea table: a thin top, four legs, folded newspaper, cup and saucer.
+  box([-40.1, 3.82, -29.1], [2.2, 0.12, 1.34], 'panel-walnut', 'baker-221b');
+  for (const dx of [-0.88, 0.88]) for (const dz of [-0.47, 0.47]) box([-40.1 + dx, 3.39, -29.1 + dz], [0.11, 0.78, 0.11], 'wood', 'baker-221b');
   box([-40.55, 3.91, -29.0], [0.58, 0.04, 0.38], 'paper', 'baker-221b', 'interior', { rotation: 0.12 });
-  box([-39.75, 3.93, -29.2], [0.28, 0.13, 0.28], 'brass', 'baker-221b', 'interior');
-  box([-40.0, 3.65, -26.0], [3.7, 0.82, 1.15], 'velvet-red', 'baker-221b', 'interior');
-  box([-40.0, 4.12, -26.45], [3.8, 1.0, 0.25], 'velvet-red', 'baker-221b', 'interior');
+  box([-39.75, 3.91, -29.2], [0.35, 0.035, 0.35], 'paper', 'baker-221b');
+  box([-39.75, 4.0, -29.2], [0.18, 0.16, 0.18], 'brass', 'baker-221b');
+  box([-39.62, 4.0, -29.2], [0.09, 0.08, 0.06], 'brass', 'baker-221b');
+  box([-40, 3.35, -26], [3.5, 0.13, 1.05], 'wood', 'baker-221b');
+  for (const dx of [-1.1, 0, 1.1]) box([-40 + dx, 3.54, -26], [1.04, 0.23, 0.98], 'velvet-red', 'baker-221b');
+  box([-40, 4.03, -26.45], [3.55, 0.95, 0.22], 'velvet-red', 'baker-221b');
+  for (const dx of [-1.7, 1.7]) box([-40 + dx, 3.77, -26], [0.17, 0.45, 1.08], 'velvet-red', 'baker-221b');
+  for (const dx of [-1.5, 1.5]) for (const dz of [-0.4, 0.4]) box([-40 + dx, 3.16, -26 + dz], [0.1, 0.32, 0.1], 'wood', 'baker-221b');
+  for (const center of [-32.75, -25.75]) {
+    for (const side of [-0.67, 0.67]) {
+      box([-45.02, 4.52, center + side], [0.18, 1.65, 0.32], 'curtain-gold', 'baker-221b', 'interior', { solid: false });
+      box([-44.9, 4.35, center + side], [0.08, 0.08, 0.36], 'brass', 'baker-221b', 'interior', { solid: false });
+    }
+    box([-45.0, 5.34, center], [0.1, 0.1, 1.85], 'wood', 'baker-221b', 'interior', { solid: false });
+  }
   // Tall bookcases, books, Holmes's writing desk, violin, and chemistry glassware.
   for (const z of [-33.0, -24.5]) {
     box([-44.8, 4.35, z], [0.42, 2.45, 2.0], 'panel-walnut', 'baker-221b', 'interior');
@@ -687,7 +765,8 @@ export function createRedHeadedWorld() {
       for (let i = 0; i < 5; i++) box([-44.4, y + 0.2, z - 0.72 + i * 0.34], [0.16, 0.34, 0.22], ['paint-red', 'paint-green', 'paint-blue', 'paper', 'leather'][i], 'baker-221b', 'interior');
     }
   }
-  box([-37.0, 3.55, -25.0], [2.6, 0.78, 1.2], 'wood', 'baker-221b', 'interior');
+  for (const dx of [-1.06, 1.06]) for (const dz of [-0.43, 0.43]) box([-37 + dx, 3.47, -25 + dz], [0.12, 0.94, 0.12], 'wood', 'baker-221b');
+  box([-37, 3.8, -25], [2.5, 0.18, 0.94], 'wood', 'baker-221b');
   box([-37.0, 3.98, -25.0], [2.75, 0.12, 1.3], 'panel-walnut', 'baker-221b', 'interior');
   box([-37.4, 4.2, -25.05], [0.8, 0.05, 0.62], 'paper', 'baker-221b', 'interior');
   box([-36.1, 4.2, -25.0], [0.25, 0.05, 0.28], 'ink', 'baker-221b', 'interior');

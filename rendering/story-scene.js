@@ -30,6 +30,8 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   scene.fog = new THREE.Fog(sky, 95, 270);
   const hemisphere = new THREE.HemisphereLight('#e3edf1', '#80735a', 2.4);
   scene.add(hemisphere);
+  const indoorFill = new THREE.PointLight('#f1dfc5', 0, 30, 1.5);
+  scene.add(indoorFill);
   const sun = new THREE.DirectionalLight('#ffdfb0', 2.6);
   sun.position.set(-45, 100, 40);
   sun.castShadow = true;
@@ -57,6 +59,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   let activePlace = 'coburg-square', currentChapter = chapter;
   let azimuth = 0, polar = 0.8, radius = 80, yaw = 0, pitch = 0;
   let feet = [0, 0, 0], lastTime = 0, transition = null;
+  let viewportWidth = 0, viewportHeight = 0;
   const pressed = new Set(), pointers = new Map();
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const initialVector = new THREE.Vector3(...world.overview.position).sub(target);
@@ -134,14 +137,16 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   }
   function materialFor(name) {
     if (materials.has(name)) return materials.get(name);
-    const descriptor = world.materials?.[name] || {};
+    const isLamp = name.startsWith('lamp:');
+    const descriptor = world.materials?.[isLamp ? name.slice(5) : name] || {};
     const transparent = descriptor.transparent || /glass|water/.test(name);
+    const metal = descriptor.pattern === 'metal' || /metal|iron|gold|brass|copper/.test(name);
     const material = new THREE.MeshStandardMaterial({
       color: descriptor.color || fallbackPalette[name] || '#8e8170',
-      map: textureFor(name, descriptor), roughness: /metal|iron|gold/.test(name) ? 0.5 : 0.87,
-      metalness: /gold/.test(name) ? 0.5 : /metal|iron/.test(name) ? 0.25 : 0,
+      map: textureFor(name, descriptor), roughness: metal ? 0.45 : 0.87,
+      metalness: /gold/.test(name) ? 0.5 : metal ? 0.25 : 0,
       transparent: Boolean(transparent), opacity: transparent ? 0.32 : 1, depthWrite: !transparent,
-      emissive: descriptor.emissive || '#000000', emissiveIntensity: 0.8,
+      emissive: isLamp ? '#ffc776' : descriptor.emissive || '#000000', emissiveIntensity: isLamp ? 1.1 : 0.8,
       clipShadows: true,
     });
     materials.set(name, material); return material;
@@ -169,13 +174,14 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     ctx.font = `600 ${fontSize}px "Noto Serif CJK SC", "Songti SC", serif`;
     lines.forEach((line, index) => ctx.fillText(line, label.width / 2, label.height * (index + 0.5) / lines.length));
     const texture = new THREE.CanvasTexture(label); texture.colorSpace = THREE.SRGBColorSpace; textures.add(texture);
-    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, side: THREE.DoubleSide, clipShadows: true });
+    const material = new THREE.MeshStandardMaterial({ map: texture, roughness: 0.9, clipShadows: true });
     materials.set(`sign:${prop.id}`, material);
     const geometry = new THREE.PlaneGeometry(prop.size[0], prop.size[1]); geometries.add(geometry);
     const group = new THREE.Group(); group.position.set(...prop.position); group.rotation.y = prop.rotation || 0;
     const face = new THREE.Mesh(geometry, material); face.position.z = (prop.size[2] || 0.05) / 2 + 0.006;
+    const reverse = face.clone(); reverse.position.z = -face.position.z; reverse.rotation.y = Math.PI;
     makeBox(group, [0, 0, 0], [prop.size[0], prop.size[1], prop.size[2] || 0.06], materialFor(prop.material));
-    group.add(face); group.userData.site = prop.site; group.userData.layer = prop.layer;
+    group.add(face, reverse); group.userData.site = prop.site; group.userData.layer = prop.layer;
     group.userData.chapters = prop.chapters;
     meshes.add(group);
   }
@@ -196,13 +202,13 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   const batches = new Map();
   for (const prop of world.props) {
     if (prop.kind === 'sign') { sign(prop); continue; }
-    const id = `${prop.site}:${prop.layer}:${prop.material}:${prop.chapters?.join(',') || ''}`;
+    const id = `${prop.site}:${prop.layer}:${prop.kind}:${prop.material}:${prop.chapters?.join(',') || ''}`;
     if (!batches.has(id)) batches.set(id, []);
     batches.get(id).push(prop);
   }
   const transform = new THREE.Object3D();
   for (const props of batches.values()) {
-    const mesh = new THREE.InstancedMesh(boxGeometry, materialFor(props[0].material), props.length);
+    const mesh = new THREE.InstancedMesh(boxGeometry, materialFor(`${props[0].kind === 'lamp' ? 'lamp:' : ''}${props[0].material}`), props.length);
     props.forEach((prop, index) => {
       transform.position.set(...prop.position); transform.rotation.set(0, prop.rotation || 0, 0); transform.scale.set(...prop.size);
       transform.updateMatrix(); mesh.setMatrixAt(index, transform.matrix);
@@ -254,23 +260,61 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     const enabled = !walking && (cutaway || autoCutaway);
     clipping.constant = place?.interior ? (place.clipHeight ?? place.position[1] + 1.75) : 1.8;
     renderer.clippingPlanes = enabled ? [clipping] : [];
+    updateVisibility();
     host.dataset.cutaway = String(enabled);
     requestRender();
+  }
+  function focusSites() {
+    const place = placeMap.get(activePlace);
+    if (!place?.interior || walking || !(cutaway || autoCutaway)) return null;
+    const sites = new Set([place.site]);
+    if (['pawn-cellar', 'bank-vault'].includes(place.id)) sites.add('tunnel');
+    return sites;
+  }
+  function updateVisibility() {
+    const sites = focusSites();
+    for (const object of meshes.children) object.visible =
+      (!object.userData.chapters || object.userData.chapters.includes(currentChapter)) &&
+      (!sites || sites.has(object.userData.site));
+    for (const group of actorNodes.values()) {
+      const state = group.userData.resident.states[currentChapter];
+      group.visible = Boolean(state) && (!sites || sites.has(placeMap.get(state.placeId)?.site));
+    }
   }
   function setChapter(id) {
     if (!world.chapters.some(item => item.id === id)) return;
     currentChapter = id;
-    for (const object of meshes.children) object.visible = !object.userData.chapters || object.userData.chapters.includes(id);
     const night = id === 'heist' || id === 'aftermath';
     sky.set(night ? '#3c4955' : '#929fa5'); scene.fog.color.copy(sky);
-    hemisphere.intensity = night ? 0.9 : 2.4; sun.intensity = night ? 0.7 : 2.6;
-    sun.color.set(night ? '#b6cfde' : '#ffdfb0'); renderer.toneMappingExposure = night ? 1.25 : 1.05;
+    hemisphere.intensity = night ? 1.1 : 3.0; sun.intensity = night ? 0.7 : 3.0;
+    sun.color.set(night ? '#b6cfde' : '#ffdfb0'); renderer.toneMappingExposure = night ? 1.5 : 1.2;
     for (const [actorId, group] of actorNodes) {
       const state = group.userData.resident.states[id];
       group.visible = Boolean(state);
       if (state) { group.position.set(...state.position); group.rotation.y = state.rotation || 0; group.userData.site = state.placeId; }
     }
+    updateVisibility();
     requestRender();
+  }
+  function framedPosition(position, lookAt, bounds) {
+    const center = new THREE.Vector3(...lookAt), direction = new THREE.Vector3(...position).sub(center).normalize();
+    const right = new THREE.Vector3(direction.z, 0, -direction.x).normalize();
+    const up = new THREE.Vector3().crossVectors(direction, right).normalize();
+    const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const aspect = Math.max(0.4, host.clientWidth / Math.max(1, host.clientHeight));
+    let distance = 0;
+    for (const x of [bounds.min[0], bounds.max[0]]) for (const y of [bounds.min[1], bounds.max[1]]) for (const z of [bounds.min[2], bounds.max[2]]) {
+      const corner = new THREE.Vector3(x, y, z).sub(center);
+      distance = Math.max(distance, corner.dot(direction) + Math.abs(corner.dot(right)) / (tangent * aspect),
+        corner.dot(direction) + Math.abs(corner.dot(up)) / tangent);
+    }
+    return center.addScaledVector(direction, distance * 1.12).toArray();
+  }
+  function placeCamera(place) {
+    const bounds = { min: [...place.bounds.min], max: [...place.bounds.max] };
+    bounds.min[1] = place.position[1] - 0.5;
+    bounds.max[1] = place.interior ? (place.clipHeight ?? place.position[1] + 1.75) : 9;
+    return framedPosition(place.camera.position, place.camera.target, bounds);
   }
   function setOrbit(position, lookAt, animate = true) {
     const nextTarget = new THREE.Vector3(...lookAt), offset = new THREE.Vector3(...position).sub(nextTarget);
@@ -293,12 +337,12 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       feet = spawn;
       yaw = Math.atan2(place.camera.target[0] - feet[0], place.camera.target[2] - feet[2]); pitch = 0;
       canvas.focus({ preventScroll: true });
-    } else setOrbit(place.camera.position, place.camera.target);
+    } else setOrbit(placeCamera(place), place.camera.target);
     applyClipping(); onPlace(id); return true;
   }
   function overview() {
     walking = false; pressed.clear(); host.dataset.walking = 'false'; cutaway = false; autoCutaway = false;
-    setOrbit(world.overview.position, world.overview.target); applyClipping();
+    setOrbit(framedPosition(world.overview.position, world.overview.target, { min: [-60, -0.5, -50], max: [60, 12, 50] }), world.overview.target); applyClipping();
   }
   function setWalking(enabled) {
     if (Boolean(enabled) === walking) return walking;
@@ -310,7 +354,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       walking = true; transition = null; canvas.focus({ preventScroll: true });
     } else {
       walking = false; pressed.clear();
-      const place = placeMap.get(activePlace); if (place) setOrbit(place.camera.position, place.camera.target);
+      const place = placeMap.get(activePlace); if (place) setOrbit(placeCamera(place), place.camera.target);
     }
     host.dataset.walking = String(walking); applyClipping(); return walking;
   }
@@ -343,8 +387,16 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       camera.lookAt(target);
     }
     const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
-    renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix();
-    const nearbyLamps = lampProps.map(prop => ({ prop, distance: camera.position.distanceToSquared(new THREE.Vector3(...prop.position)) }))
+    if (width !== viewportWidth || height !== viewportHeight) {
+      renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix();
+      viewportWidth = width; viewportHeight = height;
+    }
+    const place = placeMap.get(activePlace), indoor = Boolean(place?.interior && (walking || cutaway || autoCutaway));
+    const lightTarget = walking ? new THREE.Vector3(...feet) : target;
+    indoorFill.intensity = indoor ? 12 : 0;
+    indoorFill.position.copy(lightTarget).add(new THREE.Vector3(0, 2.5, 0));
+    const nearbyLamps = lampProps.filter(prop => !indoor || prop.site === place.site || prop.site === 'tunnel')
+      .map(prop => ({ prop, distance: lightTarget.distanceToSquared(new THREE.Vector3(...prop.position)) }))
       .filter(item => item.distance < 450).sort((a, b) => a.distance - b.distance).slice(0, lights.length);
     lights.forEach((light, index) => {
       const lamp = nearbyLamps[index]?.prop;
@@ -361,8 +413,10 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     if (walking) return;
     const rect = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2((event.clientX - rect.left) / rect.width * 2 - 1, 1 - (event.clientY - rect.top) / rect.height * 2), camera);
-    const hit = raycaster.intersectObjects([meshes, residents], true).find(item =>
-      !renderer.clippingPlanes.length || item.point.y <= clipping.constant);
+    const hit = raycaster.intersectObjects([meshes, residents], true).find(item => {
+      for (let object = item.object; object; object = object.parent) if (!object.visible) return false;
+      return !renderer.clippingPlanes.length || item.point.y <= clipping.constant;
+    });
     if (!hit) return;
     let object = hit.object;
     while (object && !object.userData.site) object = object.parent;

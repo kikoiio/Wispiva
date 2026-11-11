@@ -45,20 +45,30 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(address); await page.locator('#scene-loading').waitFor({ state: 'hidden', timeout: 90000 });
   assert.equal(await page.locator('#scene-error').isVisible(), false);
+  await shot('00-arrival'); await page.locator('#overview-button').click();
   await shot('01-world-overview'); assert.equal(calls, 0); checks.push('opening and rendering do not call a model');
   await focus('coburg-square'); await shot('02-coburg-square');
   await focus('sitting-room'); assert.equal(await page.locator('#cutaway-button').getAttribute('aria-pressed'), 'true'); await shot('03-baker-sitting-room');
   await focus('pawnshop'); await shot('04-pawnshop');
   await focus('league-office'); await shot('05-league-office');
   await focus('tunnel'); await shot('06-tunnel');
+  for (const id of ['baker-street', 'fleet-street', 'pope-court', 'pawn-cellar', 'commercial-street',
+    'mortimer-tobacconist', 'newspaper-shop', 'bank', 'restaurant', 'carriage-depot', 'music-hall', 'king-edward', 'knee-cap-factory']) {
+    await focus(id); await shot(`place-${id}`);
+  }
+  await focus('league-office'); await page.locator('#chapter-select').selectOption('league'); await shot('league-office-working');
   await focus('bank-vault'); await page.locator('#chapter-select').selectOption('heist'); await shot('07-bank-vault-night');
   checks.push('all principal story rooms can be focused, with automatic interior cutaway');
   await page.locator('#walking-button').click();
   await page.waitForFunction(() => document.querySelector('#scene-host').dataset.walking === 'true');
   await shot('08-vault-walking');
-  await page.locator('#scene-host canvas').focus(); await page.keyboard.press('Escape');
+  await page.locator('#scene-host canvas').focus();
+  const beforeWalking = await page.locator('#scene-host').getAttribute('data-position');
+  await page.keyboard.down('KeyW'); await delay(500); await page.keyboard.up('KeyW');
+  await page.waitForFunction(before => document.querySelector('#scene-host').dataset.position !== before, beforeWalking);
+  await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('#walking-button').getAttribute('aria-pressed') === 'false');
-  checks.push('walking and Escape synchronize visible control state');
+  checks.push('keyboard walking moves the camera and Escape synchronizes visible control state');
   await page.locator('#overview-button').click(); await page.locator('#chapter-select').selectOption('investigation');
   await send('去当铺地下室'); assert.equal(await page.locator('#place-select').inputValue(), 'pawn-cellar'); assert.equal(calls, 0);
   assert.equal(await page.locator('.message.user .message-copy', { hasText: '去当铺地下室' }).count(), 1);

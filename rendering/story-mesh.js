@@ -59,7 +59,9 @@ export function compileStoryChunks(cells, unit, { chunkSize = 32, transparentMat
         for (const [du, dv] of [[0, 0], [width, 0], [width, height], [0, height]]) {
           const position = [0, 0, 0];
           position[axis] = plane * unit; position[u] = (left + du) * unit; position[v] = (bottom + dv) * unit;
-          data.positions.push(...position); data.normals.push(...normal); data.uvs.push(du, dv);
+          data.positions.push(...position); data.normals.push(...normal);
+          // Wall patterns keep their vertical texture axis aligned with world Y.
+          data.uvs.push(...(axis === 0 ? [dv, du] : [du, dv]));
         }
         data.indices.push(...(sign > 0 ? [base, base + 1, base + 2, base, base + 2, base + 3] : [base, base + 2, base + 1, base, base + 3, base + 2]));
         data.quads++;
