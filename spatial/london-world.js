@@ -58,7 +58,10 @@ export function createLondonStoryWorld() {
   const parkBounds = { min: [-475, -115], max: [-385, -20] };
   extraExclusions.push(parkBounds);
   surfaces.push({ id: 'park-lawn', position: [-430, -0.006, -67.5], size: [90, 95], material: 'grass', site: 'the-park', layer: 'ground' });
-  for (const [x, z] of [[-466, -107], [-454, -93], [-401, -106], [-396, -78], [-464, -52], [-410, -37], [-452, -29]]) {
+  surfaces.push({ id: 'park-long-walk', position: [-434, 0.004, -67.5], size: [4.6, 95], material: 'pavement', site: 'the-park', layer: 'ground' },
+    { id: 'park-cross-walk', position: [-430, 0.004, -67], size: [90, 3.6], material: 'pavement', site: 'the-park', layer: 'ground' });
+  for (const [x, z] of [[-466, -107], [-454, -93], [-401, -106], [-396, -78], [-464, -52], [-410, -37], [-452, -29],
+    [-429, -88], [-442, -81], [-428, -53], [-443, -39], [-409, -91], [-456, -73], [-400, -39]]) {
     addBox('the-park', [x, 2.1, z], [0.5, 4.2, 0.5], 'timber');
     for (const [dx, dy, dz, size] of [[0, 4.5, 0, 3], [-1.2, 5.2, 0.3, 2.4], [0.5, 6, -0.5, 2.4]])
       addBox('the-park', [x + dx, dy, z + dz], [size, 1.5, size], 'laurel', { solid: false });
@@ -106,9 +109,21 @@ export function createLondonStoryWorld() {
       props.push({ id: `london-prop-${++serial}`, kind: 'lamp', position: [x + dx, -2.5, platformZ + 3.8], size: [0.24, 0.4, 0.24], material: 'brass', site, layer: 'underground' });
     }
     for (const dz of [-1, 1]) addBox(site, [x, -4.93, platformZ + dz], [18, 0.1, 0.1], 'iron', { solid: false, layer: 'underground' });
+    for (const dz of [-1.65, 1.65]) addBox(site, [x, -4.985, platformZ + dz], [18.5, 0.025, 0.18], 'tile-cream', { solid: false, layer: 'underground' });
+    addBox(site, [x, -4.995, platformZ], [18.8, 0.008, 2.85], 'coal', { solid: false, layer: 'underground' });
     for (let dx = -8; dx < 9; dx++) addBox(site, [x + dx, -4.96, platformZ], [0.18, 0.08, 2.5], 'wood', { solid: false, layer: 'underground' });
+    for (const dx of [-6, 6]) for (const dz of [-3.8, 3.8]) {
+      addBox(site, [x + dx, -3.6, platformZ + dz], [0.22, 2.8, 0.22], 'iron', { layer: 'underground' });
+      addBox(site, [x + dx, -4.85, platformZ + dz], [0.45, 0.3, 0.45], 'stone', { layer: 'underground' });
+    }
+    for (let dx = -8; dx <= 8; dx += 2) for (const dz of [-4.68, 4.68]) {
+      if (dz > 0 && Math.abs(dx) < 2) continue;
+      addBox(site, [x + dx, -4.25, platformZ + dz], [1.82, 1.35, 0.08], 'tile-cream', { solid: false, layer: 'underground' });
+      addBox(site, [x + dx, -3.5, platformZ + dz], [1.95, 0.12, 0.1], 'tile-blue', { solid: false, layer: 'underground' });
+    }
     addSign(site, [x + 5, -3.5, platformZ + 4.7], [3.8, 0.5, 0.06], name, Math.PI);
     addBox(site, [x - 5, -4.45, platformZ + 3.6], [3.2, 0.18, 0.65], 'wood', { layer: 'underground' });
+    addBox(site, [x - 5, -4.05, platformZ + 3.88], [3.2, 0.7, 0.12], 'wood', { layer: 'underground' });
     for (const dx of [-6.2, -3.8]) addBox(site, [x + dx, -4.73, platformZ + 3.6], [0.15, 0.54, 0.55], 'iron', { layer: 'underground' });
     addPlace(id, name, [x, -5, platformZ + 3], entry, bounds,
       { position: [x + 7, 0, platformZ + 10], target: [x, -4, platformZ] }, district, true, -2.8);
