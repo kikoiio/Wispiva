@@ -40,18 +40,37 @@ try {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = `http://127.0.0.1:${server.address().port}`;
   browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--use-angle=swiftshader', '--disable-dev-shm-usage', '--ozone-platform=x11'] });
-  page = await browser.newPage({ viewport: { width: 1440, height: 960 }, deviceScaleFactor: 1 });
+  page = await browser.newPage({ viewport: { width: 2048, height: 1059 }, deviceScaleFactor: 1 });
   page.on('pageerror', error => errors.push(error.message));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.goto(address); await page.locator('#scene-loading').waitFor({ state: 'hidden', timeout: 90000 });
   assert.equal(await page.locator('#scene-error').isVisible(), false);
-  await shot('00-arrival'); await page.locator('#overview-button').click();
+  await page.waitForFunction(() => document.querySelector('#scene-host').dataset.walking === 'true' && Number(document.querySelector('#scene-host').dataset.cityBlocks) >= 40);
+  await shot('00-arrival');
+  const arrivalCanvas = await page.locator('#scene-host canvas').boundingBox();
+  await page.mouse.move(arrivalCanvas.x + arrivalCanvas.width * 0.35, arrivalCanvas.y + arrivalCanvas.height * 0.5);
+  await page.mouse.down();
+  await page.mouse.move(arrivalCanvas.x + arrivalCanvas.width * 0.35 + 500, arrivalCanvas.y + arrivalCanvas.height * 0.5, { steps: 8 });
+  await page.mouse.up(); await shot('00-arrival-surroundings');
+  await page.locator('#overview-button').click();
   await shot('01-world-overview'); assert.equal(calls, 0); checks.push('opening and rendering do not call a model');
+  await page.mouse.wheel(0, 900); await shot('01-neighbourhood-wide');
+  await page.setViewportSize({ width: 1440, height: 960 });
   await focus('coburg-square'); await shot('02-coburg-square');
   await focus('sitting-room'); assert.equal(await page.locator('#cutaway-button').getAttribute('aria-pressed'), 'true'); await shot('03-baker-sitting-room');
   await focus('pawnshop'); await shot('04-pawnshop');
   await focus('league-office'); await shot('05-league-office');
   await focus('tunnel'); await shot('06-tunnel');
+  for (const id of ['baker-underground', 'aldersgate', 'oxford-street', 'the-park', 'london-streets']) {
+    await focus(id); await shot(`london-${id}`);
+  }
+  await page.locator('#walking-button').click(); await page.locator('#scene-host canvas').focus();
+  const beforeCityWalk = await page.locator('#scene-host').getAttribute('data-position');
+  await page.keyboard.down('KeyS'); await delay(800); await page.keyboard.up('KeyS');
+  await page.waitForFunction(before => document.querySelector('#scene-host').dataset.position !== before, beforeCityWalk);
+  assert.equal(Number(await page.locator('#scene-host').getAttribute('data-city-blocks')), 49);
+  await shot('london-street-walking'); await page.keyboard.press('Escape');
+  checks.push('walking across a city block boundary keeps a bounded set of 49 surrounding blocks');
   for (const id of ['baker-street', 'fleet-street', 'pope-court', 'pawn-cellar', 'commercial-street',
     'mortimer-tobacconist', 'newspaper-shop', 'bank', 'restaurant', 'carriage-depot', 'music-hall', 'king-edward', 'knee-cap-factory']) {
     await focus(id); await shot(`place-${id}`);
@@ -59,6 +78,8 @@ try {
   await focus('league-office'); await page.locator('#chapter-select').selectOption('league'); await shot('league-office-working');
   await focus('bank-vault'); await page.locator('#chapter-select').selectOption('heist'); await shot('07-bank-vault-night');
   checks.push('all principal story rooms can be focused, with automatic interior cutaway');
+  assert(Number(await page.locator('#scene-host').getAttribute('data-context-buildings')) > 100);
+  checks.push('London streams surrounding blocks, with separate districts and Underground stations');
   await page.locator('#walking-button').click();
   await page.waitForFunction(() => document.querySelector('#scene-host').dataset.walking === 'true');
   await shot('08-vault-walking');

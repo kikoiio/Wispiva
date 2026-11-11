@@ -55,8 +55,8 @@ export function createRedHeadedWorld() {
     'brick-red': { color: '#8b4939', pattern: 'brick' },
     'brick-soot': { color: '#52423d', pattern: 'brick' },
     'brick-light': { color: '#9a6754', pattern: 'brick' },
-    plaster: { color: '#aa9a7e', pattern: 'wallpaper' },
-    'plaster-cream': { color: '#c4b99e', pattern: 'wallpaper' },
+    plaster: { color: '#aa9a7e', pattern: 'plain' },
+    'plaster-cream': { color: '#c4b99e', pattern: 'plain' },
     'wallpaper-green': { color: '#405447', pattern: 'wallpaper' },
     'wallpaper-cream': { color: '#b6a57d', pattern: 'wallpaper' },
     'panel-walnut': { color: '#49352a', pattern: 'wood' },
@@ -101,6 +101,57 @@ export function createRedHeadedWorld() {
     'fire-gold': { color: '#ffd077', pattern: 'plain', emissive: '#eea63e' },
     'autumn-ochre': { color: '#a17d3d', pattern: 'plain' },
     'autumn-russet': { color: '#81543a', pattern: 'plain' },
+    'sign-brown': { color: '#4d3527', pattern: 'wood' },
+    'violin-amber': { color: '#a86632', pattern: 'wood' },
+    'bottle-green': { color: '#526f58', pattern: 'glass', transparent: true },
+    tea: { color: '#4b2e1c', pattern: 'plain' },
+    bread: { color: '#ba8f54', pattern: 'plain' },
+    soup: { color: '#b88c48', pattern: 'plain' },
+  };
+
+  const assembly = (origin, yaw, site) => (position, size, material, extra = {}) => {
+    const c = Math.cos(yaw), n = Math.sin(yaw), [x, y, z] = position;
+    return box([origin[0] + c * x + n * z, origin[1] + y, origin[2] - n * x + c * z], size, material, site, 'interior', { ...extra, rotation: yaw + (extra.rotation || 0) });
+  };
+  const teaCup = (position, site, yaw = 0) => {
+    const part = assembly(position, yaw, site);
+    part([0, 0.015, 0], [0.29, 0.03, 0.27], 'tile-cream');
+    part([0, 0.06, 0], [0.17, 0.035, 0.17], 'tile-cream');
+    for (const side of [-1, 1]) {
+      part([side * 0.08, 0.135, 0], [0.025, 0.15, 0.17], 'tile-cream');
+      part([0, 0.135, side * 0.08], [0.14, 0.15, 0.025], 'tile-cream');
+      part([0.13, 0.135 + side * 0.045, 0], [0.1, 0.025, 0.04], 'tile-cream');
+    }
+    part([0.18, 0.135, 0], [0.025, 0.11, 0.04], 'tile-cream');
+    part([0, 0.19, 0], [0.13, 0.008, 0.13], 'tea');
+  };
+  const bottle = ([x, y, z], site, material = 'bottle-green') => {
+    box([x, y + 0.12, z], [0.14, 0.24, 0.14], material, site);
+    box([x, y + 0.27, z], [0.065, 0.09, 0.065], material, site);
+    box([x, y + 0.325, z], [0.075, 0.035, 0.075], 'wood', site);
+    box([x, y + 0.12, z + 0.075], [0.105, 0.1, 0.012], 'paper', site);
+  };
+  const printedPage = ([x, y, z], width, depth, site) => {
+    box([x, y + 0.014, z], [width, 0.028, depth], 'paper', site);
+    box([x, y + 0.031, z - depth * 0.31], [width * 0.8, 0.006, 0.035], 'ink', site);
+    for (let line = 0; line < 5; line++) {
+      for (const col of [-1, 1]) box([x + col * width * 0.215, y + 0.031, z - depth * 0.12 + line * depth * 0.11], [width * (line % 2 ? 0.32 : 0.37), 0.005, 0.011], 'ink', site);
+    }
+  };
+  const violin = (position, site, yaw = 0, scale = 1) => {
+    const local = assembly(position, yaw, site);
+    const part = (at, size, material, extra) => local(at.map(v => v * scale), size.map(v => v * scale), material, extra);
+    part([0, 0, 0.1], [0.29, 0.085, 0.29], 'violin-amber');
+    part([0, 0, -0.16], [0.24, 0.085, 0.24], 'violin-amber');
+    part([0, 0.01, -0.025], [0.16, 0.08, 0.17], 'violin-amber');
+    part([0, 0.025, -0.48], [0.052, 0.055, 0.46], 'panel-walnut');
+    part([0, 0.025, -0.73], [0.085, 0.075, 0.09], 'violin-amber');
+    part([0, 0.072, 0.005], [0.16, 0.04, 0.025], 'wood');
+    part([0, 0.055, 0.2], [0.085, 0.025, 0.11], 'paint-black');
+    for (const x of [-0.025, -0.008, 0.008, 0.025]) part([x, 0.095, -0.24], [0.006, 0.006, 0.78], 'brass');
+    for (const x of [-0.08, 0.08]) part([x, 0.049, -0.015], [0.018, 0.008, 0.13], 'ink', { rotation: x > 0 ? -0.15 : 0.15 });
+    part([0.27, 0.05, -0.22], [0.018, 0.025, 0.93], 'wood', { rotation: 0.12 });
+    part([0.29, 0.05, -0.22], [0.009, 0.009, 0.88], 'paper', { rotation: 0.12 });
   };
 
   // The ground plane is continuous; streets, lanes, square, paths and lawns are
@@ -153,9 +204,12 @@ export function createRedHeadedWorld() {
     if (!groundLevel || b.doorAt === undefined || y >= 2) return false;
     return Math.abs(along - b.doorAt) < 0.75;
   };
+  const shopSites = new Set(['jabez-wilson-pawnshop', 'mortimers-tobacconist', 'city-newspaper-shop', 'vegetarian-restaurant']);
   const isFrontWindow = (b, along, y, windows) => {
-    const inBand = (y >= 1 && y < 2) || (y >= 4 && y < 5);
-    return inBand && windows.some((c) => Math.abs(along - c) < 0.5);
+    const lower = y >= 0.5 && y < 2, upper = y >= 3.5 && y < 5;
+    const halfWidth = lower && shopSites.has(b.id) ? 1 : 0.75;
+    return (lower || upper) && (windows.some(c => Math.abs(along - c) < halfWidth) ||
+      (upper && b.doorAt !== undefined && Math.abs(along - b.doorAt) < 0.75));
   };
   const buildRoof = (b) => {
     const x0 = grid(b.x0), x1 = grid(b.x1), z0 = grid(b.z0), z1 = grid(b.z1);
@@ -229,87 +283,73 @@ export function createRedHeadedWorld() {
     b.facadePlane = facadePlane;
     return b;
   };
-  const faceYaw = (front) => ({ west: -Math.PI / 2, east: Math.PI / 2, north: 0, south: Math.PI })[front];
+  const faceYaw = (front) => ({ west: -Math.PI / 2, east: Math.PI / 2, north: Math.PI, south: 0 })[front];
   const facePoint = (b, along, y) => {
     if (b.front === 'west' || b.front === 'east') return [b.facadePlane, y, along];
     return [along, y, b.facadePlane];
   };
   const decorateBuilding = (b, { label, number, lampAtDoor = false, extraLamp = false, bay = false } = {}) => {
-    const axis = frontAxis(b.front);
-    const lo = axis === 'z' ? b.z0 : b.x0;
-    const hi = axis === 'z' ? b.z1 : b.x1;
-    const facadeLength = hi - lo;
-    const cornice = b.front === 'west' || b.front === 'east'
-      ? [[b.facadePlane, 2.55, (b.z0 + b.z1) / 2], [b.facadePlane, 5.55, (b.z0 + b.z1) / 2]]
-      : [[(b.x0 + b.x1) / 2, 2.55, b.facadePlane], [(b.x0 + b.x1) / 2, 5.55, b.facadePlane]];
-    const corniceSize = b.front === 'west' || b.front === 'east'
-      ? [[0.16, 0.16, facadeLength], [0.16, 0.16, facadeLength]]
-      : [[facadeLength, 0.16, 0.16], [facadeLength, 0.16, 0.16]];
-    cornice.forEach((p, i) => box(p, corniceSize[i], 'stone', b.id, 'exterior'));
-    const doorAlong = b.doorAt ?? (lo + hi) / 2;
+    const axis = frontAxis(b.front), lo = axis === 'z' ? b.z0 : b.x0, hi = axis === 'z' ? b.z1 : b.x1;
+    const normal = ({ west: [-1, 0], east: [1, 0], north: [0, -1], south: [0, 1] })[b.front];
+    const skin = b.front === 'east' || b.front === 'south' ? unit : 0;
+    const face = (along, y, offset = 0.04) => {
+      const p = facePoint(b, along, y);
+      return [p[0] + normal[0] * (skin + offset), y, p[2] + normal[1] * (skin + offset)];
+    };
+    const across = (width, height, depth) => axis === 'z' ? [depth, height, width] : [width, height, depth];
+    for (const y of [2.55, 5.5]) box(face((lo + hi) / 2, y, 0.03), across(hi - lo, 0.16, 0.22), 'stone', b.id, 'exterior');
     if (b.doorAt !== undefined) {
-      const [fx, , fz] = facePoint(b, doorAlong, 1.05);
-      const sideways = axis === 'z' ? [0.08, 2.1, 0.08] : [0.08, 2.1, 0.08];
-      for (const side of [-0.7, 0.7]) {
-        const p = axis === 'z' ? [fx, 1.05, fz + side] : [fx + side, 1.05, fz];
-        box(p, sideways, 'wood', b.id, 'exterior');
-      }
-      const lintel = facePoint(b, doorAlong, 2.12);
-      box(lintel, axis === 'z' ? [0.1, 0.12, 1.5] : [1.5, 0.12, 0.1], 'stone', b.id, 'exterior');
-      const threshold = facePoint(b, doorAlong, -0.04);
-      box(threshold, axis === 'z' ? [0.45, 0.08, 1.6] : [1.6, 0.08, 0.45], 'stone', b.id, 'exterior');
+      for (const side of [-0.7, 0.7]) box(face(b.doorAt + side, 1.04), across(0.1, 2.08, 0.16), 'wood', b.id, 'exterior');
+      for (const side of [-0.9, 0.9]) box(face(b.doorAt + side, 1.02, 0.01), across(0.16, 2.04, 0.18), 'stone', b.id, 'exterior');
+      box(face(b.doorAt, 2.17), across(1.95, 0.19, 0.22), 'stone', b.id, 'exterior');
+      box(face(b.doorAt, -0.04, 0), across(1.6, 0.08, 0.4), 'stone', b.id, 'exterior');
+      box(face(b.doorAt, 2.07, 0.015), across(1.25, 0.12, 0.05), 'glass-warm', b.id, 'exterior');
       if (number) {
-        const signPoint = facePoint(b, doorAlong, 2.42);
-        sign(signPoint, [0.85, 0.38, 0.08], number, b.id, faceYaw(b.front));
+        const plate = sign(face(b.doorAt, 2.41, 0.08), [number === '221B' ? 0.92 : 0.6, 0.3, 0.04], number, b.id, faceYaw(b.front), 'exterior', 'paint-black');
+        plate.ink = '#e8d9ae';
       }
       if (lampAtDoor) {
-        const p = axis === 'z' ? [fx + 0.7, 2.25, fz] : [fx, 2.25, fz - 0.8];
-        lamp(p, [0.24, 0.42, 0.24], 'brass', b.id);
+        box(face(b.doorAt + 1.2, 2.37, 0.2), across(0.08, 0.08, 0.45), 'iron', b.id, 'exterior');
+        lamp(face(b.doorAt + 1.2, 2.55, 0.4), [0.24, 0.42, 0.24], 'brass', b.id);
       }
     }
-    if (label) {
-      const signY = 2.82;
-      const p = facePoint(b, doorAlong, signY);
-      sign(p, [Math.min(facadeLength - 1, 3.2), 0.62, 0.08], label, b.id, faceYaw(b.front));
+    if (label && b.id !== 'baker-221b') {
+      const pawn = b.id === 'jabez-wilson-pawnshop';
+      const board = sign(face(b.doorAt ?? (lo + hi) / 2, 2.84, 0.08), [Math.min(hi - lo - 1, pawn ? 4.6 : 3.8), 0.55, 0.08], label, b.id, faceYaw(b.front), 'exterior', pawn ? 'sign-brown' : 'paint-black');
+      board.ink = '#f2e9d8';
     }
-    for (const center of b.windows) {
-      for (const level of [1.5, 4.5]) {
-        const p = facePoint(b, center, level);
-        const sideA = facePoint(b, center - 0.56, level);
-        const sideB = facePoint(b, center + 0.56, level);
-        const verticalSize = axis === 'z' ? [0.09, 1.35, 0.09] : [0.09, 1.35, 0.09];
-        box(sideA, verticalSize, 'wood', b.id, 'exterior');
-        box(sideB, verticalSize, 'wood', b.id, 'exterior');
-        box(facePoint(b, center, level - 0.67), axis === 'z' ? [0.09, 0.08, 1.2] : [1.2, 0.08, 0.09], 'wood', b.id, 'exterior');
-        box(facePoint(b, center, level + 0.67), axis === 'z' ? [0.09, 0.08, 1.2] : [1.2, 0.08, 0.09], 'wood', b.id, 'exterior');
-        box(p, axis === 'z' ? [0.07, 1.25, 0.07] : [0.07, 1.25, 0.07], 'wood', b.id, 'exterior');
-        const outward = ({ west: [-0.2, 0], east: [0.6, 0], north: [0, -0.2], south: [0, 0.6] })[b.front];
-        const sill = facePoint(b, center, level - 0.7);
-        sill[0] += outward[0]; sill[2] += outward[1];
-        box(sill, axis === 'z' ? [0.24, 0.14, 1.45] : [1.45, 0.14, 0.24], 'stone', b.id, 'exterior');
-        box([p[0] + outward[0], level, p[2] + outward[1]], axis === 'z' ? [0.08, 0.08, 1.05] : [1.05, 0.08, 0.08], 'paint-cream', b.id, 'exterior');
+    for (const level of [1.25, 4.25]) {
+      const centers = level > 3 && b.doorAt !== undefined ? [...b.windows, b.doorAt] : b.windows;
+      const half = level < 3 && shopSites.has(b.id) ? 1 : 0.75;
+      for (const center of centers) {
+        for (const side of [-1, 1]) box(face(center + side * (half + 0.035), level, 0.065), across(0.09, 1.66, 0.12), 'paint-cream', b.id, 'exterior');
+        for (const y of [level - 0.8, level + 0.8]) box(face(center, y, 0.065), across(half * 2 + 0.16, 0.1, 0.12), 'wood', b.id, 'exterior');
+        box(face(center, level, 0.08), across(half * 2, 0.055, 0.08), 'paint-cream', b.id, 'exterior');
+        box(face(center, level, 0.08), across(0.055, 1.5, 0.08), 'paint-cream', b.id, 'exterior');
+        box(face(center, level - 0.83, 0.065), across(half * 2 + 0.3, 0.14, 0.24), 'stone', b.id, 'exterior');
+        box(face(center, level + 0.86, 0.04), across(half * 2 + 0.25, 0.12, 0.18), 'stone', b.id, 'exterior');
+        if (level < 3 && shopSites.has(b.id)) box(face(center, 0.21, 0.02), across(half * 2, 0.42, 0.08), 'panel-walnut', b.id, 'exterior');
       }
     }
-    // Roof stacks, rainwater pipes and drain shoes give each narrow terrace a
-    // readable Victorian roofline and a small amount of individual character.
-    const chimneyX = b.x0 + Math.min(1.25, facadeLength / 5);
-    const chimneyZ = b.z0 + Math.min(1.25, (b.z1 - b.z0) / 5);
+    const chimneyX = b.x0 + Math.min(1.25, (hi - lo) / 5), chimneyZ = b.z0 + Math.min(1.25, (b.z1 - b.z0) / 5);
     box([chimneyX, 7.2, chimneyZ], [0.65, 1.5, 0.7], 'brick-soot', b.id, 'roof');
     box([chimneyX, 7.98, chimneyZ], [0.82, 0.12, 0.82], 'stone', b.id, 'roof');
-    const pipeX = b.front === 'west' ? b.x1 - 0.18 : b.x0 + 0.18;
-    const pipeZ = b.front === 'north' ? b.z1 - 0.18 : b.z0 + 0.18;
-    box([pipeX, 3.0, pipeZ], [0.12, 6.0, 0.12], 'iron-rust', b.id, 'exterior');
-    box([pipeX, 0.15, pipeZ], [0.28, 0.3, 0.22], 'iron-rust', b.id, 'exterior');
+    box(face(lo + 0.45, 2.75, 0.16), [0.095, 5.5, 0.095], 'iron-rust', b.id, 'exterior');
+    box(face(lo + 0.45, 0.14, 0.23), across(0.15, 0.26, 0.32), 'iron-rust', b.id, 'exterior');
+    box(face((lo + hi) / 2, 5.55, 0.16), across(hi - lo, 0.12, 0.16), 'iron-rust', b.id, 'exterior');
     if (bay && b.front === 'west') {
-      const bayZ = doorAlong + 2.5;
-      box([b.facadePlane - 0.25, 1.65, bayZ], [0.6, 1.4, 2.2], 'glass-warm', b.id, 'exterior');
-      box([b.facadePlane - 0.25, 3.65, bayZ], [0.6, 1.1, 2.2], 'glass', b.id, 'exterior');
-      box([b.facadePlane - 0.5, 0.9, bayZ], [0.15, 0.16, 2.4], 'stone', b.id, 'exterior');
+      const center = b.windows.find(value => value > b.doorAt) ?? b.doorAt + 2.5;
+      for (const y of [1.25, 4.25]) {
+        box([b.x0 - 0.49, y, center], [0.055, 1.5, 1.9], 'glass', b.id, 'exterior');
+        for (const side of [-1, 1]) {
+          box([b.x0 - 0.25, y, center + side * 0.95], [0.5, 1.5, 0.055], 'glass', b.id, 'exterior');
+          box([b.x0 - 0.52, y, center + side * 0.95], [0.09, 1.65, 0.09], 'paint-cream', b.id, 'exterior');
+        }
+        box([b.x0 - 0.52, y, center], [0.08, 1.5, 0.07], 'wood', b.id, 'exterior');
+        for (const dy of [-0.8, 0, 0.8]) box([b.x0 - 0.52, y + dy, center], [0.1, 0.08, 2.05], 'wood', b.id, 'exterior');
+      }
     }
-    if (extraLamp) {
-      const p = axis === 'z' ? [b.facadePlane + (b.front === 'west' ? -0.8 : 0.8), 3.0, lo + 1.0] : [lo + 1.0, 3.0, b.facadePlane + (b.front === 'north' ? -0.8 : 0.8)];
-      lamp(p, [0.25, 0.55, 0.25], 'brass', b.id);
-    }
+    if (extraLamp) lamp(face(lo + 1, 3, 0.55), [0.25, 0.55, 0.25], 'brass', b.id);
   };
   const blockHouse = (args, decor = {}) => {
     const b = buildBuilding(args);
@@ -460,8 +500,23 @@ export function createRedHeadedWorld() {
     box([x, 1.25, -33.0], [0.35, 2.5, 0.35], 'brass', 'st-jamess-hall', 'interior');
     lamp([x, 2.65, -33.0], [0.55, 0.68, 0.55], 'brass', 'st-jamess-hall', 'interior');
   }
-  box([15.8, 0.65, -29.3], [0.08, 0.08, 0.72], 'wood', 'st-jamess-hall', 'interior', { rotation: 0.15 });
-  box([15.8, 0.78, -29.3], [0.08, 0.38, 0.08], 'wood', 'st-jamess-hall', 'interior');
+  for (const x of [7.7, 20.3]) {
+    for (let pleat = 0; pleat < 5; pleat++) box([x + (pleat - 2) * 0.18, 1.75, -36.9], [0.19, 2.2, pleat % 2 ? 0.2 : 0.32], 'velvet-red', 'st-jamess-hall');
+  }
+  box([14, 2.9, -36.95], [12.8, 0.35, 0.22], 'curtain-gold', 'st-jamess-hall');
+  box([12.1, 0.75, -36.35], [0.65, 0.08, 0.5], 'iron', 'st-jamess-hall');
+  box([12.1, 1.13, -36.35], [0.055, 0.75, 0.055], 'iron', 'st-jamess-hall');
+  box([12.1, 1.66, -36.3], [0.85, 0.55, 0.06], 'wood', 'st-jamess-hall');
+  box([12.1, 1.67, -36.26], [0.74, 0.44, 0.02], 'paper', 'st-jamess-hall');
+  for (let staff = 0; staff < 2; staff++) for (let line = 0; line < 5; line++) box([12.1, 1.55 + staff * 0.2 + line * 0.025, -36.245], [0.65, 0.008, 0.008], 'ink', 'st-jamess-hall');
+  for (let note = 0; note < 6; note++) {
+    box([11.85 + note * 0.095, 1.6 + note % 3 * 0.025, -36.23], [0.035, 0.025, 0.012], 'ink', 'st-jamess-hall');
+    box([11.867 + note * 0.095, 1.65 + note % 3 * 0.025, -36.23], [0.009, 0.1, 0.012], 'ink', 'st-jamess-hall');
+  }
+  box([15.8, 1.13, -36.6], [0.64, 0.11, 0.64], 'wood', 'st-jamess-hall');
+  box([15.8, 1.52, -36.88], [0.58, 0.64, 0.08], 'wood', 'st-jamess-hall');
+  for (const dx of [-0.24, 0.24]) for (const dz of [-0.24, 0.24]) box([15.8 + dx, 0.89, -36.6 + dz], [0.065, 0.43, 0.065], 'wood', 'st-jamess-hall');
+  violin([15.8, 1.23, -36.45], 'st-jamess-hall', -0.25, 0.65);
 
   // 17 King Edward Street, the false lead: a neat industrial frontage making knee-caps.
   const kneeFactory = blockHouse({ id: 'king-edward-kneecap-factory', x0: 38, x1: 47, z0: -32, z1: -21, front: 'east', doorAt: -26.5,
@@ -473,19 +528,52 @@ export function createRedHeadedWorld() {
   // Store interiors, each laid out around its real doorway and an unobstructed aisle.
   sign([45.55, 3.0, -9], [4.4, 0.58, 0.08], '烟叶与烟斗', 'mortimers-tobacconist', Math.PI / 2, 'exterior');
   for (let z = -12; z <= -6; z += 2) {
-    box([43.4, 1.3, z], [0.48, 1.9, 1.6], 'wood', 'mortimers-tobacconist');
-    box([43.12, 1.6, z], [0.12, 0.65, 1.25], 'tobacco', 'mortimers-tobacconist');
+    box([43.14, 1.24, z], [0.035, 1.96, 1.62], 'panel-walnut', 'mortimers-tobacconist');
+    for (const side of [-0.76, 0.76]) box([43.4, 1.24, z + side], [0.53, 2.02, 0.065], 'wood', 'mortimers-tobacconist');
+    for (const y of [0.35, 0.94, 1.53, 2.12]) {
+      box([43.39, y, z], [0.6, 0.065, 1.65], 'wood', 'mortimers-tobacconist');
+      if (y > 2) continue;
+      for (let item = 0; item < 3; item++) {
+        const zz = z - 0.5 + item * 0.46;
+        box([43.49, y + 0.19, zz], [0.22, 0.3, 0.28], item % 2 ? 'tobacco' : 'paint-red', 'mortimers-tobacconist');
+        box([43.49, y + 0.35, zz], [0.24, 0.035, 0.3], 'brass', 'mortimers-tobacconist');
+        box([43.615, y + 0.19, zz], [0.018, 0.11, 0.19], 'paper', 'mortimers-tobacconist');
+      }
+    }
   }
   box([39.0, 1.05, -10.8], [3.8, 0.22, 1.1], 'wood', 'mortimers-tobacconist');
   box([39.0, 1.42, -10.8], [3.9, 0.12, 1.2], 'panel-walnut', 'mortimers-tobacconist');
   sign([39, 2.35, -10.2], [2.6, 0.45, 0.08], '雪茄 · 鼻烟 · 烟斗', 'mortimers-tobacconist', 0, 'interior');
+  for (const x of [37.5, 40.5]) for (const z of [-11.2, -10.4]) box([x, 0.7, z], [0.1, 1.4, 0.1], 'wood', 'mortimers-tobacconist');
+  for (let cigar = 0; cigar < 7; cigar++) {
+    box([37.7 + cigar * 0.13, 1.54, -10.8], [0.075, 0.075, 0.46], 'tobacco', 'mortimers-tobacconist');
+    box([37.7 + cigar * 0.13, 1.582, -10.76], [0.078, 0.012, 0.065], 'gold-leaf', 'mortimers-tobacconist');
+  }
+  for (const x of [39.3, 39.8, 40.3]) {
+    box([x, 1.55, -10.65], [0.14, 0.14, 0.14], 'wood', 'mortimers-tobacconist');
+    box([x - 0.19, 1.5, -10.65], [0.32, 0.04, 0.045], 'paint-black', 'mortimers-tobacconist');
+    box([x, 1.63, -10.65], [0.085, 0.012, 0.085], 'ink', 'mortimers-tobacconist');
+  }
+  bottle([40.5, 1.48, -11.0], 'mortimers-tobacconist', 'glass-warm');
 
   sign([45.55, 3.0, -1], [4.4, 0.58, 0.08], '晨报', 'city-newspaper-shop', Math.PI / 2, 'exterior');
   box([42.5, 0.72, 0.1], [5.2, 0.45, 1.0], 'wood', 'city-newspaper-shop');
   for (let i = 0; i < 8; i++) {
     box([40.2 + (i % 4) * 1.2, 1.02 + Math.floor(i / 4) * 0.08, -0.2], [0.75, 0.04, 0.62], 'paper', 'city-newspaper-shop');
   }
-  for (let z = -4; z < 2; z += 1.5) box([35.5, 1.4, z], [1.2, 2.1, 0.12], 'wood', 'city-newspaper-shop');
+  for (const [i, z] of [-3.5, -2.15, -0.8, 0.55, 1.85].entries()) {
+    box([34.77, 1.18, z], [0.045, 1.9, 1.24], 'panel-walnut', 'city-newspaper-shop');
+    for (const y of [0.35, 1.0, 1.65]) box([35.12, y, z], [0.8, 0.07, 1.25], 'wood', 'city-newspaper-shop');
+    for (const side of [-0.6, 0.6]) box([35.1, 1.0, z + side], [0.075, 1.9, 0.075], 'wood', 'city-newspaper-shop');
+    const paper = sign([35.54, 1.37, z], [1.06, 0.56, 0.025], ['THE TIMES', 'THE MORNING\nCHRONICLE', '舰队街晚报', 'ILLUSTRATED\nLONDON NEWS', '今日新闻'][i], 'city-newspaper-shop', Math.PI / 2, 'interior', 'paper');
+    paper.ink = '#292821';
+    printedPage([35.16, 0.4, z], 0.55, 0.8, 'city-newspaper-shop');
+  }
+  for (let i = 0; i < 4; i++) {
+    const x = 40.2 + i * 1.2;
+    printedPage([x, 1.13, -0.2], 0.74, 0.61, 'city-newspaper-shop');
+    box([x, 1.164, -0.2], [0.025, 0.012, 0.61], 'cloth', 'city-newspaper-shop');
+  }
   sign([43.4, 2.05, 0.2], [2.6, 0.45, 0.08], 'THE MORNING CHRONICLE', 'city-newspaper-shop', 0, 'interior');
 
   // Bank hall furniture and a floor opening above the independent underground vault.
@@ -497,8 +585,19 @@ export function createRedHeadedWorld() {
       box([x, 4.05, z], [0.9, 0.2, 0.9], 'brass', 'city-suburban-bank');
     }
   }
-  box([39.5, 1.2, 13.25], [3.0, 2.2, 0.3], 'iron', 'city-suburban-bank');
-  box([39.5, 1.8, 13.08], [2.6, 0.35, 0.08], 'brass', 'city-suburban-bank');
+  // An iron grille has individual bars and hinges instead of a solid dark slab.
+  for (const x of [38.0, 41.0]) box([x, 1.2, 13.25], [0.11, 2.2, 0.12], 'iron', 'city-suburban-bank');
+  for (let x = 38.25; x < 41; x += 0.3) box([x, 1.2, 13.25], [0.045, 2.1, 0.055], 'iron', 'city-suburban-bank');
+  for (const y of [0.18, 1.2, 2.23]) box([39.5, y, 13.25], [3.0, 0.07, 0.11], 'iron', 'city-suburban-bank');
+  box([40.65, 1.2, 13.15], [0.18, 0.15, 0.08], 'brass', 'city-suburban-bank');
+  for (const x of [40.0, 41.5, 43.0]) {
+    box([x, 1.34, 9.1], [0.08, 0.95, 0.08], 'brass', 'city-suburban-bank');
+    box([x, 1.8, 9.1], [0.62, 0.065, 0.08], 'brass', 'city-suburban-bank');
+    printedPage([x - 0.25, 0.87, 8.8], 0.48, 0.4, 'city-suburban-bank');
+    box([x + 0.22, 0.94, 9.25], [0.23, 0.15, 0.38], 'leather', 'city-suburban-bank');
+    box([x + 0.22, 1.02, 9.25], [0.2, 0.012, 0.32], 'paper', 'city-suburban-bank');
+  }
+  box([42.5, 0.93, 8.7], [0.12, 0.15, 0.12], 'ink', 'city-suburban-bank');
   sign([39.5, 2.1, 13.0], [2.8, 0.45, 0.08], '本行柜台', 'city-suburban-bank', 0, 'interior');
   // Open the bank hall slab for its broad descending stone stair.
   eraseBox(35, -0.5, 4, 37, 0, 10);
@@ -511,7 +610,25 @@ export function createRedHeadedWorld() {
   }
   box([43.6, 1.05, 21.7], [0.35, 1.9, 1.1], 'wood', 'vegetarian-restaurant');
   for (let i = 0; i < 6; i++) box([43.4, 1.35, 20.0 + i * 0.42], [0.22, 0.25, 0.26], 'vegetables', 'vegetarian-restaurant');
-  sign([40.0, 2.05, 22.5], [3.4, 0.42, 0.08], '无肉菜单 · 当日蔬菜', 'vegetarian-restaurant', 0, 'interior');
+  sign([40.0, 1.65, 22.45], [2.4, 1.05, 0.055], '今日菜单\n蔬菜汤 · 炖豌豆\n面包 · 热茶', 'vegetarian-restaurant', Math.PI, 'interior', 'paint-black').ink = '#eee5cf';
+  for (const z of [17.2, 20.6]) {
+    for (const x of [39.4, 40.6]) {
+      box([x, 0.88, z], [0.42, 0.055, 0.4], 'tile-cream', 'vegetarian-restaurant');
+      box([x, 0.93, z], [0.32, 0.07, 0.3], 'soup', 'vegetarian-restaurant');
+      for (const side of [-1, 1]) {
+        box([x + side * 0.185, 0.95, z], [0.035, 0.13, 0.37], 'tile-cream', 'vegetarian-restaurant');
+        box([x, 0.95, z + side * 0.175], [0.34, 0.13, 0.035], 'tile-cream', 'vegetarian-restaurant');
+      }
+      for (const dz of [-0.065, 0.065]) box([x - 0.05, 0.975, z + dz], [0.065, 0.035, 0.065], 'vegetables', 'vegetarian-restaurant');
+      box([x + 0.34, 0.87, z], [0.035, 0.02, 0.31], 'brass', 'vegetarian-restaurant');
+      teaCup([x, 0.84, z - 0.4], 'vegetarian-restaurant', Math.PI / 2);
+    }
+    box([40, 0.91, z + 0.3], [0.32, 0.14, 0.2], 'bread', 'vegetarian-restaurant');
+    for (const x of [39, 41]) {
+      box([x, 0.95, z + 1.05], [0.72, 0.64, 0.08], 'wood', 'vegetarian-restaurant');
+      for (const dx of [-0.28, 0.28]) for (const dz of [-0.28, 0.28]) box([x + dx, 0.24, z + 0.75 + dz], [0.07, 0.48, 0.07], 'wood', 'vegetarian-restaurant');
+    }
+  }
 
   box([39.5, 0.55, 27.0], [7.0, 0.18, 5.0], 'wood', 'mcfarlanes-carriage-depot');
   for (const x of [37.0, 42.0, 44.5]) {
@@ -523,10 +640,15 @@ export function createRedHeadedWorld() {
   for (const x of [38.5, 41.5]) box([x, 0.5, 26.2], [0.68, 0.18, 0.68], 'iron', 'mcfarlanes-carriage-depot');
 
   // Pawnshop fixtures: three gilded balls, a named board, counter, clocks, pledges and shelves.
-  for (const [x, z] of [[-0.45, 7.7], [-0.45, 9], [-0.45, 10.3]]) {
-    box([x + 22, 2.85, z], [0.5, 0.5, 0.5], 'gold-leaf', 'jabez-wilson-pawnshop', 'exterior');
+  for (const z of [7.7, 9, 10.3]) {
+    const center = [21.35, 2.22, z];
+    for (const dx of [-0.14, 0, 0.14]) for (const dy of [-0.14, 0, 0.14]) for (const dz of [-0.14, 0, 0.14]) {
+      if (dx * dx + dy * dy + dz * dz > 0.045) continue;
+      box([center[0] + dx, center[1] + dy, center[2] + dz], [0.145, 0.145, 0.145], 'gold-leaf', 'jabez-wilson-pawnshop', 'exterior');
+    }
+    box([21.35, 2.51, z], [0.045, 0.2, 0.045], 'brass', 'jabez-wilson-pawnshop', 'exterior');
   }
-  sign([21.45, 2.0, 9], [3.8, 0.7, 0.08], 'JABEZ WILSON', 'jabez-wilson-pawnshop', -Math.PI / 2, 'exterior', 'paper');
+  box([21.35, 2.63, 9], [0.06, 0.06, 3.05], 'iron', 'jabez-wilson-pawnshop', 'exterior');
   box([27.8, 1.05, 5.7], [5.2, 0.22, 1.1], 'wood', 'jabez-wilson-pawnshop');
   box([27.8, 0.7, 5.7], [5.0, 0.45, 0.9], 'panel-walnut', 'jabez-wilson-pawnshop');
   box([27.8, 1.22, 5.7], [5.3, 0.12, 1.2], 'wood', 'jabez-wilson-pawnshop');
@@ -558,11 +680,23 @@ export function createRedHeadedWorld() {
       box([x + 0.08, 2.04, z], [0.16, 0.24, 0.17], 'tile-cream', 'jabez-wilson-pawnshop');
     }
   }
-  for (let i = 0; i < 5; i++) {
-    const z = 4.1 + i * 1.15;
-    box([30.5, 1.15, z], [0.62, 1.1, 0.72], 'wood', 'jabez-wilson-pawnshop');
-    box([30.5, 1.35, z], [0.42, 0.45, 0.16], 'brass', 'jabez-wilson-pawnshop');
+  box([30.5, 0.8, 6.35], [0.8, 0.12, 5.5], 'wood', 'jabez-wilson-pawnshop');
+  for (const z of [4.0, 8.7]) for (const x of [30.2, 30.8]) box([x, 0.38, z], [0.08, 0.76, 0.08], 'wood', 'jabez-wilson-pawnshop');
+  box([30.5, 1.14, 4.2], [0.4, 0.56, 0.2], 'wood', 'jabez-wilson-pawnshop');
+  box([30.5, 1.14, 4.315], [0.3, 0.35, 0.025], 'paper', 'jabez-wilson-pawnshop');
+  box([30.5, 1.19, 4.335], [0.02, 0.13, 0.015], 'ink', 'jabez-wilson-pawnshop');
+  box([30.56, 1.14, 4.335], [0.12, 0.02, 0.015], 'ink', 'jabez-wilson-pawnshop');
+  box([30.5, 0.9, 5.3], [0.28, 0.07, 0.28], 'brass', 'jabez-wilson-pawnshop');
+  box([30.5, 1.13, 5.3], [0.065, 0.4, 0.065], 'brass', 'jabez-wilson-pawnshop');
+  box([30.5, 1.41, 5.3], [0.08, 0.2, 0.08], 'paper', 'jabez-wilson-pawnshop');
+  teaCup([30.45, 0.86, 6.4], 'jabez-wilson-pawnshop');
+  for (let book = 0; book < 3; book++) {
+    box([30.5, 0.91 + book * 0.1, 7.5], [0.48, 0.09, 0.64], ['leather', 'paint-blue', 'paint-red'][book], 'jabez-wilson-pawnshop');
+    box([30.5, 0.91 + book * 0.1, 7.825], [0.42, 0.05, 0.015], 'paper', 'jabez-wilson-pawnshop');
   }
+  box([30.5, 0.95, 8.6], [0.38, 0.16, 0.74], 'leather', 'jabez-wilson-pawnshop');
+  box([30.5, 0.95, 8.1], [0.18, 0.13, 0.3], 'leather', 'jabez-wilson-pawnshop');
+  printedPage([30.5, 1.04, 8.65], 0.18, 0.22, 'jabez-wilson-pawnshop');
   for (const [x, z] of [[25.2, 4.3], [25.2, 6.2], [29.0, 7.2], [31.0, 7.2]]) {
     box([x, 1.9, z], [0.55, 0.68, 0.12], 'wood', 'jabez-wilson-pawnshop');
     box([x, 1.9, z - 0.09], [0.36, 0.42, 0.07], 'glass-warm', 'jabez-wilson-pawnshop');
@@ -596,9 +730,17 @@ export function createRedHeadedWorld() {
     for (const y of [-4.05, -3.05, -2.05]) box([x + (x < 28 ? 0.45 : -0.45), y, 5.1], [0.8, 0.12, 3.0], 'wood', 'jabez-wilson-pawnshop', 'interior');
   }
   box([24.6, -3.7, 6.0], [1.6, 0.18, 1.0], 'wood', 'jabez-wilson-pawnshop', 'interior');
-  box([24.6, -3.1, 6.0], [0.5, 0.48, 0.42], 'iron', 'jabez-wilson-pawnshop', 'interior');
-  box([25.2, -3.12, 6.0], [0.16, 0.22, 0.2], 'glass', 'jabez-wilson-pawnshop', 'interior');
-  box([24.3, -4.22, 6.0], [0.42, 0.1, 0.32], 'paper', 'jabez-wilson-pawnshop', 'interior');
+  for (const dx of [-0.65, 0.65]) for (const dz of [-0.35, 0.35]) box([24.6 + dx, -4.12, 6 + dz], [0.08, 0.76, 0.08], 'wood', 'jabez-wilson-pawnshop');
+  box([24.6, -3.5, 6], [0.53, 0.18, 0.55], 'wood', 'jabez-wilson-pawnshop');
+  for (let fold = 0; fold < 5; fold++) box([24.6, -3.27, 5.85 + fold * 0.075], [0.44 - fold * 0.035, 0.4 - fold * 0.035, 0.045], fold % 2 ? 'cloth' : 'paint-black', 'jabez-wilson-pawnshop');
+  box([24.6, -3.27, 6.25], [0.22, 0.22, 0.14], 'brass', 'jabez-wilson-pawnshop');
+  box([24.6, -3.27, 6.33], [0.14, 0.14, 0.035], 'paint-black', 'jabez-wilson-pawnshop');
+  box([24.6, -3.27, 6.355], [0.09, 0.09, 0.015], 'glass', 'jabez-wilson-pawnshop');
+  bottle([25.1, -3.6, 5.8], 'jabez-wilson-pawnshop');
+  bottle([25.35, -3.6, 5.8], 'jabez-wilson-pawnshop', 'glass-warm');
+  box([24.0, -3.57, 6], [0.36, 0.06, 0.48], 'tile-cream', 'jabez-wilson-pawnshop');
+  box([24.0, -3.53, 6], [0.28, 0.025, 0.38], 'glass', 'jabez-wilson-pawnshop');
+  printedPage([23.95, -3.5, 6], 0.19, 0.28, 'jabez-wilson-pawnshop');
   sign([26.5, -2.55, 5.0], [2.8, 0.42, 0.08], '暗房药水与底片', 'jabez-wilson-pawnshop', 0, 'interior');
   lamp([23.3, -2.2, 13.4], [0.28, 0.45, 0.28], 'brass', 'jabez-wilson-pawnshop', 'interior');
 
@@ -705,13 +847,14 @@ export function createRedHeadedWorld() {
     const top = 3 - i * 0.5;
     fillBox(-43.25, top - 0.5, z, -41.75, top, z + 0.5, 'wood', 'baker-221b', 'interior');
   }
-  // Inner wall treatments sit just inside the outer shell, leaving the stair and door aisles open.
-  for (let z = -33.5; z < -24; z += 1.5) {
-    if (Math.abs(z + 29) < 1.5) continue;
-    box([-45.18, 3.5, z], [0.12, 1.0, 1.35], 'panel-walnut', 'baker-221b', 'interior');
-    box([-45.10, 4.75, z], [0.08, 1.5, 1.35], 'wallpaper-green', 'baker-221b', 'interior');
-    box([-34.82, 3.5, z], [0.12, 1.0, 1.35], 'panel-walnut', 'baker-221b', 'interior');
-    box([-34.9, 4.75, z], [0.08, 1.5, 1.35], 'wallpaper-green', 'baker-221b', 'interior');
+  // Wallpaper surrounds real sash openings; it never covers the glass.
+  const sittingWindows = [...baker.windows, baker.doorAt];
+  for (let z = -34.25; z < -23.5; z += 0.5) {
+    const window = sittingWindows.some(center => Math.abs(z - center) < 0.95);
+    box([-45.18, window ? 3.25 : 3.5, z], [0.12, window ? 0.5 : 1, 0.5], 'panel-walnut', 'baker-221b');
+    box([-45.1, window ? 5.25 : 4.75, z], [0.08, window ? 0.5 : 1.5, 0.5], 'wallpaper-green', 'baker-221b');
+    box([-34.82, 3.5, z], [0.12, 1.0, 0.5], 'panel-walnut', 'baker-221b');
+    box([-34.9, 4.75, z], [0.08, 1.5, 0.5], 'wallpaper-green', 'baker-221b');
   }
   box([-40.0, 3.5, -34.4], [8.8, 1.0, 0.12], 'panel-walnut', 'baker-221b', 'interior');
   box([-40.0, 4.75, -34.38], [8.8, 1.5, 0.08], 'wallpaper-green', 'baker-221b', 'interior');
@@ -724,72 +867,99 @@ export function createRedHeadedWorld() {
   for (const z of [-32.28, -30.52]) box([-35.37, 3.68, z], [0.52, 1.28, 0.27], 'brick-soot', 'baker-221b');
   box([-35.43, 4.31, -31.4], [0.75, 0.17, 2.35], 'panel-walnut', 'baker-221b');
   box([-35.53, 3.19, -31.4], [0.24, 0.13, 1.05], 'coal', 'baker-221b');
+  for (const z of [-31.8, -31.6, -31.4, -31.2, -31.0]) box([-35.72, 3.33, z], [0.03, 0.3, 0.025], 'iron', 'baker-221b');
+  box([-35.72, 3.33, -31.4], [0.03, 0.035, 1.05], 'iron', 'baker-221b');
   for (const [z, height] of [[-31.78, 0.23], [-31.4, 0.4], [-31.07, 0.29]]) {
     box([-35.55, 3.25 + height / 2, z], [0.12, height, 0.22], 'fire-orange', 'baker-221b', 'interior', { emissive: true });
     box([-35.62, 3.26 + height / 3, z], [0.06, height * 0.65, 0.1], 'fire-gold', 'baker-221b', 'interior', { emissive: true });
   }
   box([-35.4, 4.58, -31.4], [0.25, 0.38, 0.4], 'wood', 'baker-221b');
   box([-35.55, 4.58, -31.4], [0.05, 0.26, 0.27], 'brass', 'baker-221b');
-  // Upholstered chairs have separate seats, backs, arms and exposed feet.
-  for (const [x, z] of [[-44, -28.1], [-37.5, -30.8]]) {
-    box([x, 3.36, z], [1.26, 0.13, 1.14], 'panel-walnut', 'baker-221b');
-    box([x, 3.53, z], [1.16, 0.22, 1.05], 'leather', 'baker-221b');
-    box([x, 4.0, z - 0.46], [1.22, 0.92, 0.22], 'leather', 'baker-221b');
-    for (const dx of [-0.6, 0.6]) box([x + dx, 3.74, z], [0.16, 0.4, 1.1], 'leather', 'baker-221b');
-    for (const dx of [-0.51, 0.51]) for (const dz of [-0.43, 0.43]) box([x + dx, 3.16, z + dz], [0.1, 0.32, 0.1], 'wood', 'baker-221b');
+  // The western chair faces east and the other faces west, toward the tea table.
+  for (const [x, z, yaw] of [[-44, -28.1, Math.PI / 2], [-37.5, -30.8, -Math.PI / 2]]) {
+    const part = assembly([x, 3, z], yaw, 'baker-221b');
+    part([0, 0.36, 0], [1.26, 0.13, 1.14], 'panel-walnut');
+    part([0, 0.53, 0], [1.16, 0.22, 1.05], 'leather');
+    part([0, 1, -0.46], [1.22, 0.92, 0.22], 'leather');
+    for (const dx of [-0.6, 0.6]) part([dx, 0.74, 0], [0.16, 0.4, 1.1], 'leather');
+    for (const dx of [-0.51, 0.51]) for (const dz of [-0.43, 0.43]) part([dx, 0.16, dz], [0.1, 0.32, 0.1], 'wood');
+    for (const dx of [-0.35, 0.35]) part([dx, 1.0, -0.33], [0.045, 0.045, 0.025], 'brass');
   }
   // Tea table: a thin top, four legs, folded newspaper, cup and saucer.
   box([-40.1, 3.82, -29.1], [2.2, 0.12, 1.34], 'panel-walnut', 'baker-221b');
   for (const dx of [-0.88, 0.88]) for (const dz of [-0.47, 0.47]) box([-40.1 + dx, 3.39, -29.1 + dz], [0.11, 0.78, 0.11], 'wood', 'baker-221b');
-  box([-40.55, 3.91, -29.0], [0.58, 0.04, 0.38], 'paper', 'baker-221b', 'interior', { rotation: 0.12 });
-  box([-39.75, 3.91, -29.2], [0.35, 0.035, 0.35], 'paper', 'baker-221b');
-  box([-39.75, 4.0, -29.2], [0.18, 0.16, 0.18], 'brass', 'baker-221b');
-  box([-39.62, 4.0, -29.2], [0.09, 0.08, 0.06], 'brass', 'baker-221b');
+  printedPage([-40.55, 3.89, -29], 0.7, 0.49, 'baker-221b');
+  teaCup([-39.9, 3.88, -29.38], 'baker-221b');
+  // A rounded stepped teapot with lid, spout and open handle.
+  box([-39.65, 4.0, -28.86], [0.28, 0.2, 0.25], 'tile-cream', 'baker-221b');
+  box([-39.65, 4.12, -28.86], [0.21, 0.05, 0.2], 'tile-cream', 'baker-221b');
+  box([-39.65, 4.16, -28.86], [0.055, 0.04, 0.055], 'brass', 'baker-221b');
+  box([-39.42, 4.04, -28.86], [0.22, 0.075, 0.08], 'tile-cream', 'baker-221b');
+  box([-39.32, 4.09, -28.86], [0.07, 0.11, 0.08], 'tile-cream', 'baker-221b');
+  for (const y of [3.94, 4.08]) box([-39.88, y, -28.86], [0.16, 0.04, 0.07], 'tile-cream', 'baker-221b');
+  box([-39.97, 4.01, -28.86], [0.04, 0.18, 0.07], 'tile-cream', 'baker-221b');
   box([-40, 3.35, -26], [3.5, 0.13, 1.05], 'wood', 'baker-221b');
   for (const dx of [-1.1, 0, 1.1]) box([-40 + dx, 3.54, -26], [1.04, 0.23, 0.98], 'velvet-red', 'baker-221b');
   box([-40, 4.03, -26.45], [3.55, 0.95, 0.22], 'velvet-red', 'baker-221b');
   for (const dx of [-1.7, 1.7]) box([-40 + dx, 3.77, -26], [0.17, 0.45, 1.08], 'velvet-red', 'baker-221b');
   for (const dx of [-1.5, 1.5]) for (const dz of [-0.4, 0.4]) box([-40 + dx, 3.16, -26 + dz], [0.1, 0.32, 0.1], 'wood', 'baker-221b');
-  for (const center of [-32.75, -25.75]) {
+  for (const center of sittingWindows) {
     for (const side of [-0.67, 0.67]) {
-      box([-45.02, 4.52, center + side], [0.18, 1.65, 0.32], 'curtain-gold', 'baker-221b', 'interior', { solid: false });
+      box([-45.02, 4.3, center + side], [0.18, 1.75, 0.25], 'curtain-gold', 'baker-221b', 'interior', { solid: false });
       box([-44.9, 4.35, center + side], [0.08, 0.08, 0.36], 'brass', 'baker-221b', 'interior', { solid: false });
     }
-    box([-45.0, 5.34, center], [0.1, 0.1, 1.85], 'wood', 'baker-221b', 'interior', { solid: false });
+    box([-45.0, 5.2, center], [0.1, 0.1, 1.85], 'wood', 'baker-221b', 'interior', { solid: false });
   }
-  // Tall bookcases, books, Holmes's writing desk, violin, and chemistry glassware.
-  for (const z of [-33.0, -24.5]) {
-    box([-44.8, 4.35, z], [0.42, 2.45, 2.0], 'panel-walnut', 'baker-221b', 'interior');
-    for (const y of [3.55, 4.15, 4.75, 5.35]) {
-      box([-44.52, y, z], [0.18, 0.08, 1.85], 'wood', 'baker-221b', 'interior');
-      for (let i = 0; i < 5; i++) box([-44.4, y + 0.2, z - 0.72 + i * 0.34], [0.16, 0.34, 0.22], ['paint-red', 'paint-green', 'paint-blue', 'paper', 'leather'][i], 'baker-221b', 'interior');
+  // Open bookcases: side stiles, thin backing and separate shelves leave the spines visible.
+  for (const z of [-33, -24.5]) {
+    box([-45.02, 4.17, z], [0.035, 2.25, 1.94], 'panel-walnut', 'baker-221b');
+    for (const dz of [-0.96, 0.96]) box([-44.76, 4.17, z + dz], [0.52, 2.3, 0.09], 'wood', 'baker-221b');
+    for (const y of [3.12, 3.69, 4.26, 4.83, 5.28]) {
+      box([-44.75, y, z], [0.56, 0.075, 2.02], 'wood', 'baker-221b');
+      if (y > 5) continue;
+      for (let i = 0; i < 8; i++) {
+        const height = [0.34, 0.42, 0.39, 0.3][i % 4];
+        box([-44.68, y + 0.04 + height / 2, z - 0.78 + i * 0.22], [0.33, height, 0.16], ['paint-red', 'paint-green', 'paint-blue', 'leather', 'paper'][i % 5], 'baker-221b');
+        box([-44.505, y + height * 0.7, z - 0.78 + i * 0.22], [0.012, 0.025, 0.12], 'gold-leaf', 'baker-221b');
+      }
     }
   }
   for (const dx of [-1.06, 1.06]) for (const dz of [-0.43, 0.43]) box([-37 + dx, 3.47, -25 + dz], [0.12, 0.94, 0.12], 'wood', 'baker-221b');
   box([-37, 3.8, -25], [2.5, 0.18, 0.94], 'wood', 'baker-221b');
   box([-37.0, 3.98, -25.0], [2.75, 0.12, 1.3], 'panel-walnut', 'baker-221b', 'interior');
-  box([-37.4, 4.2, -25.05], [0.8, 0.05, 0.62], 'paper', 'baker-221b', 'interior');
-  box([-36.1, 4.2, -25.0], [0.25, 0.05, 0.28], 'ink', 'baker-221b', 'interior');
-  box([-36.8, 4.3, -25.05], [0.48, 0.08, 0.06], 'wood', 'baker-221b', 'interior', { rotation: -0.3 });
-  box([-36.2, 3.5, -27.5], [0.1, 0.12, 0.8], 'wood', 'baker-221b', 'interior', { rotation: 0.3 });
-  box([-36.2, 3.68, -27.5], [0.08, 0.32, 0.08], 'wood', 'baker-221b', 'interior');
-  box([-35.9, 3.78, -27.5], [0.38, 0.06, 0.06], 'wood', 'baker-221b', 'interior');
-  box([-43.1, 3.7, -26.8], [0.55, 0.52, 0.42], 'glass', 'baker-221b', 'interior');
-  box([-43.1, 4.0, -26.8], [0.2, 0.22, 0.18], 'glass-warm', 'baker-221b', 'interior');
-  box([-42.5, 3.6, -26.8], [0.32, 0.42, 0.3], 'copper', 'baker-221b', 'interior');
-  box([-42.2, 3.52, -26.8], [0.18, 0.14, 0.18], 'paper', 'baker-221b', 'interior');
-  // Wall clock, three paintings, and a warm shaded gas lamp.
-  box([-45.05, 5.05, -27.0], [0.18, 0.92, 0.82], 'wood', 'baker-221b', 'interior');
-  box([-44.92, 5.05, -27.0], [0.06, 0.58, 0.5], 'brass', 'baker-221b', 'interior');
-  for (const [x, z, color] of [[-45.0, -31.0, 'paint-blue'], [-45.0, -28.0, 'paint-green'], [-35.0, -25.0, 'paint-red']]) {
-    box([x, 5.15, z], [0.12, 1.1, 1.25], 'wood', 'baker-221b', 'interior');
-    box([x + (x < -40 ? 0.08 : -0.08), 5.15, z], [0.08, 0.88, 1.02], color, 'baker-221b', 'interior');
+  box([-37.5, 4.065, -25], [1.0, 0.035, 0.8], 'leather', 'baker-221b');
+  printedPage([-37.5, 4.09, -25], 0.75, 0.56, 'baker-221b');
+  box([-37.0, 4.15, -24.67], [0.13, 0.18, 0.13], 'ink', 'baker-221b');
+  box([-37.0, 4.32, -24.67], [0.018, 0.28, 0.018], 'wood', 'baker-221b', 'interior', { rotation: -0.25 });
+  violin([-36.35, 4.115, -24.85], 'baker-221b', 0, 0.75);
+  // Chemistry has its own narrow worktable, flask necks, labelled reagents and a copper burner.
+  box([-43.15, 3.55, -25.7], [1.05, 0.1, 0.65], 'wood', 'baker-221b');
+  for (const dx of [-0.42, 0.42]) for (const dz of [-0.23, 0.23]) box([-43.15 + dx, 3.25, -25.7 + dz], [0.07, 0.5, 0.07], 'wood', 'baker-221b');
+  bottle([-43.48, 3.6, -25.65], 'baker-221b');
+  bottle([-43.22, 3.6, -25.65], 'baker-221b', 'glass');
+  box([-42.9, 3.68, -25.7], [0.18, 0.16, 0.18], 'copper', 'baker-221b');
+  box([-42.9, 3.8, -25.7], [0.06, 0.1, 0.06], 'fire-gold', 'baker-221b', 'interior', { emissive: true });
+  box([-42.9, 3.98, -25.7], [0.2, 0.19, 0.2], 'glass-warm', 'baker-221b');
+  box([-42.9, 4.12, -25.7], [0.075, 0.12, 0.075], 'glass', 'baker-221b');
+  // Clock and framed landscapes remain below the sitting-room cutaway.
+  box([-45.05, 4.42, -27], [0.18, 0.64, 0.64], 'panel-walnut', 'baker-221b');
+  box([-44.93, 4.42, -27], [0.045, 0.49, 0.49], 'paper', 'baker-221b');
+  box([-44.9, 4.49, -27], [0.018, 0.17, 0.025], 'ink', 'baker-221b');
+  box([-44.9, 4.42, -26.92], [0.018, 0.025, 0.18], 'ink', 'baker-221b');
+  for (const dz of [-0.18, 0.18]) box([-44.9, 4.42, -27 + dz], [0.015, 0.045, 0.02], 'ink', 'baker-221b');
+  for (const [x, z, color] of [[-45, -31, 'paint-blue'], [-45, -28, 'paint-green'], [-35, -25, 'paint-red']]) {
+    const face = x < -40 ? x + 0.08 : x - 0.08;
+    box([x, 4.42, z], [0.1, 0.68, 1.08], 'wood', 'baker-221b');
+    box([face, 4.42, z], [0.035, 0.53, 0.92], 'paint-blue', 'baker-221b');
+    box([face + (x < -40 ? 0.023 : -0.023), 4.28, z], [0.015, 0.24, 0.92], color, 'baker-221b');
+    box([face + (x < -40 ? 0.034 : -0.034), 4.38, z + 0.17], [0.012, 0.2, 0.27], 'paint-green', 'baker-221b');
   }
   lamp([-40.0, 5.35, -30.0], [0.3, 0.48, 0.3], 'brass', 'baker-221b', 'interior');
 
   // League office: one deal table, two chairs, volume A, ink, paper and the closure card.
   box([-10.2, 0.82, -32.5], [3.1, 0.18, 1.35], 'wood', 'pope-court-no7');
-  box([-10.2, 0.48, -32.5], [2.9, 0.48, 1.25], 'panel-walnut', 'pope-court-no7');
+  for (const dx of [-1.28, 1.28]) for (const dz of [-0.48, 0.48]) box([-10.2 + dx, 0.37, -32.5 + dz], [0.09, 0.74, 0.09], 'wood', 'pope-court-no7');
+  box([-14.43, 1.25, -32], [0.055, 2.4, 8.7], 'wallpaper-cream', 'pope-court-no7');
   for (const z of [-33.7, -31.2]) {
     box([-10.2, 0.46, z], [0.92, 0.18, 0.86], 'wood', 'pope-court-no7');
     box([-10.2, 0.92, z + 0.3], [0.82, 0.82, 0.16], 'wood', 'pope-court-no7');

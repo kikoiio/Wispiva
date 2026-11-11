@@ -1,4 +1,4 @@
-import { createRedHeadedWorld } from '../spatial/red-headed-world.js';
+import { createLondonStoryWorld } from '../spatial/london-world.js';
 import { createStoryScene } from '../rendering/story-scene.js';
 import { createTransport } from './transport.js';
 
@@ -97,11 +97,16 @@ function observeSceneModes() {
 
 function populateWorldControls() {
   const places = Array.isArray(world?.places) ? world.places : [];
+  const groups = new Map();
+  for (const district of world?.districts || []) {
+    const group = document.createElement('optgroup'); group.label = district.name;
+    groups.set(district.id, group); ui.place.append(group);
+  }
   for (const place of places) {
     const option = document.createElement('option');
     option.value = place.id;
     option.textContent = place.name;
-    ui.place.append(option);
+    (groups.get(place.district) || ui.place).append(option);
   }
 
   const chapters = Array.isArray(world?.chapters) && world.chapters.length ? world.chapters : fallbackChapters;
@@ -431,6 +436,7 @@ ui.overview.addEventListener('click', () => {
 ui.cutaway.addEventListener('click', () => {
   if (!scene) return;
   const enabled = !dataFlag(ui.host.dataset.cutaway);
+  if (enabled && dataFlag(ui.host.dataset.walking)) scene.setWalking(false);
   scene.setCutaway(enabled);
   syncSceneModes();
 });
@@ -461,7 +467,7 @@ ui.retry.addEventListener('click', () => { if (retryText) void sendMessage(retry
 function boot() {
   try {
     observeSceneModes();
-    world = createRedHeadedWorld();
+    world = createLondonStoryWorld();
     populateWorldControls();
     renderThread();
     void loadState({ initial: true });

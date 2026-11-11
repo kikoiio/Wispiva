@@ -13,6 +13,7 @@ const browserModules = [
   'rendering/voxel-scene.js',
   'rendering/story-scene.js',
   'rendering/story-mesh.js',
+  'rendering/london-environment.js',
   'rendering/camp-compiler.js',
   'rendering/scene-compiler.js',
   'rendering/compiled-spatial.js',
@@ -32,6 +33,8 @@ const browserModules = [
   'spatial/world-document.js',
   'spatial/red-headed-world.js',
   'spatial/story-navigation.js',
+  'spatial/london-world.js',
+  'spatial/london-blocks.js',
 ];
 
 const assets = {

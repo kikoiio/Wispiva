@@ -6,6 +6,36 @@ export function createStoryNavigation(world) {
   const { unit } = world;
   const cells = new Map(world.cells.map(cell => [cellKey(...cell.slice(0, 3)), cell]));
   const boxes = world.props.filter(prop => prop.kind === 'box' && prop.solid !== false);
+  const boxBuckets = new Map(), bucketSize = 8, contextCache = new Map();
+  for (const box of boxes) {
+    const radius = Math.hypot(box.size[0], box.size[2]) / 2;
+    for (let x = Math.floor((box.position[0] - radius) / bucketSize); x <= Math.floor((box.position[0] + radius) / bucketSize); x++)
+      for (let z = Math.floor((box.position[2] - radius) / bucketSize); z <= Math.floor((box.position[2] + radius) / bucketSize); z++) {
+        const key = `${x},${z}`;
+        if (!boxBuckets.has(key)) boxBuckets.set(key, []);
+        boxBuckets.get(key).push(box);
+      }
+  }
+  const nearbyBoxes = (x, z) => {
+    const result = new Set();
+    for (const [dx, dz] of samples) for (const box of boxBuckets.get(`${Math.floor((x + dx) / bucketSize)},${Math.floor((z + dz) / bucketSize)}`) || []) result.add(box);
+    return [...result];
+  };
+  function contextBuildings(x, z) {
+    if (!world.environment) return [];
+    const environment = world.environment, size = environment.blockSize, [ox, oz] = environment.origin, result = [];
+    for (let ix = Math.floor((x - feetRadius - ox) / size); ix <= Math.floor((x + feetRadius - ox) / size); ix++)
+      for (let iz = Math.floor((z - feetRadius - oz) / size); iz <= Math.floor((z + feetRadius - oz) / size); iz++) {
+        const key = `${ix},${iz}`;
+        if (!contextCache.has(key)) {
+          const block = createLondonBlock(environment, ix, iz);
+          contextCache.set(key, [...block.buildings, ...(block.colliders || [])]);
+          if (contextCache.size > 48) contextCache.delete(contextCache.keys().next().value);
+        }
+        result.push(...contextCache.get(key));
+      }
+    return result;
+  }
   const at = (x, y, z) => cells.get(cellKey(Math.floor(x / unit), Math.floor(y / unit), Math.floor(z / unit)));
   const insideBox = (x, z, prop, margin = 0) => {
     const dx = x - prop.position[0], dz = z - prop.position[2], angle = prop.rotation || 0;
@@ -21,8 +51,11 @@ export function createStoryNavigation(world) {
         if (cell && cell[3] !== 'water') return false;
       }
     }
-    return !boxes.some(prop => prop.position[1] - prop.size[1] / 2 < y + bodyHeight &&
-      prop.position[1] + prop.size[1] / 2 > y + 0.1 && insideBox(x, z, prop, feetRadius));
+    if (nearbyBoxes(x, z).some(prop => prop.position[1] - prop.size[1] / 2 < y + bodyHeight &&
+      prop.position[1] + prop.size[1] / 2 > y + 0.1 && insideBox(x, z, prop, feetRadius))) return false;
+    return !contextBuildings(x, z).some(building => building.bounds.min[1] < y + bodyHeight && building.bounds.max[1] > y + 0.1 &&
+      x + feetRadius > building.bounds.min[0] && x - feetRadius < building.bounds.max[0] &&
+      z + feetRadius > building.bounds.min[2] && z - feetRadius < building.bounds.max[2]);
   }
   function floorAt(x, z, nearY) {
     let floor = -Infinity;
@@ -35,10 +68,13 @@ export function createStoryNavigation(world) {
         }
       }
     }
-    for (const prop of boxes) {
+    for (const prop of nearbyBoxes(x, z)) {
       const top = prop.position[1] + prop.size[1] / 2;
       if (top <= nearY + maxStep && top >= nearY - maxDrop && insideBox(x, z, prop)) floor = Math.max(floor, top);
     }
+    if (world.terrain && world.terrain.height <= nearY + maxStep && world.terrain.height >= nearY - maxDrop &&
+        !world.terrain.exclusions.some(bounds => x >= bounds.min[0] && x <= bounds.max[0] && z >= bounds.min[1] && z <= bounds.max[1]))
+      floor = Math.max(floor, world.terrain.height);
     return Number.isFinite(floor) ? floor : null;
   }
   function move(position, dx, dz) {
@@ -77,3 +113,5 @@ export function createStoryNavigation(world) {
   }
   return { canStand, floorAt, move, locate, spawn };
 }
+import { createLondonBlock } from './london-blocks.js';
+

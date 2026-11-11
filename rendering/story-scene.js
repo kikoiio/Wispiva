@@ -1,6 +1,7 @@
 import * as THREE from '/vendor/three.module.js';
 import { compileStoryChunks } from './story-mesh.js';
 import { createStoryNavigation } from '../spatial/story-navigation.js';
+import { createLondonEnvironment } from './london-environment.js';
 
 const fallbackPalette = {
   brick: '#986352', stone: '#999388', cobble: '#777b78', wood: '#75543a',
@@ -10,7 +11,7 @@ const fallbackPalette = {
 
 export async function createStoryScene(host, world, { chapter = 'investigation', onPlace = () => {} } = {}) {
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(48, 1, 0.08, 800);
+  const camera = new THREE.PerspectiveCamera(55, 1, 0.08, 4000);
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -165,7 +166,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     ctx.fillStyle = descriptor.color || '#26372e'; ctx.fillRect(0, 0, label.width, label.height);
     ctx.strokeStyle = '#d4ba84'; ctx.lineWidth = 4; ctx.strokeRect(9, 9, label.width - 18, label.height - 18);
     const background = new THREE.Color(descriptor.color || '#26372e');
-    ctx.fillStyle = background.r * 0.2126 + background.g * 0.7152 + background.b * 0.0722 > 0.4 ? '#302b23' : '#f1dfb6';
+    ctx.fillStyle = prop.ink || (background.r * 0.2126 + background.g * 0.7152 + background.b * 0.0722 > 0.4 ? '#302b23' : '#f1dfb6');
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const lines = (prop.text || '').split('\n');
     let fontSize = Math.min(76, label.height * 0.65 / lines.length);
@@ -256,6 +257,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
   function requestRender() {
     if (!disposed && !scheduled) scheduled = requestAnimationFrame(render);
   }
+  const environment = createLondonEnvironment(scene, world, materialFor);
   function applyClipping() {
     const place = placeMap.get(activePlace);
     const enabled = !walking && (cutaway || autoCutaway);
@@ -287,7 +289,7 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     if (!world.chapters.some(item => item.id === id)) return;
     currentChapter = id;
     const night = id === 'heist' || id === 'aftermath';
-    sky.set(night ? '#3c4955' : '#929fa5'); scene.fog.color.copy(sky);
+    sky.set(night ? '#45505a' : '#b8b5a8'); scene.fog.color.copy(sky);
     hemisphere.intensity = night ? 1.1 : 3.0; sun.intensity = night ? 0.7 : 3.0;
     sun.color.set(night ? '#b6cfde' : '#ffdfb0'); renderer.toneMappingExposure = night ? 1.5 : 1.2;
     for (const [actorId, group] of actorNodes) {
@@ -347,8 +349,13 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     applyClipping(); onPlace(id); return true;
   }
   function overview() {
+    const point = walking ? [...feet] : placeMap.get(activePlace)?.position || world.overview.target;
     walking = false; pressed.clear(); host.dataset.walking = 'false'; cutaway = false; autoCutaway = false;
-    setOrbit(framedPosition(world.overview.position, world.overview.target, { min: [-60, -0.5, -50], max: [60, 12, 50] }), world.overview.target); applyClipping();
+    if (world.environment) {
+      const lookAt = [point[0], 1, point[2]];
+      setOrbit([lookAt[0] + 100, 76, lookAt[2] + 100], lookAt);
+    } else setOrbit(framedPosition(world.overview.position, world.overview.target, { min: [-60, -0.5, -50], max: [60, 12, 50] }), world.overview.target);
+    applyClipping();
   }
   function setWalking(enabled) {
     if (Boolean(enabled) === walking) return walking;
@@ -360,7 +367,12 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
       walking = true; transition = null; canvas.focus({ preventScroll: true });
     } else {
       walking = false; pressed.clear();
-      const place = placeMap.get(activePlace); if (place) setOrbit(placeCamera(place), placeTarget(place));
+      const place = navigation.locate(feet);
+      if (place?.interior) { autoCutaway = true; setOrbit(placeCamera(place), placeTarget(place)); }
+      else {
+        autoCutaway = false; cutaway = false;
+        setOrbit([feet[0] - Math.sin(yaw) * 14, feet[1] + 8, feet[2] - Math.cos(yaw) * 14], [feet[0], feet[1] + 1, feet[2]]);
+      }
     }
     host.dataset.walking = String(walking); applyClipping(); return walking;
   }
@@ -399,6 +411,15 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     }
     const place = placeMap.get(activePlace), indoor = Boolean(place?.interior && (walking || cutaway || autoCutaway));
     const lightTarget = walking ? new THREE.Vector3(...feet) : target;
+    const night = currentChapter === 'heist' || currentChapter === 'aftermath';
+    environment.update(camera, lightTarget, { night, cutaway: Boolean(focusSites()) });
+    const cityStats = environment.stats();
+    host.dataset.cityBlocks = String(cityStats.blocks); host.dataset.contextBuildings = String(cityStats.buildings);
+    if (world.environment) {
+      scene.fog.near = (night ? 35 : 65) + Math.max(0, camera.position.y) * 0.45;
+      scene.fog.far = (night ? 210 : 310) + Math.max(0, camera.position.y) * 1.1;
+      sun.target.position.copy(lightTarget); sun.position.copy(lightTarget).add(new THREE.Vector3(-45, 100, 40));
+    }
     indoorFill.intensity = indoor ? 12 : 0;
     indoorFill.position.copy(lightTarget).add(new THREE.Vector3(0, 2.5, 0));
     const nearbyLamps = lampProps.filter(prop => !indoor || prop.site === place.site || prop.site === 'tunnel')
@@ -489,9 +510,12 @@ export async function createStoryScene(host, world, { chapter = 'investigation',
     for (const geometry of geometries) geometry.dispose();
     for (const material of materials.values()) material.dispose();
     for (const texture of textures) texture.dispose();
+    environment.dispose();
     renderer.dispose(); renderer.forceContextLoss(); canvas.remove();
   }
-  host.dataset.walking = 'false'; setChapter(chapter); requestRender();
+  host.dataset.walking = 'false'; setChapter(chapter);
+  if (world.arrival?.walking) setWalking(true);
+  requestRender();
   return { focus, overview, setWalking, setCutaway(enabled) { cutaway = Boolean(enabled); autoCutaway = false; applyClipping(); },
     setChapter, dispose, getLocation: () => activePlace };
 }

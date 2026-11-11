@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createRedHeadedWorld } from '../spatial/red-headed-world.js';
+import { createLondonStoryWorld } from '../spatial/london-world.js';
+import { createLondonBlock } from '../spatial/london-blocks.js';
 import { createStoryNavigation } from '../spatial/story-navigation.js';
 import { compileStoryChunks } from '../rendering/story-mesh.js';
 import { createStoryExperience } from '../creation/story-experience.mjs';
 
-const world = createRedHeadedWorld();
+const world = createLondonStoryWorld();
 const navigation = createStoryNavigation(world);
 const placeMap = new Map(world.places.map(place => [place.id, place]));
 const point = value => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
@@ -136,4 +137,37 @@ test('the complete neighborhood compiles to bounded, finite render buffers', () 
   }
   assert(quads < world.cells.length, 'hidden faces and coplanar surfaces must be merged');
   assert(bytes < 32 * 1024 * 1024, `geometry grew to ${Math.round(bytes / 1024 / 1024)} MiB`);
+});
+
+test('London districts retain story scale and surrounding streets continue far beyond the old model board', () => {
+  const baker = placeMap.get('baker-street'), city = placeMap.get('coburg-square'), hall = placeMap.get('music-hall');
+  assert(Math.hypot(baker.position[0] - city.position[0], baker.position[2] - city.position[2]) > 500);
+  assert(Math.hypot(hall.position[0] - city.position[0], hall.position[2] - city.position[2]) > 250);
+  assert.deepEqual(world.arrival, { placeId: 'coburg-square', walking: true });
+  for (const id of ['aldersgate', 'baker-underground', 'oxford-street', 'the-park']) assert(placeMap.has(id), id);
+  for (const index of [-100, -8, 0, 8, 100]) {
+    const x = world.environment.origin[0] + world.environment.blockSize * index;
+    const z = world.environment.origin[1] + 30;
+    assert.equal(navigation.floorAt(x, z, 0), 0, `street ends at ${x}, ${z}`);
+    assert(navigation.canStand([x, 0, z]), `crossing blocked at ${x}, ${z}`);
+  }
+});
+
+test('surrounding blocks are deterministic, detailed and keep authored architecture and routes clear', () => {
+  for (const [ix, iz] of [[0, 0], [-6, -4], [-3, 0], [15, -12]]) {
+    const block = createLondonBlock(world.environment, ix, iz);
+    assert.deepEqual(block, createLondonBlock(world.environment, ix, iz));
+    assert(block.props.length < 2400, 'street detail must remain bounded per streamed block');
+    for (const prop of block.props) {
+      assert(point(prop.position) && point(prop.size) && prop.size.every(value => value > 0), prop.id);
+      assert(world.materials[prop.material], prop.material);
+    }
+    for (const building of block.buildings) {
+      assert(!world.environment.exclusions.some(exclusion => building.bounds.min[0] < exclusion.max[0] && building.bounds.max[0] > exclusion.min[0] &&
+        building.bounds.min[2] < exclusion.max[1] && building.bounds.max[2] > exclusion.min[1]), building.id);
+    }
+  }
+  const typical = createLondonBlock({ ...world.environment, exclusions: [] }, 8, 8);
+  assert(typical.buildings.length >= 12);
+  assert(typical.props.some(prop => prop.detail === 'detail' && prop.material === 'glass'));
 });
