@@ -1,4 +1,5 @@
 import { buildSpreads, endCursor } from "./story.mjs";
+import { turnPaper, waitForPageImages } from "./paper-turn.mjs";
 
 const PAINTED = {
   城门: { label: [16, 17], feet: [20, 40] },
@@ -41,8 +42,6 @@ const dossier = document.querySelector("#dossier");
 const leafLeft = document.querySelector("#leaf-left");
 const leafRight = document.querySelector("#leaf-right");
 const curl = document.querySelector("#curl");
-const curlFront = document.querySelector("#curl-front-sheet");
-const curlBack = document.querySelector("#curl-back-sheet");
 const turnBack = document.querySelector("#turn-back");
 const turnNext = document.querySelector("#turn-next");
 const bookTab = document.querySelector("#book-tab");
@@ -65,6 +64,7 @@ let cursor = 0;
 let pinnedToEnd = true;
 let showAtlas = false;
 let turning = false;
+let turnController = null;
 const sceneByTick = new Map();
 const stood = new Map();
 
@@ -88,7 +88,7 @@ bookTab.addEventListener("click", () => setView(showAtlas ? "story" : "map"));
 window.addEventListener("keydown", (event) => {
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   const tag = document.activeElement?.tagName;
-  if (tag === "INPUT" || tag === "TEXTAREA") return;
+  if (tag === "INPUT" || tag === "TEXTAREA" || dossier.open) return;
   event.preventDefault();
   void flip(event.key === "ArrowRight" ? 1 : -1);
 });
@@ -151,6 +151,7 @@ async function refreshWorld() {
   polling = true;
   try {
     const snapshot = await requestJson("/api/world");
+    if (turning || busy || ticking) return;
     connectionNotice = "";
     if (!world || JSON.stringify(snapshot) !== JSON.stringify(world)) {
       const advanced = Boolean(world && Number(snapshot.tick) > Number(world.tick));
@@ -168,6 +169,7 @@ async function refreshWorld() {
 }
 
 function setView(next) {
+  turnController?.abort();
   view = next;
   showAtlas = next === "map";
   document.querySelectorAll(".nav-item").forEach((button) => {
@@ -188,7 +190,7 @@ function placeComposer() {
 }
 
 async function createWorld() {
-  if (busy) return;
+  if (busy || turning) return;
   if (!idea.value.trim()) {
     status.textContent = "先写一句设想。";
     return;
@@ -217,7 +219,7 @@ async function createWorld() {
 }
 
 async function stepOnce() {
-  if (!world || busy || playing) return false;
+  if (!world || busy || turning || playing) return false;
   ticking = true;
   setBusy(true);
   showPending("角色正在决定这一拍。");
@@ -241,7 +243,7 @@ async function stepOnce() {
 }
 
 async function addAgent() {
-  if (!world || busy) return;
+  if (!world || busy || turning) return;
   const location = selected?.type === "location" ? selected.id : world.locations[0]?.id;
   setBusy(true);
   try {
@@ -263,7 +265,7 @@ async function addAgent() {
 }
 
 async function removeAgent() {
-  if (busy || selected?.type !== "actor" || !world?.actors.some((actor) => actor.id === selected.id)) return;
+  if (busy || turning || selected?.type !== "actor" || !world?.actors.some((actor) => actor.id === selected.id)) return;
   setBusy(true);
   try {
     const payload = await requestJson(`/api/world/agents/${encodeURIComponent(selected.id)}`, { method: "DELETE" });
@@ -866,7 +868,7 @@ function syncPlayback(ready = world && world.actors.length > 0) {
   playing = Boolean(world?.simulation?.running);
   playButton.classList.toggle("is-on", playing);
   playButton.textContent = playing ? "播放中" : world?.simulation?.waiting ? "重试并运行" : "自动播放";
-  playButton.disabled = busy || playing || !ready;
+  playButton.disabled = busy || turning || playing || !ready;
   playButton.setAttribute("aria-pressed", playing ? "true" : "false");
   stopButton.disabled = busy || !playing;
   const kicker = document.querySelector("#tick-kicker");
@@ -893,7 +895,7 @@ function renderSimulationStatus() {
 }
 
 async function play() {
-  if (busy || playing || !world || world.actors.length === 0) return;
+  if (busy || turning || playing || !world || world.actors.length === 0) return;
   setBusy(true);
   try {
     const snapshot = await requestJson("/api/world/run", {
@@ -930,10 +932,6 @@ async function stopPlay() {
   }
 }
 
-function delay(ms) {
-  return new Promise((resolve) => { window.setTimeout(resolve, ms); });
-}
-
 async function flip(step) {
   if (turning || ticking || busy || !world) return;
   if (showAtlas) {
@@ -948,6 +946,7 @@ async function flip(step) {
 }
 
 async function slide(step) {
+  if (turning) return false;
   const limit = endCursor(pages.length);
   const next = cursor + step;
   if (next < 0 || next > limit) return false;
@@ -960,31 +959,49 @@ async function animateTurn(step, target) {
   const limit = endCursor(pages.length);
   const landing = Math.max(0, Math.min(target, limit));
   const forward = step > 0;
+  const controller = new AbortController();
+  turnController = controller;
   turning = true;
+  setBusy(busy);
   sceneChoices.hidden = true;
+  const staging = document.createElement("article");
+  staging.className = `leaf ${forward ? "leaf-left" : "leaf-right"} turn-staging`;
+  staging.setAttribute("aria-hidden", "true");
+  staging.inert = true;
+  leafLeft.inert = true;
+  leafRight.inert = true;
+  let completed = false;
   try {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const source = forward ? leafRight : leafLeft;
     if (!reduced && source.childNodes.length) {
-      curl.className = `curl ${forward ? "forward" : "back"}`;
-      curl.hidden = false;
-      curlFront.replaceChildren(...[...source.childNodes].map((node) => node.cloneNode(true)));
-      const backIndex = landing;
-      paintLeaf(curlBack, pages[backIndex], backIndex, forward ? "left" : "right");
-      if (forward) paintLeaf(leafRight, pages[landing], landing, "right");
-      else paintLeaf(leafLeft, pages[landing], landing, "left");
-      await delay(640);
+      leafLeft.parentElement.append(staging);
+      paintLeaf(staging, pages[landing], landing, forward ? "left" : "right");
+      await waitForPageImages([source, staging], controller.signal);
+      if (controller.signal.aborted) return;
+      completed = await turnPaper(curl, source, staging, {
+        forward,
+        signal: controller.signal,
+        reveal: () => paintLeaf(source, pages[landing], landing, forward ? "right" : "left"),
+      });
+    } else {
+      completed = true;
     }
-    cursor = landing;
-    pinnedToEnd = cursor >= limit;
+    if (completed && !controller.signal.aborted) {
+      cursor = landing;
+      pinnedToEnd = cursor >= limit;
+    }
   } finally {
+    staging.remove();
     turning = false;
+    turnController = null;
     curl.hidden = true;
-    curl.className = "curl";
-    curlFront.replaceChildren();
-    curlBack.replaceChildren();
+    curl.replaceChildren();
+    leafLeft.inert = false;
+    leafRight.inert = false;
+    setBusy(busy);
+    renderBook();
   }
-  renderBook();
 }
 
 async function curlTo(target, force = false) {
@@ -1000,23 +1017,28 @@ async function curlTo(target, force = false) {
 
 function setBusy(nextBusy) {
   busy = Boolean(nextBusy);
+  const locked = busy || turning;
   const ready = Boolean(world?.actors?.length);
-  nextButton.disabled = busy || ticking || playing || !ready;
-  playButton.disabled = busy || playing || !ready;
+  nextButton.disabled = locked || ticking || playing || !ready;
+  playButton.disabled = locked || playing || !ready;
   stopButton.disabled = busy || !playing;
-  addButton.disabled = busy || !world;
-  agentName.disabled = busy || !world;
-  removeButton.disabled = busy || selected?.type !== "actor" || !world?.actors?.some((actor) => actor.id === selected.id);
-  idea.disabled = busy;
-  composer.querySelector("button[type='submit']").disabled = busy;
-  useModel.disabled = busy || !modelConfigured;
+  addButton.disabled = locked || !world;
+  agentName.disabled = locked || !world;
+  removeButton.disabled = locked || selected?.type !== "actor" || !world?.actors?.some((actor) => actor.id === selected.id);
+  idea.disabled = locked;
+  composer.querySelector("button[type='submit']").disabled = locked;
+  useModel.disabled = locked || !modelConfigured;
   simulationStatus?.classList.toggle("busy", busy);
   syncPlayback(ready);
   renderSimulationStatus();
 }
 
 window.addEventListener("resize", () => {
+  turnController?.abort();
   if (world) renderBook();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) turnController?.abort();
 });
 atlas.addEventListener("load", () => {
   if (!world?.plate) return;

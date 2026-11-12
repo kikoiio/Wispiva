@@ -96,6 +96,161 @@ async function assertSpread(expectedTick) {
   return left.spread;
 }
 
+async function assertNormalPaperTurn(snapshot) {
+  const reducedPage = page;
+  const normal = await browser.newContext({
+    viewport: { width: 1440, height: 1000 },
+    reducedMotion: "no-preference",
+    recordVideo: { dir: artifact("paper-video"), size: { width: 1440, height: 1000 } },
+  });
+  const posts = [];
+  const frames = {};
+  normal.on("page", (opened) => opened.on("pageerror", (error) => pageErrors.push({ url: opened.url(), error: error.stack || String(error) })));
+  // Reuse only the disposable rules fixture; unexpected writes must never reach the server.
+  await normal.route("**/api/**", async (route) => {
+    const req = route.request();
+    if (req.method() === "POST") {
+      posts.push(new URL(req.url()).pathname);
+      await route.abort();
+    } else if (new URL(req.url()).pathname === "/api/world") {
+      await route.fulfill({ json: snapshot });
+    } else {
+      await route.continue();
+    }
+  });
+  const tick = sceneTick(snapshot);
+  const clean = () => page.waitForFunction(() => {
+    const curl = document.querySelector("#curl");
+    return (!curl || curl.hidden) && !curl?.querySelector(".page-strip, .paper-ink");
+  }, null, { timeout: 5000 });
+  const visibleCurl = () => page.waitForFunction(() => {
+    const curl = document.querySelector("#curl");
+    return curl && !curl.hidden && curl.querySelectorAll(".page-strip").length >= 16;
+  }, null, { timeout: 5000 });
+  const actorDialog = async () => {
+    // Choose a token in the visible half of a clipped scene, not its offscreen twin.
+    const actor = await page.locator("#leaf-left .scene-person, #leaf-right .scene-person").evaluateAll((nodes) => {
+      return nodes.findIndex((node) => {
+        const box = node.getBoundingClientRect();
+        const leaf = node.closest(".leaf").getBoundingClientRect();
+        const x = box.x + box.width / 2;
+        const y = box.y + box.height / 2;
+        return x > leaf.left && x < leaf.right && y > leaf.top && y < leaf.bottom &&
+          node.contains(document.elementFromPoint(x, y));
+      });
+    });
+    assert.ok(actor >= 0, "a scene character must be clickable after turning");
+    await page.locator("#leaf-left .scene-person, #leaf-right .scene-person").nth(actor).click();
+    await page.locator("#dossier[open]").waitFor({ state: "visible" });
+    await page.locator("#dossier-close").click();
+    await page.locator("#dossier[open]").waitFor({ state: "detached" });
+  };
+  const turn = async (direction, expectedTick) => {
+    // Observe in the browser from before the click, so CI round trips cannot lose early frames.
+    await page.evaluate(() => {
+      window.__paperFrames = [];
+      let started = false;
+      const deadline = performance.now() + 4000;
+      const sample = () => {
+        const curl = document.querySelector("#curl");
+        const strips = curl && !curl.hidden ? [...curl.querySelectorAll(".page-strip")] : [];
+        if (strips.length) {
+          started = true;
+          const first = getComputedStyle(strips[0]).transform;
+          const last = getComputedStyle(strips.at(-1)).transform;
+          const rotation = (transform) => {
+            const matrix = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
+            return [matrix.m11, matrix.m13, matrix.m31, matrix.m33];
+          };
+          window.__paperFrames.push({
+            progress: Number(curl.dataset.progress),
+            first, last, firstRotation: rotation(first), lastRotation: rotation(last),
+          });
+        }
+        if (performance.now() < deadline && (!started || strips.length)) requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    const selector = direction === "back" ? "#turn-back" : "#turn-next";
+    await page.locator(selector).click();
+    await visibleCurl();
+    const structure = await page.locator("#curl").evaluate((curl) => ({
+      direction: curl.dataset.direction,
+      hidden: curl.getAttribute("aria-hidden"), inert: curl.inert,
+      faces: [...curl.querySelectorAll(".page-strip")].every((strip) =>
+        [".paper-front", ".paper-back"].every((side) => {
+          const face = strip.querySelector(side);
+          const inks = face?.querySelectorAll(".paper-ink");
+          return inks?.length === 1 && inks[0].children.length > 0 &&
+            Boolean(inks[0].closest("[inert]")) && Boolean(inks[0].closest('[aria-hidden="true"]'));
+        })),
+      uniqueIds: (() => {
+        const ids = [...document.querySelectorAll("[id]")].map((node) => node.id);
+        return new Set(ids).size === ids.length;
+      })(),
+    }));
+    assert.deepEqual(structure, { direction, hidden: "true", inert: true, faces: true, uniqueIds: true });
+    // Dispatch a tight burst while turning; locator.click could wait until the lock clears.
+    await page.locator(selector).evaluate((button) => { for (let i = 0; i < 5; i += 1) button.click(); });
+    await page.waitForFunction(() => {
+      const curl = document.querySelector("#curl");
+      const progress = Number(curl?.dataset.progress);
+      return curl && !curl.hidden && progress >= 0.25 && progress <= 0.7;
+    }, null, { timeout: 3000 });
+    await page.screenshot({ path: artifact(`paper-turn-${direction}-mid.png`), animations: "allow" });
+    await clean();
+    await assertSpread(expectedTick);
+    const samples = await page.evaluate(() => window.__paperFrames);
+    frames[direction] = samples;
+    assert.ok(samples.length >= 3, `${direction}: collect at least three RAF frames`);
+    assert.ok(samples.every(({ progress }) => Number.isFinite(progress) && progress >= 0 && progress <= 1));
+    assert.ok(samples.every((sample, i) => !i || sample.progress >= samples[i - 1].progress), "progress must be monotonic");
+    assert.ok(new Set(samples.map(({ progress }) => progress)).size >= 3, "progress must advance");
+    for (const side of ["first", "last"]) {
+      assert.ok(new Set(samples.map((sample) => sample[side])).size >= 3, `${side} strip must move`);
+    }
+    assert.ok(samples.some(({ firstRotation, lastRotation }) =>
+      firstRotation.some((value, i) => Math.abs(value - lastRotation[i]) > 0.01)),
+    "first and last strips must have different rotations, not just different translations");
+    assert.deepEqual(posts, [], "history turning and rapid clicks must never POST");
+  };
+  try {
+    await openWorld(normal, snapshot);
+    await assertSpread(tick);
+    await turn("back", tick - 1);
+    await actorDialog();
+    await turn("forward", tick);
+    await actorDialog();
+
+    // Cancellation may commit or roll back; both leaves must agree and input must recover.
+    for (const interruption of ["resize", "map"]) {
+      await page.locator("#turn-back").click();
+      await visibleCurl();
+      if (interruption === "resize") await page.setViewportSize({ width: 1400, height: 960 });
+      else await page.locator("#book-tab").click();
+      await clean();
+      if (interruption === "map") await page.locator("#book-tab").click();
+      const landed = Number(await page.locator("#leaf-left").getAttribute("data-tick"));
+      assert.ok([tick, tick - 1].includes(landed), `${interruption}: cancellation must stay within this turn`);
+      await assertSpread(landed);
+      await actorDialog();
+      if (landed !== tick) {
+        await page.locator("#turn-next").click();
+        await clean();
+      }
+      await assertSpread(tick);
+    }
+    assert.deepEqual(posts, [], "normal-motion checks must be read-only");
+  } catch (error) {
+    if (page && !page.isClosed()) await page.screenshot({ path: artifact("paper-turn-failure.png") }).catch(() => {});
+    throw error;
+  } finally {
+    await writeFile(artifact("paper-turn-frames.json"), JSON.stringify(frames, null, 2));
+    await normal.close();
+    page = reducedPage;
+  }
+}
+
 try {
   await poll("server readiness", async () => {
     try {
@@ -206,6 +361,8 @@ try {
   assert.equal(networkCounts.tickPosts, 0, "forward through recorded history must not POST a tick");
   assert.equal((await json("/api/world")).tick, latest.tick, "history navigation must preserve simulation time");
   await page.screenshot({ path: artifact("03-story-spread.png"), fullPage: true });
+
+  await assertNormalPaperTurn(latest);
 
   const tickResponse = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/world/tick" && response.request().method() === "POST");

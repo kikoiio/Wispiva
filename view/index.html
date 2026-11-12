@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenStory</title>
-  <link rel="stylesheet" href="./viewer.css?v=11">
+  <link rel="stylesheet" href="./viewer.css?v=12">
 </head>
 <body class="sim-page is-empty">
   <main class="shell">
@@ -33,10 +33,7 @@
       <div class="map-surface" id="map">
         <article class="leaf leaf-left" id="leaf-left" hidden></article>
         <article class="leaf leaf-right" id="leaf-right" hidden></article>
-        <div class="curl" id="curl" hidden>
-          <div class="curl-face curl-front"><div class="curl-sheet" id="curl-front-sheet"></div></div>
-          <div class="curl-face curl-back"><div class="curl-sheet" id="curl-back-sheet"></div></div>
-        </div>
+        <div class="curl" id="curl" aria-hidden="true" inert hidden></div>
         <button class="edge edge-back" id="turn-back" type="button" hidden aria-label="上一页"></button>
         <button class="edge edge-next" id="turn-next" type="button" hidden aria-label="下一页"></button>
         <button class="book-tab" id="book-tab" type="button" hidden>地图</button>
@@ -107,6 +104,6 @@
     <p id="dossier-body"></p>
     <button id="dossier-close" type="button">关闭</button>
   </dialog>
-  <script type="module" src="./viewer.mjs?v=11"></script>
+  <script type="module" src="./viewer.mjs?v=12"></script>
 </body>
 </html>
