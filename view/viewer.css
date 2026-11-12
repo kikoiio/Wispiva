@@ -149,6 +149,7 @@ button, textarea, input {
   overflow: hidden;
   perspective: 2000px;
 }
+.map-surface.is-turning { overflow: visible; perspective: 2800px; }
 
 .map-stage {
   position: absolute;

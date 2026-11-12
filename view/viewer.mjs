@@ -962,6 +962,7 @@ async function animateTurn(step, target) {
   const controller = new AbortController();
   turnController = controller;
   turning = true;
+  leafLeft.parentElement.classList.add("is-turning");
   setBusy(busy);
   sceneChoices.hidden = true;
   const staging = document.createElement("article");
@@ -993,6 +994,7 @@ async function animateTurn(step, target) {
     }
   } finally {
     staging.remove();
+    leafLeft.parentElement.classList.remove("is-turning");
     turning = false;
     turnController = null;
     curl.hidden = true;

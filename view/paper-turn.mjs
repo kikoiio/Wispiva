@@ -119,8 +119,8 @@ export function turnPaper(host, front, back, { forward, signal, duration = 780, 
         strip.style.transform = `translate3d(${pose.x}px,0,${pose.z}px) rotateY(${-pose.angle}rad)`;
         // Front and reverse receive opposite light; the bend is visible on the ink too.
         const light = Math.cos(pose.angle);
-        strip.children[0].style.setProperty("--paper-dim", String(0.04 + 0.27 * (1 - light) / 2));
-        strip.children[1].style.setProperty("--paper-dim", String(0.04 + 0.2 * (1 + light) / 2));
+        strip.children[0].style.setProperty("--paper-dim", String(0.31 * (1 - light) / 2));
+        strip.children[1].style.setProperty("--paper-dim", String(0.24 * (1 + light) / 2));
       }
       const lift = Math.sin(Math.PI * p);
       shade.style.opacity = String(lift * 0.46);
