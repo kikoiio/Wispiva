@@ -903,88 +903,38 @@ body:not(.is-empty) #empty { display: none; }
   }
 }
 
-.world3d-panel {
+.spread-content {
   position: absolute;
-  z-index: 8;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  width: 200%;
   overflow: hidden;
-  background: #b9c5b4;
 }
-
-.world3d-panel[hidden] { display: none; }
-
-#world3d {
-  display: block;
-  width: 100%;
-  height: 100%;
-  touch-action: none;
-  cursor: grab;
-}
-
-#world3d.dragging { cursor: grabbing; }
-
-.world3d-hud {
+.spread-left { left: 0; }
+.spread-right { left: -100%; }
+.scene-person { max-width: min(19vw, 230px); }
+.scene-kicker { top: 12%; }
+.scene-choices {
   position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 12px;
+  top: 3%;
+  left: 50%;
+  z-index: 6;
+  transform: translateX(-50%);
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  pointer-events: none;
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 70%;
+  gap: 4px;
 }
-
-.world3d-hud > div {
-  display: grid;
-  gap: 3px;
-  padding: 7px 10px;
-  border: 1px solid rgba(82, 67, 43, 0.45);
-  background: rgba(255, 247, 224, 0.9);
-  color: #4b3928;
+.scene-choices[hidden] { display: none; }
+.scene-choices button {
+  border: 1px solid #98794e;
+  border-radius: 3px;
+  background: #f5e7c8;
+  color: #5b4225;
+  padding: 4px 9px;
+  font: inherit;
   font-size: 12px;
-  box-shadow: 0 2px 6px rgba(35, 34, 27, 0.15);
-}
-
-.world3d-hud strong { font-size: 13px; }
-.world3d-hud span { color: #715b3d; }
-
-.world3d-hud button {
-  pointer-events: auto;
-  border: 1px solid rgba(82, 67, 43, 0.55);
-  border-radius: 4px;
-  padding: 7px 10px;
-  background: rgba(255, 247, 224, 0.94);
-  color: #4b3928;
-  font-size: 12px;
-  font-weight: 750;
   cursor: pointer;
 }
-
-#world3d-empty {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  margin: 0;
-  transform: translate(-50%, -50%);
-  padding: 10px 14px;
-  background: rgba(255, 247, 224, 0.92);
-  color: #4b3928;
-}
-
-.visually-hidden {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
-
-@media (max-width: 900px) {
-  .world3d-panel { inset: 0; }
-  .world3d-hud { left: 8px; right: 8px; top: 8px; }
-}
+.scene-choices button[aria-pressed="true"] { background: #6b7544; color: #fff6dd; }

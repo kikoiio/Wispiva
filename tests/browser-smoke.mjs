@@ -52,6 +52,50 @@ async function submit() {
   return response;
 }
 
+// Stored event ticks precede the snapshot's next simulation tick.
+const sceneTick = (snapshot) => Math.max(...snapshot.events.map((event) => event.tick));
+
+async function assertSpread(expectedTick) {
+  await page.waitForFunction((tick) => {
+    const left = document.querySelector("#leaf-left");
+    const right = document.querySelector("#leaf-right");
+    return left?.dataset.tick === String(tick) && right?.dataset.tick === String(tick) &&
+      left.dataset.spread && left.dataset.spread === right.dataset.spread;
+  }, expectedTick);
+  const leaves = await page.locator("#leaf-left, #leaf-right").evaluateAll((nodes) => nodes.map((leaf) => {
+    const contents = leaf.querySelectorAll(".spread-content");
+    const content = contents[0];
+    const rect = leaf.getBoundingClientRect();
+    const contentRect = content?.getBoundingClientRect();
+    return {
+      id: leaf.id, tick: leaf.dataset.tick, spread: leaf.dataset.spread,
+      count: contents.length, text: content?.textContent,
+      overflow: getComputedStyle(leaf).overflowX,
+      leaf: { x: rect.x, right: rect.right, width: rect.width },
+      content: contentRect && { x: contentRect.x, right: contentRect.right, width: contentRect.width },
+    };
+  }));
+  assert.equal(leaves.length, 2);
+  const [left, right] = leaves;
+  assert.equal(left.tick, String(expectedTick));
+  assert.equal(right.tick, left.tick, "both leaves must show the same tick");
+  assert.ok(left.spread, "scene spread needs an identity");
+  assert.equal(right.spread, left.spread, "both leaves must show the same scene spread");
+  const near = (actual, expected, label) => assert.ok(Math.abs(actual - expected) <= 4,
+    `${label}: expected ${expected}, got ${actual}`);
+  for (const leaf of leaves) {
+    assert.equal(leaf.count, 1, `${leaf.id} must contain exactly one continuous scene`);
+    assert.ok(leaf.leaf.width > 200, `${leaf.id} must be visible`);
+    assert.ok(["hidden", "clip"].includes(leaf.overflow), `${leaf.id} must clip its half of the scene`);
+    near(leaf.content.width, leaf.leaf.width * 2, `${leaf.id} full spread width`);
+  }
+  near(left.content.x, left.leaf.x, "left leaf shows the beginning of the scene");
+  near(right.content.right, right.leaf.right, "right leaf shows the end of the scene");
+  near(right.leaf.x - right.content.x, right.leaf.width, "right leaf skips the left half instead of repeating it");
+  assert.equal(left.text, right.text, "both clipped halves must contain the same scene narrative");
+  return left.spread;
+}
+
 try {
   await poll("server readiness", async () => {
     try {
@@ -103,14 +147,14 @@ try {
   await page.screenshot({ path: artifact("01-create-failed-retry-enabled.png"), fullPage: true });
   const retried = await submit();
   assert.ok(retried.ok(), "retry creation should succeed");
-  const created = await retried.json();
-  assert.equal(created.mode, "rules");
-  assert.notEqual(created.world_id, initial.world_id);
+  const retryCreated = await retried.json();
+  assert.equal(retryCreated.mode, "rules");
+  assert.notEqual(retryCreated.world_id, initial.world_id);
   await page.unroute("**/api/worlds", failOnce);
-  await poll("retry world visible", async () => (await page.locator("#world-name").textContent()) === created.name);
+  await poll("retry world visible", async () => (await page.locator("#world-name").textContent()) === retryCreated.name);
 
   // waiting is a recoverable failure, not busy: both retry and manual step stay enabled.
-  const blocked = { ...created, simulation: { ...created.simulation, running: false, waiting: true, error: "SMOKE_BLOCKED" } };
+  const blocked = { ...retryCreated, simulation: { ...retryCreated.simulation, running: false, waiting: true, error: "SMOKE_BLOCKED" } };
   const blockedSnapshot = (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(blocked) });
   await page.route("**/api/world", blockedSnapshot);
   await page.reload({ waitUntil: "domcontentloaded" });
@@ -122,36 +166,59 @@ try {
   await page.waitForFunction(() => !document.querySelector("#play").disabled &&
     !document.querySelector("#play").textContent.includes("重试并运行"));
 
-  await page.locator("[data-view='3d']").click();
-  const canvas3d = page.locator("canvas#world3d");
-  await canvas3d.waitFor({ state: "visible" });
-  await page.waitForFunction(() => {
-    const canvas = document.querySelector("canvas#world3d");
-    if (!canvas?.width || !canvas.height) return false;
-    const context = canvas.getContext("2d");
-    if (!context) return false;
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    for (let offset = 4; offset < pixels.length; offset += 4) {
-      if (pixels[offset] !== pixels[0] || pixels[offset + 1] !== pixels[1] ||
-          pixels[offset + 2] !== pixels[2] || pixels[offset + 3] !== pixels[3]) return true;
+  // Independent synthetic-only world: real CI Ray ticks, no model or mocked tick response.
+  await page.close();
+  const created = await json("/api/worlds", {
+    text: "CI连续跨页验收：一座建在巨兽背上的城市，守城人和商人互相不信任，城门在日落前关闭。",
+    use_model: false,
+  });
+  assert.equal(created.mode, "rules");
+  assert.equal(created.tick, 0);
+  assert.notEqual(created.world_id, retryCreated.world_id);
+  let latest = created;
+  for (let index = 0; index < 3; index += 1) {
+    const previous = latest;
+    latest = await json("/api/world/tick", {});
+    assert.equal(latest.world_id, created.world_id);
+    assert.equal(latest.mode, "rules");
+    assert.equal(latest.tick, previous.tick + 1, "each manual API tick advances exactly once");
+  }
+  const networkCounts = { tickPosts: 0 };
+  context.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/world/tick" && request.method() === "POST") {
+      networkCounts.tickPosts += 1;
     }
-    return false;
   });
-  const beforeDataURL = await canvas3d.evaluate((canvas) => canvas.toDataURL());
-  const bounds = await canvas3d.boundingBox();
-  assert.ok(bounds && bounds.width > 200, "3D canvas needs room for the 100px orbit gesture");
-  const center = { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 };
-  await page.mouse.move(center.x, center.y);
-  await page.mouse.down();
-  await page.mouse.move(center.x + 100, center.y, { steps: 10 });
-  await page.mouse.up();
-  const afterDataURL = await canvas3d.evaluate(async (canvas) => {
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    return canvas.toDataURL();
-  });
-  assert.notEqual(afterDataURL, beforeDataURL, "orbit drag must change the rendered 3D scene");
-  await page.screenshot({ path: artifact("03-world3d.png"), fullPage: true });
-  await page.locator("[data-view='story']").click();
+  const restored = await openWorld(context, latest);
+  assert.equal(restored.tick, latest.tick);
+  assert.equal(await page.locator("[data-view='3d'], #world3d").count(), 0, "3D view and canvas must be removed");
+  const latestTick = sceneTick(latest);
+  assert.ok(latestTick > 0, "fixture must contain multiple stored scene ticks");
+  const latestSpread = await assertSpread(latestTick);
+  assert.equal(networkCounts.tickPosts, 0, "opening the latest spread must not advance time");
+
+  await page.locator("#turn-back").click();
+  const previousSpread = await assertSpread(latestTick - 1);
+  assert.notEqual(previousSpread, latestSpread, "back must select the preceding tick spread");
+  assert.equal(networkCounts.tickPosts, 0, "reading the preceding tick must not POST a tick");
+  await page.locator("#turn-next").click();
+  assert.equal(await assertSpread(latestTick), latestSpread);
+  assert.equal(networkCounts.tickPosts, 0, "forward through recorded history must not POST a tick");
+  assert.equal((await json("/api/world")).tick, latest.tick, "history navigation must preserve simulation time");
+  await page.screenshot({ path: artifact("03-story-spread.png"), fullPage: true });
+
+  const tickResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === "/api/world/tick" && response.request().method() === "POST");
+  await page.locator("#turn-next").click();
+  const ticked = await tickResponse;
+  assert.ok(ticked.ok(), "forward at the latest spread should advance the simulation");
+  const nextSnapshot = await ticked.json();
+  assert.equal(nextSnapshot.world_id, created.world_id);
+  assert.equal(nextSnapshot.tick, latest.tick + 1);
+  assert.equal(sceneTick(nextSnapshot), latestTick + 1);
+  await assertSpread(latestTick + 1);
+  assert.equal((await json("/api/world")).tick, nextSnapshot.tick);
+  assert.equal(networkCounts.tickPosts, 1, "only forward at the latest spread may POST, exactly once");
 
   const startedResponse = page.waitForResponse((response) =>
     new URL(response.url()).pathname === "/api/world/run" && response.request().method() === "POST");

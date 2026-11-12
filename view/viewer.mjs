@@ -1,5 +1,4 @@
-import { buildPages, endCursor } from "./story.mjs";
-import { buildWorld3D, createCamera, drawWorld3D, pickWorld3D } from "./world3d.mjs";
+import { buildSpreads, endCursor } from "./story.mjs";
 
 const PAINTED = {
   城门: { label: [16, 17], feet: [20, 40] },
@@ -47,11 +46,7 @@ const curlBack = document.querySelector("#curl-back-sheet");
 const turnBack = document.querySelector("#turn-back");
 const turnNext = document.querySelector("#turn-next");
 const bookTab = document.querySelector("#book-tab");
-const world3dPanel = document.querySelector("#world3d-panel");
-const world3dCanvas = document.querySelector("#world3d");
-const world3dReset = document.querySelector("#world3d-reset");
-const world3dEmpty = document.querySelector("#world3d-empty");
-const world3dItems = document.querySelector("#world3d-items");
+const sceneChoices = document.querySelector("#scene-choices");
 
 let world = null;
 let view = "story";
@@ -70,10 +65,7 @@ let cursor = 0;
 let pinnedToEnd = true;
 let showAtlas = false;
 let turning = false;
-let spatialModel = null;
-let spatialCamera = null;
-let spatialWorldId = null;
-let spatialDrag = null;
+const sceneByTick = new Map();
 const stood = new Map();
 
 document.querySelectorAll(".nav-item").forEach((button) => {
@@ -93,52 +85,7 @@ stopButton.addEventListener("click", () => { void stopPlay(); });
 turnBack.addEventListener("click", () => { void flip(-1); });
 turnNext.addEventListener("click", () => { void flip(1); });
 bookTab.addEventListener("click", () => setView(showAtlas ? "story" : "map"));
-world3dReset.addEventListener("click", () => {
-  if (!spatialModel) return;
-  spatialCamera = createCamera(spatialModel);
-  renderSpatial();
-});
-world3dCanvas.addEventListener("pointerdown", (event) => {
-  if (event.button !== 0) return;
-  spatialDrag = { x: event.clientX, y: event.clientY, lastX: event.clientX, lastY: event.clientY, moved: false };
-  world3dCanvas.setPointerCapture(event.pointerId);
-});
-world3dCanvas.addEventListener("pointermove", (event) => {
-  if (!spatialDrag || !spatialCamera) return;
-  const dx = event.clientX - spatialDrag.lastX;
-  const dy = event.clientY - spatialDrag.lastY;
-  if (Math.hypot(event.clientX - spatialDrag.x, event.clientY - spatialDrag.y) > 4) spatialDrag.moved = true;
-  spatialDrag.lastX = event.clientX;
-  spatialDrag.lastY = event.clientY;
-  if (!spatialDrag.moved) return;
-  spatialCamera.yaw += dx * 0.008;
-  spatialCamera.pitch = Math.max(0.2, Math.min(1.2, spatialCamera.pitch - dy * 0.006));
-  world3dCanvas.classList.add("dragging");
-  renderSpatial();
-});
-world3dCanvas.addEventListener("pointerup", (event) => {
-  if (!spatialDrag) return;
-  const moved = spatialDrag.moved;
-  spatialDrag = null;
-  world3dCanvas.classList.remove("dragging");
-  if (moved || !spatialModel || !spatialCamera) return;
-  const rect = world3dCanvas.getBoundingClientRect();
-  const target = pickWorld3D(spatialModel, spatialCamera, rect.width, rect.height, event.clientX - rect.left, event.clientY - rect.top);
-  if (target?.type === "actor") openActor(target.id);
-  else if (target?.type === "location") openPlace(target.id);
-});
-world3dCanvas.addEventListener("pointercancel", () => {
-  spatialDrag = null;
-  world3dCanvas.classList.remove("dragging");
-});
-world3dCanvas.addEventListener("wheel", (event) => {
-  if (!spatialCamera || view !== "3d") return;
-  event.preventDefault();
-  spatialCamera.distance = Math.max(2.8, Math.min(Math.max(24, (spatialModel?.extent || 4) * 7), spatialCamera.distance * Math.exp(event.deltaY * 0.001)));
-  renderSpatial();
-}, { passive: false });
 window.addEventListener("keydown", (event) => {
-  if (view === "3d") return;
   if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   const tag = document.activeElement?.tagName;
   if (tag === "INPUT" || tag === "TEXTAREA") return;
@@ -200,7 +147,7 @@ async function requestJson(url, options) {
 }
 
 async function refreshWorld() {
-  if (polling) return;
+  if (polling || busy || ticking || turning) return;
   polling = true;
   try {
     const snapshot = await requestJson("/api/world");
@@ -209,6 +156,7 @@ async function refreshWorld() {
       const advanced = Boolean(world && Number(snapshot.tick) > Number(world.tick));
       showWorld(snapshot, { animate: advanced });
     } else {
+      if (playing && pinnedToEnd && view === "story" && cursor < endCursor(pages.length)) void slide(1);
       renderSimulationStatus();
     }
   } catch (error) {
@@ -333,8 +281,10 @@ async function removeAgent() {
 }
 
 function showWorld(next, options) {
+  const sameWorld = world && (world.world_id || world.name) === (next.world_id || next.name);
+  const readingTick = pages[cursor]?.tick;
+  const follow = sameWorld && pinnedToEnd && options.animate && next.simulation?.running && view === "story";
   world = next;
-  updateSpatialModel();
   document.body.classList.remove("is-empty");
   worldPlaque.hidden = false;
   worldName.textContent = world.name;
@@ -347,9 +297,14 @@ function showWorld(next, options) {
     atlas.hidden = true;
     atlas.removeAttribute("src");
   }
-  pages = buildPages(world);
-  if (!options.defer) {
-    cursor = pinnedToEnd ? endCursor(pages.length) : Math.min(cursor, endCursor(pages.length));
+  pages = buildSpreads(world);
+  if (!sameWorld) {
+    sceneByTick.clear();
+    cursor = endCursor(pages.length);
+    pinnedToEnd = true;
+  } else if (!options.defer) {
+    const restored = pages.findIndex((page) => page.tick === readingTick);
+    cursor = restored >= 0 ? restored : Math.min(cursor, endCursor(pages.length));
   }
   renderPlaces();
   renderPeople(options.animate);
@@ -358,7 +313,10 @@ function showWorld(next, options) {
   renderLatest();
   latest.hidden = true;
   renderMind();
-  if (!options.defer) renderBook();
+  if (!options.defer) {
+    if (follow && cursor < endCursor(pages.length)) void animateTurn(1, cursor + 1);
+    else renderBook();
+  }
   const ready = world.actors.length > 0;
   playing = Boolean(world.simulation?.running);
   pendingText = world.simulation?.waiting ? "等待恢复" : "";
@@ -702,19 +660,8 @@ function placePlate(plate, spot) {
 function renderBook() {
   const stage = document.querySelector("#map-stage");
   if (turning || !leafLeft || !leafRight) return;
-  const spatial = view === "3d";
-  world3dPanel.hidden = !spatial;
   latest.hidden = true;
-  if (spatial) {
-    stage.hidden = true;
-    leafLeft.hidden = true;
-    leafRight.hidden = true;
-    turnBack.hidden = true;
-    turnNext.hidden = true;
-    bookTab.hidden = true;
-    renderSpatial();
-    return;
-  }
+  sceneChoices.hidden = true;
   if (!world) {
     stage.hidden = true;
     leafLeft.hidden = true;
@@ -735,56 +682,48 @@ function renderBook() {
   turnNext.setAttribute("aria-label", cursor >= endCursor(pages.length) ? "写下一拍" : "下一页");
   if (showAtlas) return;
   paintLeaf(leafLeft, pages[cursor], cursor, "left");
-  paintLeaf(leafRight, pages[cursor + 1], cursor + 1, "right");
+  paintLeaf(leafRight, pages[cursor], cursor, "right");
+  renderSceneChoices(pages[cursor]);
 }
 
-function updateSpatialModel() {
-  const identity = world?.world_id || world?.id || world?.name || "empty";
-  const resetCamera = !spatialCamera || identity !== spatialWorldId;
-  spatialWorldId = identity;
-  spatialModel = buildWorld3D(world || {});
-  if (resetCamera) spatialCamera = createCamera(spatialModel);
-  world3dEmpty.hidden = spatialModel.locations.length > 0;
-  world3dEmpty.textContent = world ? "当前世界还没有地点数据。" : "等待世界地点与角色数据。";
-  world3dItems.replaceChildren();
-  for (const [type, list] of [["location", spatialModel.locations], ["actor", spatialModel.actors]]) {
-    for (const item of list) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = (type === "location" ? "地点：" : "人物：") + item.name;
-      button.addEventListener("click", () => {
-        if (type === "location") openPlace(item.id);
-        else openActor(item.id);
-      });
-      world3dItems.append(button);
-    }
+function sceneFor(spread) {
+  if (spread?.kind !== "spread") return spread;
+  const placeId = sceneByTick.get(spread.tick) || spread.focus;
+  return spread.scenes.find((scene) => scene.placeId === placeId) || spread.scenes[0];
+}
+
+function renderSceneChoices(spread) {
+  sceneChoices.replaceChildren();
+  if (spread?.kind !== "spread" || spread.scenes.length < 2 || showAtlas) return;
+  sceneChoices.hidden = false;
+  const current = sceneFor(spread);
+  for (const scene of spread.scenes) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.scenePlace = scene.placeId;
+    button.textContent = placeName(scene.placeId);
+    button.setAttribute("aria-pressed", String(scene.placeId === current.placeId));
+    button.addEventListener("click", () => {
+      sceneByTick.set(spread.tick, scene.placeId);
+      renderBook();
+    });
+    sceneChoices.append(button);
   }
-  if (view === "3d") renderSpatial();
 }
 
-function renderSpatial() {
-  if (!spatialModel || !spatialCamera || view !== "3d") return;
-  const rect = world3dCanvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  drawWorld3D(world3dCanvas, spatialModel, spatialCamera, selected);
-}
-
-function paintLeaf(leaf, page, index, side = "left") {
+function paintLeaf(leaf, spread, index, side = "left") {
   leaf.replaceChildren();
-  if (!page) {
-    const blank = document.createElement("div");
-    blank.className = "title-copy";
-    const text = document.createElement("p");
-    text.textContent = "这一侧还是空白。";
-    blank.append(text);
-    leaf.append(blank);
-    return;
-  }
-  if (page.kind === "title") paintTitle(leaf);
-  else paintScene(leaf, page);
+  leaf.dataset.spread = String(index);
+  leaf.dataset.tick = spread?.tick == null ? "" : String(spread.tick);
+  const content = document.createElement("div");
+  content.className = `spread-content spread-${side}`;
+  leaf.append(content);
+  const page = sceneFor(spread);
+  if (!page || page.kind === "title") paintTitle(content);
+  else paintScene(content, page, side);
   if (index <= 0) return;
   const folio = document.createElement("p");
-  folio.className = `folio folio-${side === "right" ? "right" : "left"}`;
+  folio.className = `folio folio-${side}`;
   folio.textContent = `${index} / ${Math.max(1, pages.length - 1)}`;
   leaf.append(folio);
 }
@@ -811,7 +750,7 @@ function paintTitle(leaf) {
   leaf.append(plate, shade, copy);
 }
 
-function paintScene(leaf, page) {
+function paintScene(leaf, page, side) {
   const location = world.locations.find((item) => item.id === page.placeId);
   const plate = document.createElement("div");
   plate.className = "scene-plate";
@@ -831,6 +770,8 @@ function paintScene(leaf, page) {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "scene-person";
+    const center = 11 + (slot + 0.5) * 78 / Math.max(1, present.length);
+    if ((side === "left" && center >= 50) || (side === "right" && center < 50)) button.tabIndex = -1;
     const line = page.lines.find((item) => item.actorId === actor.id);
     const event = line ? world.events[line.eventIndex] : null;
     const text = glance(event, true);
@@ -994,7 +935,7 @@ function delay(ms) {
 }
 
 async function flip(step) {
-  if (view === "3d" || turning || ticking || !world) return;
+  if (turning || ticking || busy || !world) return;
   if (showAtlas) {
     if (step > 0) setView("story");
     return;
@@ -1020,6 +961,7 @@ async function animateTurn(step, target) {
   const landing = Math.max(0, Math.min(target, limit));
   const forward = step > 0;
   turning = true;
+  sceneChoices.hidden = true;
   try {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const source = forward ? leafRight : leafLeft;
@@ -1027,9 +969,9 @@ async function animateTurn(step, target) {
       curl.className = `curl ${forward ? "forward" : "back"}`;
       curl.hidden = false;
       curlFront.replaceChildren(...[...source.childNodes].map((node) => node.cloneNode(true)));
-      const backIndex = forward ? landing : landing + 1;
+      const backIndex = landing;
       paintLeaf(curlBack, pages[backIndex], backIndex, forward ? "left" : "right");
-      if (forward) paintLeaf(leafRight, pages[landing + 1], landing + 1, "right");
+      if (forward) paintLeaf(leafRight, pages[landing], landing, "right");
       else paintLeaf(leafLeft, pages[landing], landing, "left");
       await delay(640);
     }
@@ -1074,8 +1016,7 @@ function setBusy(nextBusy) {
 }
 
 window.addEventListener("resize", () => {
-  if (view === "3d") renderSpatial();
-  else if (world?.plate) renderBook();
+  if (world) renderBook();
 });
 atlas.addEventListener("load", () => {
   if (!world?.plate) return;

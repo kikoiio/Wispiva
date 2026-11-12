@@ -2,12 +2,12 @@
 
 合入保护：禁止 `prototype`、`proto/*`、`prototype/*`、`experiment/*` 和所有 `wispiva/*` 分支直接合入 `main`。
 
-分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的产品尝试。当前 `wispiva/openstory` 由 Redis 保存权威状态，Ray 计算候选行动与投递，服务端调度并原子提交；网页提供故事、地图和程序生成 3D。运行方式见[根目录 README](../README.md)，当前实现与限制见[架构](architecture.md)。这些分支各自演进，不整体合入 `main`。
+分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的产品尝试。当前 `wispiva/openstory` 由 Redis 保存权威状态，Ray 计算候选行动与投递，服务端调度并原子提交；网页提供一拍一展开的连续跨页插画故事与地图。运行方式见[根目录 README](../README.md)，当前实现与限制见[架构](architecture.md)。这些分支各自演进，不整体合入 `main`。
 
 | 类型 | 状态 | 更新 / 核对 | 文档 |
 | --- | --- | --- | --- |
 | 项目意图与需求 | 产品目标；术语使用“创建世界” | 2026-10-28 | [项目意图](intent.md) |
-| 当前架构 | OpenStory 模块与 API；单元、Ray/Redis、浏览器云端检查通过及限制 | 2026-11-12 | [当前架构](architecture.md) |
+| 当前架构 | OpenStory 模块、API、连续跨页故事与验证边界 | 2026-11-12 | [当前架构](architecture.md) |
 | 安装与运行 | Python 3.12、Redis、模型配置、服务端运行与限制 | 2026-11-12 | [项目入口](../README.md) |
 | 目标架构 | 草案；不等同于已实现 | 2026-10-28 | [目标设计](design/2026-10-27-target-architecture.md) |
 | 计划与证据 | 当前状态、素材入口进展、下一步和必要证据 | 2026-10-28 | [工作计划](PLAN.md) |

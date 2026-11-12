@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildPages, endCursor } from "./story.mjs";
+import { buildPages, buildSpreads, endCursor } from "./story.mjs";
 
 const locations = [
   { id: "gate", name: "城门" },
@@ -64,10 +64,10 @@ test("the same beat repeated in a row is one page", () => {
   assert.equal(pages[2].tick, 2);
 });
 
-test("the book opens with the latest page on the right", () => {
+test("one spread is one cursor position, including the final tick", () => {
   assert.equal(endCursor(1), 0);
-  assert.equal(endCursor(4), 2);
-  assert.equal(endCursor(5), 3);
+  assert.equal(endCursor(4), 3);
+  assert.equal(endCursor(5), 4);
 });
 
 test("an actor only enters the story at its join event", () => {
@@ -146,4 +146,36 @@ test("leaving between actions on the same tick preserves the earlier presence", 
   }).filter((page) => page.kind === "scene");
   assert.ok(scenes[0].present.includes("a"));
   assert.ok(!scenes.at(-1).present.includes("a"));
+});
+
+test("a spread contains only one tick and retains its other places", () => {
+  const actors = [{ id: "a", name: "甲", place: "market" }, { id: "b", name: "乙", place: "well" }];
+  const events = [
+    { tick: 0, agent: "a", action: "speak", ok: true, location: "market", text: "市场消息。" },
+    { tick: 0, agent: "b", action: "speak", ok: true, location: "well", text: "井边消息。" },
+    { tick: 1, agent: "a", action: "wait", ok: true, location: "market", text: "等候。" },
+    { tick: 2, agent: "a", action: "speak", ok: true, location: "market", text: "市场消息。" },
+  ];
+  const spreads = buildSpreads({ locations, actors, events });
+  assert.equal(spreads[0].kind, "title");
+  assert.deepEqual(spreads.slice(1).map((spread) => spread.tick), [0, 1, 2]);
+  assert.deepEqual(new Set(spreads[1].scenes.map((scene) => scene.placeId)), new Set(["market", "well"]));
+  for (const spread of spreads.slice(1)) {
+    assert.ok(spread.scenes.every((scene) => scene.tick === spread.tick));
+    assert.ok(spread.scenes.flatMap((scene) => scene.lines).every((line) => events[line.eventIndex].tick === spread.tick));
+  }
+});
+
+test("repeated and quiet ticks still require separate turns", () => {
+  const world = {
+    locations, actors: [{ id: "a", name: "甲", place: "market" }],
+    events: [0, 1, 2, 3].map((tick) => ({ tick, agent: "a", action: "wait", ok: true, text: "等候。" })),
+  };
+  const spreads = buildSpreads(world);
+  assert.deepEqual(spreads.slice(1).map((spread) => spread.tick), [0, 1, 2, 3]);
+  assert.equal(endCursor(spreads.length), 4);
+});
+
+test("an unstarted world has one title spread without an invented tick", () => {
+  assert.deepEqual(buildSpreads({ locations, actors: [{ id: "a", place: "market" }], events: [] }), [{ kind: "title" }]);
 });

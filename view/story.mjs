@@ -1,10 +1,38 @@
 // Pages of the storybook. Built only from events already stored on the world.
 
 export function endCursor(pageCount) {
-  return Math.max(0, pageCount - 2);
+  return Math.max(0, pageCount - 1);
 }
 
-export function buildPages(world) {
+export function buildSpreads(world) {
+  if (!world?.events?.length) return [{ kind: "title" }];
+  const pages = buildPages(world, { collapse: false, includeQuiet: true });
+  const spreads = [{ kind: "title" }];
+  for (const tick of new Set(world.events.map((event) => event.tick))) {
+    const places = new Map();
+    for (const page of pages.filter((item) => item.kind === "scene" && item.tick === tick)) {
+      const previous = places.get(page.placeId);
+      const actors = new Map([...(previous?.actorSnapshots || []), ...page.actorSnapshots].map((actor) => [actor.id, actor]));
+      places.set(page.placeId, {
+        ...page,
+        present: [...new Set([...(previous?.present || []), ...page.present])],
+        actorSnapshots: [...actors.values()],
+        lines: [...(previous?.lines || []), ...page.lines],
+      });
+    }
+    const scenes = [...places.values()];
+    if (!scenes.length) continue;
+    const score = (scene) => scene.lines.reduce((total, line) => {
+      const event = world.events[line.eventIndex];
+      return total + (event.action === "speak" ? 10 : event.action === "move" ? 2 : 1);
+    }, 0);
+    const focus = scenes.reduce((best, scene) => score(scene) > score(best) ? scene : best);
+    spreads.push({ kind: "spread", tick, scenes, focus: focus.placeId });
+  }
+  return spreads;
+}
+
+export function buildPages(world, options = {}) {
   const actors = world?.actors || [];
   const archivedActors = world?.archivedActors || [];
   const locations = world?.locations || [];
@@ -93,13 +121,15 @@ export function buildPages(world) {
   });
   flush();
 
-  const latestTick = events.at(-1)?.tick ?? 0;
-  if (!pages.some((page) => page.tick === latestTick)) {
-    const endState = after.at(-1) || cursor;
+  const quietTicks = options.includeQuiet ? [...new Set(events.map((event) => event.tick))] : [events.at(-1)?.tick ?? 0];
+  for (const tick of quietTicks) {
+    if (pages.some((page) => page.tick === tick)) continue;
+    const last = events.findLastIndex((event) => event.tick === tick);
+    const endState = after[last] || cursor;
     const placeId = majorityPlace(endState, locations);
-    if (placeId) pages.push(scenePage(latestTick, placeId, [], endState, events, actorCatalog));
+    if (placeId) pages.push(scenePage(tick, placeId, [], endState, events, actorCatalog));
   }
-  return collapseRepeats(pages, events);
+  return options.collapse === false ? pages : collapseRepeats(pages, events);
 }
 
 function scenePage(tick, placeId, indexes, state, events, actorCatalog) {

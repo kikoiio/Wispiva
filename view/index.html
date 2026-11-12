@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>OpenStory</title>
-  <link rel="stylesheet" href="./viewer.css?v=10">
+  <link rel="stylesheet" href="./viewer.css?v=11">
 </head>
 <body class="sim-page is-empty">
   <main class="shell">
@@ -19,7 +19,6 @@
       <nav class="book-nav" aria-label="世界导航">
         <button class="nav-item active" type="button" data-view="story">故事</button>
         <button class="nav-item" type="button" data-view="map">世界地图</button>
-        <button class="nav-item" type="button" data-view="3d">3D世界</button>
         <button class="nav-item" type="button" data-view="lore">世界设定</button>
         <button class="nav-item" type="button" data-view="cast">角色总览</button>
         <div class="tick-plaque" aria-label="当前 Tick">
@@ -41,15 +40,7 @@
         <button class="edge edge-back" id="turn-back" type="button" hidden aria-label="上一页"></button>
         <button class="edge edge-next" id="turn-next" type="button" hidden aria-label="下一页"></button>
         <button class="book-tab" id="book-tab" type="button" hidden>地图</button>
-        <section id="world3d-panel" class="world3d-panel" hidden aria-label="程序生成的3D世界">
-          <canvas id="world3d" tabindex="0" aria-label="可旋转缩放的三维世界；点击地点或角色查看信息"></canvas>
-          <div class="world3d-hud">
-            <div><strong>程序生成 · 实时状态</strong><span>拖动旋转　滚轮缩放　点击地点或人物</span></div>
-            <button id="world3d-reset" type="button">重置视角</button>
-          </div>
-          <p id="world3d-empty" hidden>等待世界地点与角色数据。</p>
-          <div id="world3d-items" class="visually-hidden" aria-label="3D场景对象"></div>
-        </section>
+        <nav id="scene-choices" class="scene-choices" aria-label="同一拍的其他地点" hidden></nav>
         <div class="map-stage" id="map-stage">
           <img id="atlas" alt="" hidden>
           <div id="places"></div>
@@ -116,6 +107,6 @@
     <p id="dossier-body"></p>
     <button id="dossier-close" type="button">关闭</button>
   </dialog>
-  <script type="module" src="./viewer.mjs?v=10"></script>
+  <script type="module" src="./viewer.mjs?v=11"></script>
 </body>
 </html>

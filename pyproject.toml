@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wispiva-openstory"
 version = "0.1.0"
-description = "A Redis-backed world simulation with a generated 3D view"
+description = "A Redis-backed world simulation with an illustrated storybook view"
 requires-python = ">=3.12,<3.13"
 dependencies = [
   "ray==2.60.0",
