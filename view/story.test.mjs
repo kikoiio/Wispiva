@@ -119,3 +119,31 @@ test("an archived actor keeps scenes recorded before leaving", () => {
   assert.equal(afterDeparture.present.includes("gone"), false);
   assert.equal(pages.find((page) => page.tick === 2)?.present.includes("gone"), false);
 });
+
+test("joining between actions on the same tick cannot change the earlier scene", () => {
+  const a = { id: "a", name: "甲", place: "market" };
+  const b = { id: "b", name: "乙", place: "market" };
+  const scenes = buildPages({
+    locations, actors: [a, b], events: [
+      { tick: 0, agent: "a", action: "speak", ok: true, location: "market", actor: a, text: "加入之前。" },
+      { tick: 0, agent: "b", action: "join", ok: true, location: "market", actor: b, text: "乙进入。" },
+      { tick: 0, agent: "a", action: "speak", ok: true, location: "market", actor: a, text: "加入之后。" },
+    ],
+  }).filter((page) => page.kind === "scene");
+  assert.deepEqual(scenes[0].present, ["a"]);
+  assert.ok(scenes.at(-1).present.includes("b"));
+});
+
+test("leaving between actions on the same tick preserves the earlier presence", () => {
+  const a = { id: "a", name: "甲", place: "market" };
+  const b = { id: "b", name: "乙", place: "market" };
+  const scenes = buildPages({
+    locations, actors: [b], archivedActors: [a], events: [
+      { tick: 0, agent: "a", action: "speak", ok: true, location: "market", actor: a, text: "离开之前。" },
+      { tick: 0, agent: "a", action: "leave", ok: true, location: "market", actor: a, text: "甲离开。" },
+      { tick: 0, agent: "b", action: "speak", ok: true, location: "market", actor: b, text: "离开之后。" },
+    ],
+  }).filter((page) => page.kind === "scene");
+  assert.ok(scenes[0].present.includes("a"));
+  assert.ok(!scenes.at(-1).present.includes("a"));
+});

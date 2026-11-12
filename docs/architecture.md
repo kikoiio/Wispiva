@@ -37,9 +37,9 @@
 
 本机只做轻量检查：`scripts/test.sh` 运行 Python 回归与 Node 测试；Redis 测试使用私有 Unix socket、32 MiB 上限，并清理自己启动的进程。回归涵盖消息跨保存恢复、模型知情隔离、失败整拍回滚、完整事件、人物归档、不可变历史、版本竞争、跨控制器停止、关闭后禁止提交和 HTTP 契约。
 
-云端 [单元检查](https://github.com/kikoiio/Wispiva/actions/runs/43214449472) 与 [真实 Ray/Redis 集成](https://github.com/kikoiio/Wispiva/actions/runs/43214449798) 在提交 `ab48cf8` 通过。集成脚本 `scripts/verify-runtime.py` 使用合成世界验证投递、恢复、actor 重启与崩溃后重试、失败不提交。
+云端 [单元检查](https://github.com/kikoiio/Wispiva/actions/runs/43215889392)、[真实 Ray/Redis 集成](https://github.com/kikoiio/Wispiva/actions/runs/43215889452) 和 [浏览器验收](https://github.com/kikoiio/Wispiva/actions/runs/43215889580) 在整合提交 `8e0a84f` 通过。集成脚本 `scripts/verify-runtime.py` 使用合成世界验证投递、恢复、actor 重启与崩溃后重试、失败不提交。本机最终轻量回归为 48 项 Python 与 14 项 Node 检查，包含同一 tick 内人物加入、离开的场景边界。
 
-浏览器检查定义于 `.github/workflows/browser.yml` 与 `tests/browser-smoke.mjs`，覆盖生成失败后重试、等待状态恢复入口、3D 绘制与旋转、关闭全部页面后后台继续、重连、停止冻结与历史读取；截图和诊断作为合成数据 artifact 保存。最终集成提交的浏览器结果需以对应 Actions 运行记录为准。
+浏览器检查定义于 `.github/workflows/browser.yml` 与 `tests/browser-smoke.mjs`，覆盖生成失败后重试、等待状态恢复入口、3D 绘制与旋转、关闭全部页面后后台继续、重连、停止冻结与历史读取；截图和诊断作为合成数据 artifact 保存。本次合成世界在关闭全部页面后推进至 tick 2，停止后冻结，creation revision 1 保持原状，pageErrors 为空。已查看 3D 与故事页云端截图；这只能证明当前合成小场景的功能和基本呈现，不代表任意题材视觉质量或目标设备性能已经验收。
 
 目前的模拟动作仍是移动、讲话和等待，准入与空间规则覆盖有限。角色输入隔离不能证明模型不会通过语义暗示推断秘密。长期相关性检索、主观记忆分层、通用物理、复杂小说因果、用户附身和世界分岔尚未完成。程序生成 3D 不等于任意题材高质量资产生成，也尚未证明大规模场景性能；完整历史和角色记忆随运行增长，尚无长期容量验收。
 
