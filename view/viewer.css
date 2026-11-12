@@ -1,0 +1,166 @@
+:root {
+  color: #241c14;
+  background: #1c1915;
+  font-family: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", serif;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+header, aside, button {
+  font-family: "Sarasa Gothic SC", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+}
+
+header {
+  color: #f3ead8;
+  padding: 20px 24px 8px;
+}
+
+header h1 {
+  margin: 0;
+  font-family: "Songti SC", "Noto Serif CJK SC", serif;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+header p {
+  margin: 6px 0 0;
+  max-width: 42rem;
+  line-height: 1.5;
+}
+
+.mark {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: #d7b56d;
+  font-size: 13px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  padding: 8px 24px 28px;
+}
+
+.stage {
+  overflow: auto;
+  background: #2a241c;
+  border: 1px solid #3a3228;
+  padding: 12px;
+}
+
+#map {
+  position: relative;
+  width: max-content;
+}
+
+#map canvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.actors {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.actor {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.actor canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.actor.selected {
+  outline: 2px solid #e2b657;
+  outline-offset: 2px;
+}
+
+.marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  max-width: 180px;
+  padding: 4px 8px;
+  border: 1px solid #8a6230;
+  background: #f6edd8;
+  color: #241c14;
+  font: 13px/1.4 "Sarasa Gothic SC", "Noto Sans CJK SC", sans-serif;
+  cursor: pointer;
+}
+
+aside {
+  color: #f3ead8;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+button {
+  border: 1px solid #8a6230;
+  background: #f3ead8;
+  color: #241c14;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+#status, #detail {
+  line-height: 1.5;
+}
+
+#detail {
+  min-height: 4.5rem;
+  padding: 10px 12px;
+  background: #2a241c;
+  border: 1px solid #3a3228;
+}
+
+#beats {
+  margin: 16px 0 0;
+  padding-left: 1.2rem;
+}
+
+#beats li {
+  margin: 8px 0;
+  line-height: 1.45;
+}
+
+#beats li.done {
+  color: #d7b56d;
+}
+
+#beats button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border-color: transparent;
+  padding: 0;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

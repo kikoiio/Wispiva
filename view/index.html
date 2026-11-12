@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>山城驿站</title>
+  <link rel="stylesheet" href="./viewer.css">
+</head>
+<body>
+  <header>
+    <p class="mark">wispiva/openstory</p>
+    <h1 id="title">山城驿站</h1>
+    <p>格子定好房间和路。人换地方时，记录先改，画面再沿着路走过去。</p>
+  </header>
+  <div class="layout">
+    <div class="stage">
+      <div id="map"></div>
+    </div>
+    <aside>
+      <div class="controls">
+        <button id="next" type="button">下一拍</button>
+        <button id="play" type="button">连续播放</button>
+        <button id="reset" type="button">回到开始</button>
+      </div>
+      <p id="status"></p>
+      <section id="detail" aria-live="polite"></section>
+      <ol id="beats"></ol>
+    </aside>
+  </div>
+  <script type="module" src="./viewer.mjs"></script>
+</body>
+</html>

@@ -2,7 +2,7 @@
 
 合入保护：禁止 `prototype`、`proto/*`、`prototype/*`、`experiment/*` 和所有 `wispiva/*` 分支直接合入 `main`。
 
-分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的完整产品尝试。后两条线独立演进，不整体合入 `main`。
+分支职责：`main` 是主产品线；`prototype` 是原型线；`wispiva/luanti` 是以 Luanti 为底座的完整产品尝试。`wispiva/openstory` 是俯视像素地图实验，运行方式见根目录 README。这些分支各自演进，不整体合入 `main`。
 
 | 类型 | 状态 | 更新 / 核对 | 文档 |
 | --- | --- | --- | --- |
