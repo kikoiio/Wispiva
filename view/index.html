@@ -3,30 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>山城驿站</title>
-  <link rel="stylesheet" href="./viewer.css">
+  <title>OpenStory</title>
+  <link rel="stylesheet" href="./viewer.css?v=10">
 </head>
-<body>
-  <header>
-    <p class="mark">wispiva/openstory</p>
-    <h1 id="title">山城驿站</h1>
-    <p>格子定好房间和路。人换地方时，记录先改，画面再沿着路走过去。</p>
-  </header>
-  <div class="layout">
-    <div class="stage">
-      <div id="map"></div>
-    </div>
-    <aside>
-      <div class="controls">
-        <button id="next" type="button">下一拍</button>
-        <button id="play" type="button">连续播放</button>
-        <button id="reset" type="button">回到开始</button>
+<body class="sim-page is-empty">
+  <main class="shell">
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <div>
+          <h1>OpenStory</h1>
+          <p>一句生成世界，自主模拟角色命运与故事发展</p>
+        </div>
       </div>
-      <p id="status"></p>
-      <section id="detail" aria-live="polite"></section>
-      <ol id="beats"></ol>
-    </aside>
-  </div>
-  <script type="module" src="./viewer.mjs"></script>
+      <nav class="book-nav" aria-label="世界导航">
+        <button class="nav-item active" type="button" data-view="story">故事</button>
+        <button class="nav-item" type="button" data-view="map">世界地图</button>
+        <button class="nav-item" type="button" data-view="3d">3D世界</button>
+        <button class="nav-item" type="button" data-view="lore">世界设定</button>
+        <button class="nav-item" type="button" data-view="cast">角色总览</button>
+        <div class="tick-plaque" aria-label="当前 Tick">
+          <small id="tick-kicker">Tick</small>
+          <strong id="tick">0</strong>
+        </div>
+      </nav>
+      <p id="simulation-status" class="simulation-status" role="status" aria-live="polite" hidden></p>
+    </header>
+
+    <section class="book-spread">
+      <div class="map-surface" id="map">
+        <article class="leaf leaf-left" id="leaf-left" hidden></article>
+        <article class="leaf leaf-right" id="leaf-right" hidden></article>
+        <div class="curl" id="curl" hidden>
+          <div class="curl-face curl-front"><div class="curl-sheet" id="curl-front-sheet"></div></div>
+          <div class="curl-face curl-back"><div class="curl-sheet" id="curl-back-sheet"></div></div>
+        </div>
+        <button class="edge edge-back" id="turn-back" type="button" hidden aria-label="上一页"></button>
+        <button class="edge edge-next" id="turn-next" type="button" hidden aria-label="下一页"></button>
+        <button class="book-tab" id="book-tab" type="button" hidden>地图</button>
+        <section id="world3d-panel" class="world3d-panel" hidden aria-label="程序生成的3D世界">
+          <canvas id="world3d" tabindex="0" aria-label="可旋转缩放的三维世界；点击地点或角色查看信息"></canvas>
+          <div class="world3d-hud">
+            <div><strong>程序生成 · 实时状态</strong><span>拖动旋转　滚轮缩放　点击地点或人物</span></div>
+            <button id="world3d-reset" type="button">重置视角</button>
+          </div>
+          <p id="world3d-empty" hidden>等待世界地点与角色数据。</p>
+          <div id="world3d-items" class="visually-hidden" aria-label="3D场景对象"></div>
+        </section>
+        <div class="map-stage" id="map-stage">
+          <img id="atlas" alt="" hidden>
+          <div id="places"></div>
+          <div id="people"></div>
+          <div id="bubbles"></div>
+        </div>
+        <p id="latest" class="latest" hidden></p>
+        <p id="mind" class="mind" hidden></p>
+        <div id="empty" class="empty-sheet">
+          <p class="kicker">Create</p>
+          <h2>描述你想生成的世界</h2>
+          <p class="hint">写下题材、气氛、冲突或一个具体地点。人和地点会拆出来，然后自己行动。</p>
+          <form id="composer">
+            <textarea id="idea" rows="4" placeholder="一座建在巨兽背上的城市，守城人和商人互相不信任，城门在日落前关闭。"></textarea>
+            <div class="composer-actions">
+              <label class="check"><input id="use-model" type="checkbox" disabled> 用模型创建并决策（未选为规则演示）</label>
+              <button class="primary" type="submit">生成世界</button>
+            </div>
+            <p id="status"></p>
+          </form>
+        </div>
+      </div>
+      <aside id="drawer" class="drawer" hidden>
+        <div id="lore" hidden>
+          <p class="kicker">世界设定</p>
+          <h2 id="lore-title">还没有世界</h2>
+          <p id="lore-origin"></p>
+          <h3>规则</h3>
+          <ul id="rules"></ul>
+          <h3>关系</h3>
+          <ul id="relations"></ul>
+          <h3>刚刚发生</h3>
+          <ol id="beats"></ol>
+        </div>
+        <div id="cast-view" hidden>
+          <p class="kicker">角色总览</p>
+          <h2>这一世界里的人</h2>
+          <ul id="cast"></ul>
+          <form id="join" class="join">
+            <input id="agent-name" type="text" placeholder="一个新的名字" disabled>
+            <button id="add-agent" type="submit" disabled>加入到选中的地方</button>
+            <button id="remove-agent" type="button" disabled>让选中的人离开</button>
+          </form>
+        </div>
+        <div id="composer-slot"></div>
+      </aside>
+    </section>
+
+    <p class="world-name" id="world-plaque" hidden>
+      <span>当前世界</span>
+      <strong id="world-name">尚未生成</strong>
+    </p>
+
+    <div class="bookmarks" aria-label="模拟控制">
+      <button id="next" class="ribbon rust" type="button" disabled>推进 Tick</button>
+      <button id="play" class="ribbon olive" type="button" disabled>自动播放</button>
+      <button id="stop" class="ribbon ink" type="button" disabled>停止模拟</button>
+    </div>
+  </main>
+
+  <dialog id="dossier">
+    <p id="dossier-kicker" class="kicker"></p>
+    <h2 id="dossier-title"></h2>
+    <p id="dossier-body"></p>
+    <button id="dossier-close" type="button">关闭</button>
+  </dialog>
+  <script type="module" src="./viewer.mjs?v=10"></script>
 </body>
 </html>
