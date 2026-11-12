@@ -9,6 +9,11 @@ dist/
 
 .tmp/
 .data/
+.venv/
+.tools/
+__pycache__/
+*.pyc
+*.egg-info/
 
 # agent work logs (keep conclusions in docs/)
 /.audit/

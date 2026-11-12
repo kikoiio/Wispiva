@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools==80.9.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wispiva-openstory"
+version = "0.1.0"
+description = "A Redis-backed world simulation with a generated 3D view"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "ray==2.60.0",
+  "redis==8.1.0",
+]
+
+[tool.setuptools.packages.find]
+include = ["kernel"]
