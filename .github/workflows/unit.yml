@@ -12,8 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TMPDIR: ${{ github.workspace }}/.tmp
-      XDG_CONFIG_HOME: ${{ runner.temp }}/wispiva-xdg
-      WISPIVA_ENV_FILE: ${{ runner.temp }}/wispiva-empty.env
+      XDG_CONFIG_HOME: ${{ github.workspace }}/.tmp/wispiva-xdg
+      WISPIVA_ENV_FILE: ${{ github.workspace }}/.tmp/wispiva-empty.env
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
