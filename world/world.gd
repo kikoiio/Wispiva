@@ -47,15 +47,33 @@ const RECIPES := {
 	"burn_charcoal": {"need": {"timber": 2}, "out": {"charcoal": 1}, "minutes": 50},
 	"herbal_tonic": {"need": {"spring_water": 1, "forest_herbs": 2}, "out": {"herbal_tonic": 1}, "minutes": 12},
 	"bread": {"need": {"grain_sack": 1}, "out": {"bread": 4}, "minutes": 20},
+	"mill_flour": {"need": {"grain_sack": 1}, "out": {"flour_sack": 4}, "minutes": 20},
+	"bake_flour": {"need": {"flour_sack": 1, "spring_water": 1}, "out": {"bread": 4}, "minutes": 20},
+	"brew_ale": {"need": {"flour_sack": 1, "spring_water": 4}, "out": {"ale": 8}, "minutes": 240},
+	"shape_brace": {"need": {"timber": 1}, "out": {"timber_brace": 1}, "minutes": 12, "tool": "hand_axe"},
 	"iron_bar": {"need": {"iron_ore": 1, "charcoal": 1}, "out": {"iron_bar": 1}, "minutes": 25},
 	"forge_pickaxe": {"need": {"iron_bar": 1, "timber": 1}, "out": {"iron_pickaxe": 1}, "minutes": 30, "tool": "smith_hammer"},
+	"forge_nails": {"need": {"iron_bar": 1}, "out": {"iron_nails": 20}, "minutes": 15, "tool": "smith_hammer"},
+	"forge_lock": {"need": {"iron_bar": 1}, "out": {"lock_mechanism": 1}, "minutes": 30, "tool": "smith_hammer"},
+	"forge_sword": {"need": {"iron_bar": 1, "charcoal": 1, "timber": 1}, "out": {"steel_sword": 1}, "minutes": 60, "tool": "smith_hammer"},
+	"forge_arrowheads": {"need": {"iron_bar": 1}, "out": {"arrowhead": 40}, "minutes": 20, "tool": "smith_hammer"},
 	"cut_light_stone": {"need": {"raw_mana_crystal": 1}, "out": {"lamp_stone": 1}, "minutes": 15, "tool": "appraisal_loupe"},
+	"cut_catalysts": {"need": {"raw_mana_crystal": 1}, "out": {"catalyst_shard": 3}, "minutes": 15, "tool": "appraisal_loupe"},
+	"fever_poultice": {"need": {"forest_herbs": 1, "spring_water": 1, "linen": 1}, "out": {"fever_poultice": 1}, "minutes": 10},
 	"bandage": {"need": {"linen": 1}, "out": {"bandage": 2}, "minutes": 10},
 	"mine_iron": {"need": {}, "out": {"iron_ore": 1}, "minutes": 12, "tool": "iron_pickaxe"},
 	"mine_crystal": {"need": {}, "out": {"raw_mana_crystal": 1}, "minutes": 18, "tool": "iron_pickaxe"},
 	"clear_rubble": {"need": {"timber_brace": 1}, "out": {}, "minutes": 15, "tool": "iron_pickaxe"},
 }
 const OUTPUT_ITEMS := {
+	"flour_sack": ["flour sack", 4.5],
+	"ale": ["ale bottle", 0.6],
+	"iron_nails": ["iron nails", 0.2],
+	"lock_mechanism": ["lock mechanism", 1.0],
+	"steel_sword": ["steel sword", 1.5],
+	"arrowhead": ["arrowhead", 0.04],
+	"catalyst_shard": ["spell catalyst shard", 0.12],
+	"fever_poultice": ["fever poultice", 0.4],
 	"winter_coat": ["winter coat", 1.4],
 	"iron_pickaxe": ["iron pickaxe", 3.8],
 	"lamp_stone": ["lamp-grade light stone", 0.5],
@@ -139,6 +157,7 @@ var sun_light: DirectionalLight3D
 var sky_minute := -1
 var sky_weather := ""
 var minute := 0
+var elapsed_seconds := 0
 var next_contract := 1
 var map_rid: RID
 var region_rid: RID
@@ -2787,6 +2806,11 @@ func tool_inspect(agent, args) -> Dictionary:
 				details["remaining_batches"] = fixture.batches
 			if fixture.spec.has("stock"):
 				details["stock"] = inventory_out(containers[fixture.spec.stock].items)
+			if fixture.spec.has("recipes"):
+				var recipes := {}
+				for available in fixture.spec.recipes:
+					recipes[available] = RECIPES[available]
+				details["recipes"] = recipes
 		elif containers.has(target_id):
 			var box: Dictionary = containers[target_id]
 			var door_id: String = box.get("door", "")
@@ -2968,6 +2992,7 @@ func status_of(agent) -> Dictionary:
 		"sp": agent.sp,
 		"cp": agent.cp,
 		"clock": clock_label(),
+		"elapsed_seconds": elapsed_seconds,
 		"action": pending_actions.get(str(agent.id), null),
 		"cart_id": agent.cart_id if agent.cart_id != "" else null,
 		"footing": "shallow_water" if in_mine_water(agent.pos) else "ground",
@@ -3272,6 +3297,7 @@ func board_ferry(agent, landing: Vector3) -> Dictionary:
 	watch_note(agent, "Waiting for the ferry", Color(0.75, 0.87, 0.98))
 	return start_action(agent, int(ferry_trip.arrive) - minute, {
 		"kind": "ferry", "depart_at": ferry_trip.depart, "wait_minutes": int(ferry_trip.depart) - minute, "cart_id": cart_id,
+		"duration_seconds": int(ferry_trip.arrive) * 60 - elapsed_seconds,
 	}, {"landing": landing, "seat": seat, "distance": flat_dist(source, landing)})
 
 func position_ferry() -> void:
@@ -3636,7 +3662,7 @@ func tool_transfer(agent, args) -> Dictionary:
 	return fail("bad_args", "action must be pick, drop, give, store, consume, treat, or spill")
 
 func consume_provision(agent, item_id: String, quantity: int) -> Dictionary:
-	if quantity != 1 or item_id not in ["ration", "bread", "apple", "spring_water", "herbal_tonic"]:
+	if quantity != 1 or item_id not in ["ration", "bread", "apple", "spring_water", "herbal_tonic", "ale"]:
 		return fail("bad_args", "pick one food, spring water, or a tonic")
 	if not take_stack(agent, item_id, 1):
 		return fail("no_item", "you do not have that provision")
@@ -3648,6 +3674,8 @@ func consume_provision(agent, item_id: String, quantity: int) -> Dictionary:
 		"apple":
 			agent.hunger = maxf(0.0, float(agent.hunger) - 10.0)
 			agent.thirst = maxf(0.0, float(agent.thirst) - 8.0)
+		"ale":
+			agent.thirst = maxf(0.0, float(agent.thirst) - 15.0)
 		_:
 			agent.hunger = maxf(0.0, float(agent.hunger) - 25.0)
 	watch_note(agent, "Consumed " + item_id.replace("_", " "), Color(0.66, 0.92, 0.62))
@@ -3656,21 +3684,27 @@ func consume_provision(agent, item_id: String, quantity: int) -> Dictionary:
 
 func treat_injury(healer, target_id: String, item_id: String, quantity: int) -> Dictionary:
 	var patient = healer if target_id == "" or target_id == healer.id else agents_by_id.get(target_id)
-	if quantity != 1 or item_id not in ["bandage", "timber_brace"] or patient == null:
-		return fail("bad_args", "use one bandage or timber brace on a known patient")
+	if quantity != 1 or item_id not in ["bandage", "timber_brace", "fever_poultice"] or patient == null:
+		return fail("bad_args", "use one bandage, timber brace, or fever poultice on a known patient")
 	if patient.dead:
 		return fail("rejected", "the patient is dead")
 	if not patient_in_reach(healer, patient, 2.5):
 		return fail("blocked", "you cannot reach the patient from here")
 	var dressing := item_id == "bandage"
+	var poultice := item_id == "fever_poultice"
+	if poultice and "fever" not in patient.injuries:
+		return fail("rejected", "there is no fever to treat")
 	if dressing and "bleeding" not in patient.injuries and "lacerated" not in patient.injuries:
 		return fail("rejected", "there is no wound to dress")
-	if not dressing and ("fractured" not in patient.injuries or patient.splinted):
+	if item_id == "timber_brace" and ("fractured" not in patient.injuries or patient.splinted):
 		return fail("rejected", "there is no unsplinted fracture")
 	if not take_stack(healer, item_id, 1):
 		return fail("no_item", "you do not have the treatment item")
 	if dressing:
 		BodyState.dress_wound(patient)
+	elif poultice:
+		patient.injuries.erase("fever")
+		patient.open_wound_minutes = 0
 	else:
 		patient.splinted = true
 	push_event(patient, {"type": "treatment", "item_id": item_id, "from": healer.id})
@@ -3989,6 +4023,8 @@ func tool_cast(agent, args) -> Dictionary:
 		cap = minf(cap, float(agent.manaMax) * 0.5)
 	if float(spend) > cap:
 		return fail("mana", "not enough usable mana")
+	if agent.stamina < 25.0 and float(spend) > float(agent.manaMax) * 0.25:
+		return fail("rejected", "you are too exhausted to control that much mana")
 	if spell == "unseal":
 		var slab: Dictionary = doors.get(target, {})
 		if target != "rune_vault" or slab.is_empty() or not slab.mana_sealed:
@@ -4005,13 +4041,13 @@ func tool_cast(agent, args) -> Dictionary:
 		agent.mana -= spend
 		slab.rune_material.emission_enabled = true
 		watch_note(agent, "The runes glow", Color(0.48, 0.85, 1.0))
-		return start_action(agent, 1, {"kind": "unseal", "door_id": target})
+		return start_action(agent, 1, {"kind": "unseal", "door_id": target, "concentration_seconds": clampi(int(ceil(spend / 5.0)), 1, 10)})
 	if spell == "light":
 		if target != "" and target != agent.id:
 			return fail("bad_args", "light is cast on yourself")
 	if spell not in ["light", "bandage", "flame", "barrier", "mend"]:
 		return fail("bad_args", "unknown spell")
-	var action := {"kind": "spell", "spell": spell, "target": target, "mana_spend": spend}
+	var action := {"kind": "spell", "spell": spell, "target": target, "mana_spend": spend, "concentration_seconds": clampi(int(ceil(spend / 5.0)), 1, 10)}
 	var invalid := magic_target_error(agent, action)
 	if not invalid.is_empty():
 		return invalid
@@ -4114,7 +4150,7 @@ func tool_craft(agent, args) -> Dictionary:
 	var recipe_name := str(args.get("recipe_or_task", ""))
 	var minutes := int(args.get("minutes", 0))
 	if not RECIPES.has(recipe_name):
-		return fail("bad_args", "unknown recipe")
+		return fail("bad_args", "unknown recipe; inspect the nearby station for its exact recipe_id and recipes")
 	var fixture: Dictionary = fixtures.get(station_id, {})
 	var box_items: Array = []
 	if not fixture.is_empty():
@@ -4149,6 +4185,10 @@ func tool_craft(agent, args) -> Dictionary:
 			box_items = box.items
 	var recipe: Dictionary = RECIPES[recipe_name]
 	var duration := int(recipe.minutes)
+	if agent.stamina < 10.0:
+		return fail("rejected", "rest before attempting precise work")
+	if agent.stamina < 25.0:
+		duration = int(ceil(duration * 1.5))
 	if minutes < duration:
 		return fail("rejected", "that task needs %d minutes" % duration)
 	if recipe.has("tool") and qty_of(agent.items, recipe.tool) == 0:
@@ -4190,13 +4230,16 @@ func tool_rest(agent, args) -> Dictionary:
 
 func start_action(agent, minutes: int, action: Dictionary, travel := {}) -> Dictionary:
 	action["started_at"] = minute
-	action["finish_at"] = minute + minutes
+	action["started_second"] = elapsed_seconds
+	action["duration_seconds"] = int(action.get("duration_seconds", action.get("concentration_seconds", minutes * 60)))
+	action["finish_second"] = elapsed_seconds + int(action.duration_seconds)
+	action["finish_at"] = int(ceil(float(action.finish_second) / 60.0))
 	pending_actions[str(agent.id)] = action
 	if not travel.is_empty():
 		travel_actions[str(agent.id)] = travel
 	return ok({"pending": true, "action": action})
 
-func finish_actions() -> bool:
+func finish_actions(movement_tick: bool) -> bool:
 	var completed := false
 	for agent_id in pending_actions.keys():
 		var action: Dictionary = pending_actions[agent_id]
@@ -4211,14 +4254,14 @@ func finish_actions() -> bool:
 			continue
 		var travel: Dictionary = travel_actions.get(agent_id, {})
 		if action.kind == "walk":
-			if not tick_walk(agent, travel):
+			if not movement_tick or not tick_walk(agent, travel):
 				continue
-		elif int(action.finish_at) > minute:
+		elif int(action.finish_second) > elapsed_seconds:
 			continue
 		pending_actions.erase(agent_id)
 		travel_actions.erase(agent_id)
 		var duration := minute - int(action.started_at)
-		var event := {"type": "action_completed", "action": action, "minute": minute}
+		var event := {"type": "action_completed", "action": action, "minute": minute, "elapsed_seconds": elapsed_seconds}
 		match action.kind:
 			"spell":
 				event["result"] = finish_spell(agent, action)
@@ -4307,23 +4350,21 @@ func finish_actions() -> bool:
 	return completed
 
 func finish_rest(agent, minutes: int) -> void:
-	var hours := float(minutes) / 60.0
-	if hours >= 1.0:
-		agent.mana = minf(float(agent.manaMax), agent.mana + float(agent.manaMax) * 0.1 * hours)
 	if agent.hunger > 30.0:
 		if take_stack(agent, "ration", 1) or take_stack(agent, "bread", 1):
 			agent.hunger = maxf(0.0, agent.hunger - 25.0)
 
 func tool_step(args) -> Dictionary:
 	var minutes := int(args.get("minutes", 0))
-	if minutes < 1 or minutes > 10080:
-		return fail("bad_args", "minutes out of range")
-	advance(float(minutes), bool(args.get("stop_on_action", false)))
+	var seconds := int(args.get("seconds", 0))
+	if minutes < 0 or seconds < 0 or minutes * 60 + seconds < 1 or minutes * 60 + seconds > 10080 * 60:
+		return fail("bad_args", "advance between one second and seven days")
+	advance(float(minutes) + float(seconds) / 60.0, bool(args.get("stop_on_action", false)))
 	var woke: Array = []
 	for agent in agents:
 		if can_wake(agent):
 			woke.append(agent.id)
-	return ok({"minute": minute, "clock": clock_label(), "weather": regional_weather.stonebridge, "season": season(), "woke": woke})
+	return ok({"minute": minute, "elapsed_seconds": elapsed_seconds, "clock": clock_label(), "weather": regional_weather.stonebridge, "season": season(), "woke": woke})
 
 func tool_snapshot() -> Dictionary:
 	var rows: Array = []
@@ -4344,7 +4385,7 @@ func tool_snapshot() -> Dictionary:
 	var wagons: Array = []
 	for wagon in carts.values():
 		wagons.append(cart_status(wagon))
-	return ok({"minute": minute, "clock": clock_label(), "weather": regional_weather.stonebridge, "regional_weather": regional_weather, "season": season(), "agents": rows, "wildlife": beasts, "doors": door_rows, "contracts": contracts, "ferry": ferry_status(), "carts": wagons})
+	return ok({"minute": minute, "elapsed_seconds": elapsed_seconds, "clock": clock_label(), "weather": regional_weather.stonebridge, "regional_weather": regional_weather, "season": season(), "agents": rows, "wildlife": beasts, "doors": door_rows, "contracts": contracts, "ferry": ferry_status(), "carts": wagons})
 
 func tool_inject(args) -> Dictionary:
 	var kind := str(args.get("kind", ""))
@@ -4424,26 +4465,28 @@ func can_wake(agent) -> bool:
 	return not agent.dead and not agent.unconscious and not pending_actions.has(str(agent.id)) and not agent.events.is_empty()
 
 func advance(minutes: float, stop_on_action := false) -> void:
-	var target := minute + int(ceil(minutes))
-	while minute < target:
-		var next := mini(target, minute + 60 - posmod(minute, 60))
+	var target := elapsed_seconds + maxi(1, int(round(minutes * 60.0)))
+	while elapsed_seconds < target:
+		var next := mini(target, (minute + 60 - posmod(minute, 60)) * 60)
 		for fixture in fixtures.values():
 			if fixture.spec.kind == "fire" and int(fixture.lit_until) > minute:
-				next = mini(next, int(fixture.lit_until))
+				next = mini(next, int(fixture.lit_until) * 60)
 		for solid in solids:
 			if int(solid.until) > minute:
-				next = mini(next, int(solid.until))
+				next = mini(next, int(solid.until) * 60)
 		for agent in agents:
-			next = mini(next, minute + BodyState.minutes_to_blood_change(agent))
+			next = mini(next, (minute + BodyState.minutes_to_blood_change(agent)) * 60)
 			if not agent.dead and (agent.unconscious or agent.warmth < 30.0):
-				next = mini(next, minute + 1)
+				next = mini(next, (minute + 1) * 60)
 		for action in pending_actions.values():
-			next = mini(next, minute + 1 if action.kind == "walk" else int(action.finish_at))
+			next = mini(next, (minute + 1) * 60 if action.kind == "walk" else int(action.finish_second))
 		if not ferry_trip.is_empty():
-			next = mini(next, minute + 1)
-		var condition_changed := advance_interval(next - minute)
+			next = mini(next, (minute + 1) * 60)
+		elapsed_seconds = next
+		var whole_minutes := int(elapsed_seconds / 60.0) - minute
+		var condition_changed := advance_interval(whole_minutes) if whole_minutes > 0 else false
 		position_ferry()
-		var completed := finish_actions()
+		var completed := finish_actions(whole_minutes > 0)
 		if stop_on_action and (completed or condition_changed):
 			break
 
@@ -4579,9 +4622,9 @@ func advance_interval(minutes: int) -> bool:
 				push_event(agent, {"type": "condition", "text": "Your condition has changed.", "condition": body_condition(agent)})
 		if agent.dead:
 			continue
-		if not agent.suppressed:
-			var field_strength := 3.0 if agent.pos.distance_to(v3(layout.places.sacred_spring)) <= 14.0 else 1.0
-			agent.mana = minf(float(agent.manaMax), float(agent.mana) + float(agent.manaMax) * 0.05 * hours * field_strength)
+		var field_strength := 3.0 if agent.pos.distance_to(v3(layout.places.sacred_spring)) <= 14.0 else 1.0
+		var recovery := 0.1 if resting else 0.05
+		agent.mana = minf(float(agent.manaMax), float(agent.mana) + float(agent.manaMax) * recovery * hours * field_strength)
 	var after := clock_hour()
 	refresh_fire_states()
 	if after != before:

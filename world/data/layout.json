@@ -1269,7 +1269,11 @@
           -35
         ]
       ],
-      "recipe": "cut_light_stone"
+      "recipe": "cut_light_stone",
+      "recipes": [
+        "cut_light_stone",
+        "cut_catalysts"
+      ]
     },
     {
       "id": "forge_anvil",
@@ -1292,7 +1296,14 @@
           35
         ]
       ],
-      "recipe": "forge_pickaxe"
+      "recipe": "forge_pickaxe",
+      "recipes": [
+        "forge_pickaxe",
+        "forge_nails",
+        "forge_lock",
+        "forge_sword",
+        "forge_arrowheads"
+      ]
     },
     {
       "id": "west_fire_ring",
@@ -1714,7 +1725,12 @@
           -25
         ]
       ],
-      "recipe": "herbal_tonic"
+      "recipe": "herbal_tonic",
+      "recipes": [
+        "herbal_tonic",
+        "bandage",
+        "fever_poultice"
+      ]
     },
     {
       "id": "granary_bins",
@@ -1779,7 +1795,12 @@
           -42.5
         ]
       ],
-      "recipe": "bread"
+      "recipe": "bread",
+      "recipes": [
+        "bread",
+        "bake_flour",
+        "brew_ale"
+      ]
     },
     {
       "id": "ore_vein",
@@ -2030,6 +2051,272 @@
         ]
       ],
       "recipe": "ring_alarm"
+    },
+    {
+      "id": "granary_mill",
+      "name": "Granary hand mill",
+      "kind": "workstation",
+      "center": [
+        25.5,
+        0.6,
+        35
+      ],
+      "size": [
+        1.0,
+        1.2,
+        1.2
+      ],
+      "approaches": [
+        [
+          24,
+          0,
+          35
+        ]
+      ],
+      "recipe": "mill_flour"
+    },
+    {
+      "id": "timber_bench",
+      "name": "Shoring timber bench",
+      "kind": "workstation",
+      "center": [
+        302,
+        0.6,
+        26
+      ],
+      "size": [
+        2.2,
+        1.2,
+        0.8
+      ],
+      "approaches": [
+        [
+          302,
+          0,
+          24.5
+        ]
+      ],
+      "recipe": "shape_brace"
+    },
+    {
+      "id": "chapel_cot_1",
+      "name": "Infirmary cot 1",
+      "kind": "bed",
+      "center": [
+        132.1,
+        0.35,
+        -27.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          131.1,
+          0,
+          -27.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_2",
+      "name": "Infirmary cot 2",
+      "kind": "bed",
+      "center": [
+        134.3,
+        0.35,
+        -27.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          133.3,
+          0,
+          -27.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_3",
+      "name": "Infirmary cot 3",
+      "kind": "bed",
+      "center": [
+        132.1,
+        0.35,
+        -22.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          131.1,
+          0,
+          -22.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_4",
+      "name": "Infirmary cot 4",
+      "kind": "bed",
+      "center": [
+        134.3,
+        0.35,
+        -22.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          133.3,
+          0,
+          -22.8
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_1",
+      "name": "Miner bunk 1",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -633
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -633
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_2",
+      "name": "Miner bunk 2",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -629
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -629
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_3",
+      "name": "Miner bunk 3",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -625.5
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -625.5
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_4",
+      "name": "Miner bunk 4",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -633
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -633
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_5",
+      "name": "Miner bunk 5",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -629
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -629
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_6",
+      "name": "Miner bunk 6",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -625.5
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -625.5
+        ]
+      ]
     }
   ],
   "links": [

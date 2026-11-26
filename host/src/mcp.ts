@@ -130,7 +130,7 @@ const characterToolDrafts: McpToolDraft[] = [
     description: "Start work at a nearby station. The world wakes you with the result when the work finishes.",
     inputSchema: schemaOf([
       field("station_id", "string", "Station id.", true),
-      field("recipe_or_task", "string", "Recipe or task name.", true),
+      field("recipe_or_task", "string", "Exact recipe_id or recipes key learned by inspecting this station.", true),
       field("minutes", "integer", "Minutes to spend.", true),
     ]),
   },

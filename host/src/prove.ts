@@ -386,6 +386,55 @@ async function proveEconomy(world: WorldClient): Promise<void> {
   assert.equal(itemQuantity(cut, "raw_mana_crystal"), 0);
 }
 
+async function proveProduction(world: WorldClient): Promise<void> {
+  async function use(actor: string, tool: string, args: Record<string, unknown> = {}) {
+    const response = await agentCall(world, actor, tool, args);
+    assert.ok(response.ok && response.result, `${actor} ${tool}: ${JSON.stringify(response.error)}`);
+    return response.result;
+  }
+  async function make(actor: string, station: string, recipe: string) {
+    const arrived = resultOf(await walk(world, actor, station));
+    assert.equal(arrived.arrived, true, JSON.stringify(arrived));
+    const details = await use(actor, "inspect", { target_id: station });
+    const recipes = details.recipes;
+    const spec = isRecord(recipes) ? recipes[recipe] : details.recipe;
+    assert.ok(isRecord(spec) && isRecord(spec.need) && isRecord(spec.out), JSON.stringify(details));
+    for (const [item_id, quantity] of Object.entries(spec.need)) {
+      assert.ok(typeof quantity === "number");
+      assert.ok((await world.call("host", "world_inject_event", { kind: "item", place: actor, item_id, quantity })).ok);
+      await use(actor, "transfer_item", { action: "pick", item_id, quantity });
+    }
+    const before = list(await use(actor, "status"), "inventory");
+    await use(actor, "work_craft", { station_id: station, recipe_or_task: recipe, minutes: spec.minutes });
+    for (const [item_id, quantity] of Object.entries(spec.need)) {
+      assert.ok(typeof quantity === "number");
+      assert.equal(itemQuantity(list(await use(actor, "status"), "inventory"), item_id), itemQuantity(before, item_id) - quantity);
+    }
+    assert.ok((await world.call("host", "world_step", { minutes: spec.minutes })).ok);
+    const after = list(await use(actor, "status"), "inventory");
+    for (const [item_id, quantity] of Object.entries(spec.out)) {
+      assert.ok(typeof quantity === "number");
+      assert.equal(itemQuantity(after, item_id), itemQuantity(before, item_id) + quantity);
+    }
+  }
+  for (const recipe of ["forge_nails", "forge_lock", "forge_sword", "forge_arrowheads"]) {
+    await make("human_bram", "forge_anvil", recipe);
+  }
+  await make("human_tomas", "granary_mill", "mill_flour");
+  await make("human_greta", "inn_oven", "bake_flour");
+  await make("human_greta", "inn_oven", "brew_ale");
+  const thirsty = num(await use("human_greta", "status"), "thirst");
+  await use("human_greta", "transfer_item", { action: "consume", item_id: "ale", quantity: 1 });
+  assert.ok(num(await use("human_greta", "status"), "thirst") < thirsty);
+  await make("human_mira", "guild_appraisal", "cut_catalysts");
+  await make("human_clara", "chapel_workbench", "fever_poultice");
+  assert.ok((await world.call("host", "world_inject_event", { kind: "injury", agentId: "human_clara", injury: "fever" })).ok);
+  await use("human_clara", "transfer_item", { action: "treat", item_id: "fever_poultice", quantity: 1 });
+  const treated = await use("human_clara", "status");
+  assert.equal(list(treated, "injuries").includes("fever"), false);
+  assert.equal(itemQuantity(list(treated, "inventory"), "fever_poultice"), 0);
+}
+
 async function proveTraces(world: WorldClient): Promise<void> {
   const actor = "demon_kael";
   const caster = "human_garrick";
@@ -442,11 +491,18 @@ async function proveMagic(world: WorldClient): Promise<void> {
     assert.ok((await world.call("host", "world_inject_event", { kind: "injury", agentId: patient, injury })).ok);
   }
   const manaBefore = num(await use(mage, "status"), "mana");
-  assert.equal((await use(mage, "cast_spell", { spell_name: "mend", target: patient, mana_spend: 6 })).pending, true);
+  const timeBefore = num(resultOf(await world.call("host", "world_snapshot")), "elapsed_seconds");
+  const casting = await use(mage, "cast_spell", { spell_name: "mend", target: patient, mana_spend: 6 });
+  assert.equal(casting.pending, true);
+  assert.ok(isRecord(casting.action));
+  assert.equal(casting.action.concentration_seconds, 2);
   assert.equal(num(await use(mage, "status"), "mana"), manaBefore - 6);
   assert.ok(list(await use(patient, "status"), "injuries").includes("bleeding"));
   assert.equal((await agentCall(world, mage, "sense_mana", { mode: "pulse" })).error?.code, "busy");
-  await step(1);
+  assert.ok((await world.call("host", "world_step", { seconds: 1 })).ok);
+  assert.ok(list(await use(patient, "status"), "injuries").includes("bleeding"));
+  const release = resultOf(await world.call("host", "world_step", { minutes: 10, stop_on_action: true }));
+  assert.equal(num(release, "elapsed_seconds"), timeBefore + 2);
   const healed = list(await use(patient, "status"), "injuries");
   assert.equal(healed.includes("bleeding"), false);
   assert.equal(healed.includes("lacerated"), false);
@@ -1047,6 +1103,20 @@ async function main(): Promise<void> {
     check("inn rooms and guild archive have usable upper floors", false, String(error));
   }
 
+  try {
+    await proveWindows(world);
+    check("window shutters control real sight openings", true, "open and closed sightlines, solid sills");
+  } catch (error) {
+    check("window shutters control real sight openings", false, String(error));
+  }
+
+  try {
+    await proveWalls(world);
+    check("wall patrols reach watch platforms and ring the alarm", true, "four wall walks, stairs, both watches, local sound");
+  } catch (error) {
+    check("wall patrols reach watch platforms and ring the alarm", false, String(error));
+  }
+
   const wet = await walk(world, "human_owen", "-45,0,200");
   const wetBody = resultOf(wet);
   check("the river is not a ford", wet.ok && wetBody.arrived !== true && num(wetBody, "x") > -30, `x=${num(wetBody, "x")} reason=${str(wetBody, "reason")}`);
@@ -1159,17 +1229,10 @@ async function main(): Promise<void> {
   }
 
   try {
-    await proveWindows(world);
-    check("window shutters control real sight openings", true, "open and closed sightlines, solid sills");
+    await proveProduction(world);
+    check("production recipes consume materials and produce usable goods", true, "flour, bread, ale, iron goods, catalysts, and poultices");
   } catch (error) {
-    check("window shutters control real sight openings", false, String(error));
-  }
-
-  try {
-    await proveWalls(world);
-    check("wall patrols reach watch platforms and ring the alarm", true, "four wall walks, stairs, both watches, local sound");
-  } catch (error) {
-    check("wall patrols reach watch platforms and ring the alarm", false, String(error));
+    check("production recipes consume materials and produce usable goods", false, String(error));
   }
 
   const failed = checks.filter((item) => !item.ok);
@@ -1194,6 +1257,7 @@ if (scenario === undefined) {
     ["anvil", proveAnvilValley],
     ["tavern", proveGranaryToTavern],
     ["economy", proveEconomy],
+    ["production", proveProduction],
     ["traces", proveTraces],
     ["magic", proveMagic],
   ]);

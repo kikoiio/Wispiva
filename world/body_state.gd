@@ -1,6 +1,6 @@
 extends RefCounted
 
-const INJURIES := ["bruised", "lacerated", "fractured", "burned", "bleeding"]
+const INJURIES := ["bruised", "lacerated", "fractured", "burned", "bleeding", "fever"]
 const BLOOD_LOSS_FAINT := 25.0
 const BLOOD_LOSS_FATAL := 60.0
 const SPLINT_HEAL_MINUTES := 4320
@@ -15,6 +15,7 @@ static func initial() -> Dictionary:
 		"blood_loss": 0.0,
 		"injuries": [],
 		"fracture_rest": 0,
+		"open_wound_minutes": 0,
 		"splinted": false,
 		"unconscious": false,
 		"dead": false,
@@ -54,6 +55,12 @@ static func step(body: Dictionary, minutes: int, air_c: float, wet: bool, shelte
 			body.blood_loss += 1.0
 		else:
 			body.blood_loss = maxf(0.0, float(body.blood_loss) - HOURS * (8.0 if resting else 3.0))
+		if "lacerated" in body.injuries:
+			body.open_wound_minutes += 1
+			if body.open_wound_minutes >= 1440:
+				injure(body, "fever")
+		else:
+			body.open_wound_minutes = 0
 		if resting:
 			var recovery := 40.0 if fire or sheltered else 20.0
 			body.stamina = minf(100.0, float(body.stamina) + recovery * HOURS)
@@ -81,4 +88,6 @@ static func pace_factor(body: Dictionary) -> float:
 		factor *= 0.72
 	if "fractured" in body.injuries:
 		factor *= 0.65 if body.splinted else 0.45
+	if "fever" in body.injuries:
+		factor *= 0.8
 	return factor
