@@ -1,0 +1,51 @@
+name: Classic Frontier acceptance
+on:
+  push:
+    branches: [validation/classic-frontier]
+permissions:
+  contents: read
+jobs:
+  world:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      GALLIUM_DRIVER: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Prepare engine and software display
+        run: |
+          mkdir -p .tmp .verify/artifacts
+          sudo apt-get update -qq
+          sudo apt-get install -y xvfb libgl1-mesa-dri libxkbcommon0
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o .tmp/godot.zip
+          unzip -q .tmp/godot.zip -d .tmp
+          chmod +x .tmp/Godot_v4.7.2-stable_linux.x86_64
+          ln -s "$PWD/.tmp/Godot_v4.7.2-stable_linux.x86_64" .tmp/godot
+          echo "$PWD/.tmp" >> "$GITHUB_PATH"
+      - name: Import assets
+        run: godot --headless --editor --path world --import > .verify/artifacts/import.log 2>&1
+      - name: Verify world behavior
+        run: python3 .verify/check.py | tee .verify/artifacts/proof.log
+      - name: Capture five regions and ferry
+        run: |
+          unset WAYLAND_DISPLAY
+          for view in square wood mine ruins farm ferry; do
+            mkdir -p ".verify/artifacts/$view"
+            xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 480 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
+            if rg -q 'SCRIPT ERROR|ERROR:' ".verify/artifacts/$view.log"; then
+              cat ".verify/artifacts/$view.log"
+              exit 1
+            fi
+            test -n "$(find ".verify/artifacts/$view" -name '*.png' -print -quit)"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: classic-frontier-acceptance
+          path: .verify/artifacts
+          retention-days: 7
