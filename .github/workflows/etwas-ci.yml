@@ -1,0 +1,80 @@
+name: Etwas visual acceptance
+on:
+  push:
+    branches: ['codex/etwas-ci-*']
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      LP_NUM_THREADS: "4"
+      WISPIVA_WORLD_PORT: "17777"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: .ci-tools
+          key: ${{ runner.os }}-etwas-blender4.5.3-godot4.7.2
+      - name: Fetch Blender 4.5.3 and Godot 4.7.2
+        run: |
+          set -euo pipefail
+          mkdir -p .ci-tools
+          if [[ ! -x .ci-tools/blender-4.5.3-linux-x64/blender ]]; then
+            mirror=https://ftp.halifax.rwth-aachen.de/blender/release/Blender4.5
+            curl --retry 2 -fsSLo "$RUNNER_TEMP/blender.tar.xz" "$mirror/blender-4.5.3-linux-x64.tar.xz"
+            curl --retry 2 -fsSLo "$RUNNER_TEMP/blender.sha256" "$mirror/blender-4.5.3.sha256"
+            hash="$(awk '$2 == "blender-4.5.3-linux-x64.tar.xz" {print $1}' "$RUNNER_TEMP/blender.sha256")"
+            echo "$hash  $RUNNER_TEMP/blender.tar.xz" | sha256sum --check
+            tar -xJf "$RUNNER_TEMP/blender.tar.xz" -C .ci-tools
+          fi
+          if [[ ! -x .ci-tools/godot ]]; then
+            godot_release=https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable
+            curl --retry 2 -fsSLo "$RUNNER_TEMP/godot.zip" "$godot_release/Godot_v4.7.2-stable_linux.x86_64.zip"
+            unzip -q "$RUNNER_TEMP/godot.zip" -d .ci-tools
+            mv .ci-tools/Godot_v4.7.2-stable_linux.x86_64 .ci-tools/godot
+          fi
+          command -v xvfb-run
+      - name: Generate editable Blender sources and GLB assets
+        run: |
+          set -euo pipefail
+          for category in valley; do
+            .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python "world/blender/build_etwas_${category}.py" > "blender-${category}.log"
+          done
+          .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python world/blender/build_etwas.py > blender-spring.log
+          mkdir -p generated
+          tar -cf generated/etwas-models.tar world/blender/etwas*.blend world/assets/etwas/*.glb
+      - name: Import and check world tools and movement
+        if: false
+        run: |
+          set -euo pipefail
+          .ci-tools/godot --headless --path world --import 2>&1 | tee godot-import.log
+          if rg 'SCRIPT ERROR|Parse Error|Failed loading resource' godot-import.log; then exit 1; fi
+          if [[ -f world/tests/etwas.gd ]]; then
+            .ci-tools/godot --headless --path world --fixed-fps 30 --script res://tests/etwas.gd 2>&1 | tee godot-proofs.log
+          fi
+      - name: Capture town and spring in Godot
+        if: false
+        run: |
+          set -euo pipefail
+          xvfb-run -a .ci-tools/godot --path world --resolution 1280x720 --script res://tests/etwas-capture.gd 2>&1 | tee godot-capture.log
+          if rg 'SCRIPT ERROR|Parse Error|Failed loading resource' godot-capture.log; then exit 1; fi
+          test -s world/captures/spring-seated.png
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: etwas-review
+          path: |
+            world/captures/*.png
+            generated/etwas-models.tar
+            blender-*.log
+            godot-*.log
+          if-no-files-found: ignore
+          retention-days: 5

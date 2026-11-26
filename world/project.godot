@@ -1,0 +1,30 @@
+; Engine configuration file.
+config_version=5
+
+[application]
+
+config/name="Wispiva"
+config/description="Etwas river valley. Coordinates are meters, +X east, +Y up, +Z south."
+run/main_scene="res://scenes/etwas.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+common/physics_ticks_per_second=30
+
+[navigation]
+
+world/map_use_async_iterations=false
+world/region_use_async_iterations=false
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
+environment/defaults/default_clear_color=Color(0.55, 0.68, 0.82, 1)

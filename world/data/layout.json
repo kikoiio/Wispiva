@@ -1,0 +1,3510 @@
+{
+  "river": {
+    "half_width": 12,
+    "wide_from_z": -200,
+    "wide_to_z": 600,
+    "narrow_half_width": 7,
+    "points": [
+      [
+        -700,
+        45,
+        -850
+      ],
+      [
+        -200,
+        22,
+        -620
+      ],
+      [
+        -45,
+        4,
+        -200
+      ],
+      [
+        -45,
+        0,
+        0
+      ],
+      [
+        -45,
+        0,
+        600
+      ],
+      [
+        80,
+        0,
+        950
+      ]
+    ]
+  },
+  "bridge": {
+    "x0": -65,
+    "x1": -30,
+    "z0": -5,
+    "z1": 5,
+    "y": 0.15
+  },
+  "town_wall": {
+    "x0": -30,
+    "x1": 170,
+    "z0": -90,
+    "z1": 90,
+    "height": 4,
+    "thick": 1.2,
+    "floor_y": 0
+  },
+  "gates": [
+    {
+      "id": "west_gate",
+      "x": -30,
+      "z": 0,
+      "width": 3.6,
+      "height": 3.8,
+      "along": "z",
+      "lock": "unlocked",
+      "open": true,
+      "key": "gate_keys",
+      "material": "wood"
+    },
+    {
+      "id": "north_gate",
+      "x": 60,
+      "z": -90,
+      "width": 3.2,
+      "height": 3.4,
+      "along": "x",
+      "lock": "unlocked",
+      "open": true,
+      "key": "gate_keys",
+      "material": "wood"
+    },
+    {
+      "id": "east_postern",
+      "x": 170,
+      "z": 10,
+      "width": 1.2,
+      "height": 2.2,
+      "along": "z",
+      "lock": "unlocked",
+      "open": true,
+      "key": "gate_keys",
+      "material": "wood"
+    }
+  ],
+  "buildings": [
+    {
+      "id": "root_cellar",
+      "name": "Oakford root cellar",
+      "floor": [
+        163,
+        2,
+        375
+      ],
+      "size": [
+        6,
+        2.7,
+        6
+      ],
+      "thick": 0.45,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "root_cellar_door",
+          "side": "+z",
+          "width": 1.6,
+          "height": 2.15,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ]
+    },
+    {
+      "id": "guild_hall",
+      "name": "Adventurer Guild Hall",
+      "floor": [
+        85,
+        0,
+        -35
+      ],
+      "size": [
+        20,
+        8,
+        14
+      ],
+      "thick": 0.5,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "guild_entrance",
+          "side": "+z",
+          "width": 1.8,
+          "height": 2.4,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "guild_hall_shutter_1",
+          "side": "-z",
+          "offset": -5.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "guild_hall_shutter_2",
+          "side": "-z",
+          "offset": 5.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "guild_hall_shutter_3",
+          "side": "+x",
+          "offset": -3.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "guild_hall_shutter_4",
+          "side": "-z",
+          "offset": -5,
+          "sill": 5.15,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "guild_hall_shutter_5",
+          "side": "-z",
+          "offset": 0,
+          "sill": 5.15,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "guild_hall_shutter_6",
+          "side": "-z",
+          "offset": 5,
+          "sill": 5.15,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "tavern",
+      "name": "Stonehearth Tavern and Inn",
+      "floor": [
+        35,
+        0,
+        -40
+      ],
+      "size": [
+        18,
+        7.5,
+        16
+      ],
+      "thick": 0.45,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "tavern_entrance",
+          "side": "+z",
+          "width": 1.6,
+          "height": 2.4,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "tavern_shutter_1",
+          "side": "-z",
+          "offset": -4.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_2",
+          "side": "-z",
+          "offset": 4.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_3",
+          "side": "+x",
+          "offset": -4.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_4",
+          "side": "-z",
+          "offset": -6,
+          "sill": 4.85,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_5",
+          "side": "-z",
+          "offset": -2,
+          "sill": 4.85,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_6",
+          "side": "-z",
+          "offset": 2,
+          "sill": 4.85,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "tavern_shutter_7",
+          "side": "-z",
+          "offset": 6,
+          "sill": 4.85,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "forge",
+      "name": "Blacksmith Forge",
+      "floor": [
+        115,
+        0,
+        35
+      ],
+      "size": [
+        14,
+        5,
+        12
+      ],
+      "thick": 0.4,
+      "material": "stone",
+      "openings": [
+        {
+          "side": "+z",
+          "width": 6,
+          "height": 3.2
+        }
+      ],
+      "doors": [],
+      "windows": [
+        {
+          "id": "forge_shutter_1",
+          "side": "-z",
+          "offset": -3.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "forge_shutter_2",
+          "side": "-z",
+          "offset": 3.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "forge_shutter_3",
+          "side": "+x",
+          "offset": -3.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "granary",
+      "name": "Granary and Provision Store",
+      "floor": [
+        20,
+        0.8,
+        40
+      ],
+      "size": [
+        16,
+        6,
+        14
+      ],
+      "thick": 0.5,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "granary_door",
+          "side": "+z",
+          "width": 2.4,
+          "height": 2.6,
+          "lock": "locked",
+          "open": false,
+          "key": "store_keys",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "granary_shutter_1",
+          "side": "-z",
+          "offset": -4.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "granary_shutter_2",
+          "side": "-z",
+          "offset": 4.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "granary_shutter_3",
+          "side": "+x",
+          "offset": -3.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ],
+      "roof_material": "thatch"
+    },
+    {
+      "id": "chapel",
+      "name": "Chapel and Healing House",
+      "floor": [
+        130,
+        0,
+        -25
+      ],
+      "size": [
+        12,
+        6,
+        10
+      ],
+      "thick": 0.45,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "chapel_entrance",
+          "side": "+z",
+          "width": 1.4,
+          "height": 2.4,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "chapel_shutter_1",
+          "side": "-z",
+          "offset": -3.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "chapel_shutter_2",
+          "side": "-z",
+          "offset": 3.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "chapel_shutter_3",
+          "side": "+x",
+          "offset": -2.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "smelter",
+      "name": "Smelter Hall",
+      "floor": [
+        25,
+        26,
+        -635
+      ],
+      "size": [
+        22,
+        6,
+        14
+      ],
+      "thick": 0.6,
+      "material": "stone",
+      "openings": [
+        {
+          "side": "+x",
+          "width": 4,
+          "height": 3.5
+        }
+      ],
+      "doors": [],
+      "windows": [
+        {
+          "id": "smelter_shutter_1",
+          "side": "-z",
+          "offset": -5.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "smelter_shutter_2",
+          "side": "-z",
+          "offset": 5.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "bunkhouse",
+      "name": "Dwarven Bunkhouse",
+      "floor": [
+        60,
+        26,
+        -630
+      ],
+      "size": [
+        18,
+        5,
+        12
+      ],
+      "thick": 0.6,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "bunkhouse_door",
+          "side": "+z",
+          "width": 1.4,
+          "height": 2.1,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "bunkhouse_shutter_1",
+          "side": "-z",
+          "offset": -4.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "bunkhouse_shutter_2",
+          "side": "-z",
+          "offset": 4.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "bunkhouse_shutter_3",
+          "side": "+x",
+          "offset": -3.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "vault",
+      "name": "Vaulted Strongroom",
+      "floor": [
+        20,
+        26,
+        -660
+      ],
+      "size": [
+        8,
+        4,
+        8
+      ],
+      "thick": 0.6,
+      "material": "stone",
+      "openings": [],
+      "doors": [
+        {
+          "id": "vault_door",
+          "side": "+z",
+          "width": 1.2,
+          "height": 2.2,
+          "lock": "locked",
+          "open": false,
+          "key": "vault_key",
+          "material": "iron"
+        }
+      ],
+      "windows": [
+        {
+          "id": "vault_shutter_1",
+          "side": "-z",
+          "offset": -2.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "vault_shutter_2",
+          "side": "-z",
+          "offset": 2.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "vault_shutter_3",
+          "side": "+x",
+          "offset": -2.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    },
+    {
+      "id": "miller_house",
+      "name": "Miller Farmhouse",
+      "floor": [
+        -280,
+        3,
+        160
+      ],
+      "size": [
+        10,
+        4,
+        8
+      ],
+      "thick": 0.3,
+      "material": "wood",
+      "openings": [],
+      "doors": [
+        {
+          "id": "miller_door",
+          "side": "+x",
+          "width": 1.2,
+          "height": 2.2,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "miller_house_shutter_1",
+          "side": "-z",
+          "offset": -2.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "miller_house_shutter_2",
+          "side": "-z",
+          "offset": 2.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "miller_house_shutter_3",
+          "side": "+x",
+          "offset": -2.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ],
+      "roof_material": "thatch"
+    },
+    {
+      "id": "miller_barn",
+      "name": "Miller Barn",
+      "floor": [
+        -268,
+        3,
+        174
+      ],
+      "size": [
+        12,
+        5,
+        10
+      ],
+      "thick": 0.25,
+      "material": "wood",
+      "openings": [
+        {
+          "side": "-z",
+          "width": 3.2,
+          "height": 3.4
+        }
+      ],
+      "doors": [],
+      "windows": [
+        {
+          "id": "miller_barn_shutter_1",
+          "side": "+x",
+          "offset": -2.5,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ],
+      "roof_material": "thatch"
+    },
+    {
+      "id": "oakford_house",
+      "name": "Oakford Farmhouse",
+      "floor": [
+        140,
+        2,
+        380
+      ],
+      "size": [
+        11,
+        4.5,
+        8
+      ],
+      "thick": 0.3,
+      "material": "wood",
+      "openings": [],
+      "doors": [
+        {
+          "id": "oakford_door",
+          "side": "-z",
+          "width": 1.2,
+          "height": 2.2,
+          "lock": "unlocked",
+          "open": false,
+          "key": "",
+          "material": "wood"
+        }
+      ],
+      "windows": [
+        {
+          "id": "oakford_house_shutter_1",
+          "side": "-z",
+          "offset": -2.75,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "oakford_house_shutter_2",
+          "side": "-z",
+          "offset": 2.75,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        },
+        {
+          "id": "oakford_house_shutter_3",
+          "side": "+x",
+          "offset": -2.0,
+          "sill": 1.05,
+          "width": 1.2,
+          "height": 1.3,
+          "open": true
+        }
+      ]
+    }
+  ],
+  "interior_doors": [
+    {
+      "id": "sheep_pen_gate",
+      "passage": true,
+      "center": [
+        -272,
+        3.52,
+        185
+      ],
+      "size": [
+        1.5,
+        1.04,
+        0.14
+      ],
+      "lock": "unlocked",
+      "open": false,
+      "key": "",
+      "material": "wood"
+    },
+    {
+      "id": "guild_archive",
+      "center": [
+        85,
+        5.2,
+        -37.8
+      ],
+      "size": [
+        1.4,
+        2.2,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "archive_key",
+      "material": "wood"
+    },
+    {
+      "id": "tavern_room_1",
+      "center": [
+        29,
+        4.85,
+        -42.7
+      ],
+      "size": [
+        1.0,
+        2.1,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "room_keys",
+      "material": "wood"
+    },
+    {
+      "id": "tavern_room_2",
+      "center": [
+        33,
+        4.85,
+        -42.7
+      ],
+      "size": [
+        1.0,
+        2.1,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "room_keys",
+      "material": "wood"
+    },
+    {
+      "id": "tavern_room_3",
+      "center": [
+        37,
+        4.85,
+        -42.7
+      ],
+      "size": [
+        1.0,
+        2.1,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "room_keys",
+      "material": "wood"
+    },
+    {
+      "id": "tavern_room_4",
+      "center": [
+        41,
+        4.85,
+        -42.7
+      ],
+      "size": [
+        1.0,
+        2.1,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "room_keys",
+      "material": "wood"
+    },
+    {
+      "id": "chapel_cabinet",
+      "center": [
+        134.5,
+        1.2,
+        -25
+      ],
+      "size": [
+        0.4,
+        1.6,
+        0.8
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "cabinet_key",
+      "material": "wood"
+    },
+    {
+      "id": "rune_vault",
+      "center": [
+        -637,
+        31.2,
+        -553
+      ],
+      "size": [
+        1.6,
+        2.4,
+        0.4
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "",
+      "material": "stone",
+      "mana_sealed": true
+    },
+    {
+      "id": "smith_storeroom",
+      "building": "forge",
+      "center": [
+        115,
+        1.1,
+        33.8
+      ],
+      "size": [
+        1.2,
+        2.2,
+        0.2
+      ],
+      "lock": "locked",
+      "open": false,
+      "key": "storeroom_key",
+      "material": "wood"
+    }
+  ],
+  "platforms": [
+    {
+      "id": "treewatch_mid",
+      "center": [
+        520,
+        24,
+        40
+      ],
+      "size": [
+        10,
+        0.25,
+        7
+      ]
+    },
+    {
+      "id": "treewatch_top",
+      "center": [
+        520,
+        30,
+        40
+      ],
+      "size": [
+        7,
+        0.25,
+        5
+      ]
+    },
+    {
+      "id": "treewatch_bridge",
+      "center": [
+        527,
+        30,
+        40
+      ],
+      "size": [
+        7,
+        0.25,
+        2
+      ]
+    },
+    {
+      "id": "treewatch_east",
+      "center": [
+        532.5,
+        30,
+        40
+      ],
+      "size": [
+        4,
+        0.25,
+        4
+      ]
+    },
+    {
+      "id": "tavern_upper_hall",
+      "center": [
+        35,
+        3.7,
+        -41.5
+      ],
+      "size": [
+        16.2,
+        0.2,
+        1.8
+      ],
+      "walkable": true
+    },
+    {
+      "id": "tavern_upper_south",
+      "center": [
+        36.7,
+        3.7,
+        -36.6
+      ],
+      "size": [
+        13.2,
+        0.2,
+        8.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "guild_upper_hall",
+      "center": [
+        86.35,
+        4,
+        -32.95
+      ],
+      "size": [
+        15.9,
+        0.2,
+        8.5
+      ],
+      "walkable": true
+    },
+    {
+      "id": "guild_upper_landing",
+      "center": [
+        77,
+        4,
+        -37.2
+      ],
+      "size": [
+        3.2,
+        0.2,
+        1.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "guild_archive_floor",
+      "center": [
+        85,
+        4,
+        -39.75
+      ],
+      "size": [
+        17.8,
+        0.2,
+        3.7
+      ],
+      "walkable": true
+    },
+    {
+      "id": "tavern_room_1_floor",
+      "center": [
+        29,
+        3.7,
+        -45.3
+      ],
+      "size": [
+        3.8,
+        0.2,
+        5.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "tavern_room_2_floor",
+      "center": [
+        33,
+        3.7,
+        -45.3
+      ],
+      "size": [
+        3.8,
+        0.2,
+        5.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "tavern_room_3_floor",
+      "center": [
+        37,
+        3.7,
+        -45.3
+      ],
+      "size": [
+        3.8,
+        0.2,
+        5.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "tavern_room_4_floor",
+      "center": [
+        41,
+        3.7,
+        -45.3
+      ],
+      "size": [
+        3.8,
+        0.2,
+        5.0
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_west",
+      "center": [
+        -26.3,
+        3.1,
+        0
+      ],
+      "size": [
+        1.8,
+        0.2,
+        177
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_east",
+      "center": [
+        167.8,
+        3.1,
+        0
+      ],
+      "size": [
+        1.8,
+        0.2,
+        177
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_north",
+      "center": [
+        70.75,
+        3.1,
+        -87.8
+      ],
+      "size": [
+        195.9,
+        0.2,
+        1.8
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_south",
+      "center": [
+        70.75,
+        3.1,
+        87.8
+      ],
+      "size": [
+        195.9,
+        0.2,
+        1.8
+      ],
+      "walkable": true
+    },
+    {
+      "id": "west_watch_deck",
+      "center": [
+        -25,
+        8.4,
+        -6.5
+      ],
+      "size": [
+        4.5,
+        0.2,
+        4
+      ],
+      "walkable": true
+    },
+    {
+      "id": "north_watch_deck",
+      "center": [
+        64,
+        7.9,
+        -87
+      ],
+      "size": [
+        4.6,
+        0.2,
+        4.2
+      ],
+      "walkable": true
+    },
+    {
+      "id": "smith_storeroom_lintel",
+      "building": "forge",
+      "center": [
+        115,
+        3.48,
+        33.8
+      ],
+      "size": [
+        1.2,
+        2.56,
+        0.2
+      ]
+    },
+    {
+      "id": "granary_floor",
+      "building": "granary",
+      "center": [
+        20,
+        0.4,
+        40
+      ],
+      "size": [
+        16.5,
+        0.8,
+        14.5
+      ],
+      "walkable": true
+    },
+    {
+      "id": "granary_entrance_landing",
+      "building": "granary",
+      "center": [
+        20,
+        0.7,
+        48.25
+      ],
+      "size": [
+        3.2,
+        0.2,
+        2
+      ],
+      "walkable": true
+    },
+    {
+      "id": "granary_loft",
+      "building": "granary",
+      "center": [
+        21.75,
+        3.7,
+        36.225
+      ],
+      "size": [
+        12,
+        0.2,
+        5.95
+      ],
+      "walkable": true
+    },
+    {
+      "id": "granary_loft_landing",
+      "building": "granary",
+      "center": [
+        14,
+        3.7,
+        34.525
+      ],
+      "size": [
+        3.5,
+        0.2,
+        2.55
+      ],
+      "walkable": true
+    },
+    {
+      "id": "forge_floor",
+      "building": "forge",
+      "center": [
+        115,
+        -0.1,
+        35
+      ],
+      "size": [
+        13.6,
+        0.2,
+        11.6
+      ],
+      "walkable": true,
+      "navigation_grid": true
+    }
+  ],
+  "carts": [
+    {
+      "id": "oakford_cart",
+      "name": "Oakford mule cart",
+      "at": [
+        140.8,
+        2,
+        369
+      ]
+    },
+    {
+      "id": "anvil_cart",
+      "name": "Anvil mule cart",
+      "at": [
+        48,
+        26,
+        -625
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "guild_board",
+      "name": "Guild notice board",
+      "kind": "board",
+      "center": [
+        78,
+        1.1,
+        -35
+      ],
+      "size": [
+        0.2,
+        1.6,
+        2
+      ],
+      "approaches": [
+        [
+          80,
+          0,
+          -35
+        ],
+        [
+          80,
+          0,
+          -36.8
+        ],
+        [
+          80,
+          0,
+          -33.2
+        ]
+      ]
+    },
+    {
+      "id": "guild_appraisal",
+      "name": "Crystal appraisal desk",
+      "kind": "table",
+      "center": [
+        92,
+        0.55,
+        -35
+      ],
+      "size": [
+        1.4,
+        1.1,
+        1.2
+      ],
+      "approaches": [
+        [
+          90.5,
+          0,
+          -35
+        ]
+      ],
+      "recipe": "cut_light_stone",
+      "recipes": [
+        "cut_light_stone",
+        "cut_catalysts"
+      ]
+    },
+    {
+      "id": "forge_anvil",
+      "name": "Town smith's anvil",
+      "kind": "workstation",
+      "center": [
+        112,
+        0.8,
+        36.5
+      ],
+      "size": [
+        0.6,
+        0.8,
+        1.2
+      ],
+      "approaches": [
+        [
+          113.5,
+          0,
+          36.5
+        ]
+      ],
+      "recipe": "forge_pickaxe",
+      "recipes": [
+        "forge_pickaxe",
+        "forge_nails",
+        "forge_lock",
+        "forge_sword",
+        "forge_arrowheads",
+        "forge_axe",
+        "forge_hammer"
+      ]
+    },
+    {
+      "id": "west_fire_ring",
+      "name": "West road fire ring",
+      "kind": "fire",
+      "center": [
+        -184,
+        2.24,
+        10
+      ],
+      "size": [
+        1.35,
+        0.48,
+        1.35
+      ],
+      "approaches": [
+        [
+          -182,
+          2,
+          13
+        ]
+      ],
+      "recipe": "light_campfire"
+    },
+    {
+      "id": "town_fire_ring",
+      "name": "Watch shelter fire ring",
+      "kind": "fire",
+      "center": [
+        53,
+        0.24,
+        2.5
+      ],
+      "size": [
+        1.35,
+        0.48,
+        1.35
+      ],
+      "approaches": [
+        [
+          52,
+          0,
+          3.8
+        ],
+        [
+          54.5,
+          0,
+          3.8
+        ],
+        [
+          51.5,
+          0,
+          1
+        ]
+      ],
+      "recipe": "light_campfire"
+    },
+    {
+      "id": "spire_inscription",
+      "name": "Spire inscription",
+      "kind": "inscription",
+      "center": [
+        -642,
+        38.7,
+        -561.5
+      ],
+      "size": [
+        0.9,
+        1.4,
+        0.3
+      ],
+      "approaches": [
+        [
+          -641.7,
+          38,
+          -559.8
+        ]
+      ],
+      "text": "The granite seal yields to unseal. Forty-five mana wakes the ring. A matching seal fragment channels the same release with twenty."
+    },
+    {
+      "id": "spire_crystals",
+      "name": "Crystal cluster on the vault plinth",
+      "kind": "deposit",
+      "center": [
+        -637,
+        30.65,
+        -543.2
+      ],
+      "size": [
+        1.8,
+        1.3,
+        1.05
+      ],
+      "approaches": [
+        [
+          -637,
+          30,
+          -545
+        ]
+      ],
+      "recipe": "lift_spire_crystal",
+      "batches": 3
+    },
+    {
+      "id": "shepherd_post",
+      "name": "Miller shepherd post",
+      "kind": "table",
+      "center": [
+        -270.7,
+        3.6,
+        183.75
+      ],
+      "size": [
+        0.42,
+        1.2,
+        0.42
+      ],
+      "approaches": [
+        [
+          -270,
+          3,
+          183.5
+        ]
+      ],
+      "recipe": "herd_sheep"
+    },
+    {
+      "id": "cellar_bins",
+      "name": "Root cellar bins",
+      "kind": "storage",
+      "center": [
+        163,
+        2.55,
+        373.5
+      ],
+      "size": [
+        2.6,
+        1.1,
+        0.9
+      ],
+      "approaches": [
+        [
+          163,
+          2,
+          375
+        ]
+      ]
+    },
+    {
+      "id": "oakford_orchard",
+      "name": "Oakford apple orchard",
+      "kind": "orchard",
+      "center": [
+        163,
+        2.9,
+        364
+      ],
+      "size": [
+        0.3,
+        1.8,
+        0.3
+      ],
+      "approaches": [
+        [
+          162,
+          2,
+          365
+        ],
+        [
+          163,
+          2,
+          365.2
+        ]
+      ],
+      "recipe": "pick_apples",
+      "batches": 8
+    },
+    {
+      "id": "miller_field",
+      "name": "Miller grain field",
+      "kind": "field",
+      "center": [
+        -296,
+        3.2,
+        174
+      ],
+      "size": [
+        0.2,
+        0.4,
+        0.2
+      ],
+      "approaches": [
+        [
+          -287,
+          3,
+          174
+        ]
+      ],
+      "recipes": [
+        "sow_grain",
+        "harvest_grain"
+      ],
+      "plot": [
+        14.6,
+        14.6
+      ]
+    },
+    {
+      "id": "oakford_field",
+      "name": "Oakford grain field",
+      "kind": "field",
+      "center": [
+        160,
+        2.2,
+        399
+      ],
+      "size": [
+        0.2,
+        0.4,
+        0.2
+      ],
+      "approaches": [
+        [
+          151,
+          2,
+          399
+        ]
+      ],
+      "recipes": [
+        "sow_grain",
+        "harvest_grain"
+      ],
+      "plot": [
+        14.2,
+        16.2
+      ]
+    },
+    {
+      "id": "miller_well",
+      "name": "Miller farm well",
+      "kind": "spring",
+      "center": [
+        -284,
+        3.45,
+        168
+      ],
+      "size": [
+        1.25,
+        0.9,
+        1.25
+      ],
+      "approaches": [
+        [
+          -284,
+          3,
+          166.3
+        ]
+      ],
+      "recipe": "draw_water"
+    },
+    {
+      "id": "oakford_well",
+      "name": "Oakford farm well",
+      "kind": "spring",
+      "center": [
+        146,
+        2.45,
+        393
+      ],
+      "size": [
+        1.25,
+        0.9,
+        1.25
+      ],
+      "approaches": [
+        [
+          146,
+          2,
+          391
+        ]
+      ],
+      "recipe": "draw_water"
+    },
+    {
+      "id": "treewatch_ladder",
+      "name": "Treewatch rope ladder",
+      "kind": "ladder",
+      "center": [
+        518.55,
+        20.95,
+        40
+      ],
+      "size": [
+        0.16,
+        5.9,
+        0.85
+      ],
+      "approaches": [
+        [
+          518,
+          18,
+          40
+        ]
+      ]
+    },
+    {
+      "id": "spring_basin",
+      "name": "Sacred Spring basin",
+      "kind": "spring",
+      "center": [
+        782,
+        24.45,
+        -179
+      ],
+      "size": [
+        1.6,
+        0.9,
+        1.6
+      ],
+      "approaches": [
+        [
+          779.8,
+          24,
+          -179
+        ]
+      ],
+      "recipe": "draw_water"
+    },
+    {
+      "id": "spring_herbs",
+      "name": "Spring herb patch",
+      "kind": "herbs",
+      "center": [
+        781.4,
+        24.25,
+        -184
+      ],
+      "size": [
+        1,
+        0.5,
+        0.85
+      ],
+      "approaches": [
+        [
+          780,
+          24,
+          -184
+        ]
+      ],
+      "recipe": "gather_herbs",
+      "batches": 12
+    },
+    {
+      "id": "border_pines",
+      "name": "Managed pines",
+      "kind": "timber",
+      "center": [
+        313,
+        10.25,
+        24.5
+      ],
+      "size": [
+        0.85,
+        3,
+        0.85
+      ],
+      "approaches": [
+        [
+          313,
+          8.8,
+          22.4
+        ]
+      ],
+      "recipe": "cut_timber",
+      "batches": 14
+    },
+    {
+      "id": "charcoal_pit",
+      "name": "Charcoal pit",
+      "kind": "workstation",
+      "center": [
+        307,
+        8.7,
+        24.6
+      ],
+      "size": [
+        2,
+        1.2,
+        1.4
+      ],
+      "approaches": [
+        [
+          307,
+          8.4,
+          22.1
+        ]
+      ],
+      "recipe": "burn_charcoal"
+    },
+    {
+      "id": "chapel_workbench",
+      "name": "Apothecary table",
+      "kind": "table",
+      "center": [
+        127.5,
+        0.55,
+        -26.8
+      ],
+      "size": [
+        1.4,
+        1.1,
+        0.8
+      ],
+      "approaches": [
+        [
+          127.5,
+          0,
+          -25
+        ]
+      ],
+      "recipe": "herbal_tonic",
+      "recipes": [
+        "herbal_tonic",
+        "bandage",
+        "fever_poultice"
+      ]
+    },
+    {
+      "id": "granary_bins",
+      "name": "Grain bins",
+      "kind": "storage",
+      "center": [
+        20,
+        1.35,
+        38.5
+      ],
+      "size": [
+        2.6,
+        1.1,
+        0.9
+      ],
+      "approaches": [
+        [
+          20,
+          0.8,
+          40
+        ],
+        [
+          19,
+          0.8,
+          40
+        ],
+        [
+          21,
+          0.8,
+          40
+        ]
+      ]
+    },
+    {
+      "id": "inn_oven",
+      "name": "Bread oven",
+      "kind": "workstation",
+      "center": [
+        32,
+        0.8,
+        -44.5
+      ],
+      "size": [
+        2.2,
+        1.6,
+        1.4
+      ],
+      "approaches": [
+        [
+          32,
+          0,
+          -42.5
+        ],
+        [
+          31,
+          0,
+          -42.5
+        ],
+        [
+          33,
+          0,
+          -42.5
+        ]
+      ],
+      "recipe": "bread",
+      "recipes": [
+        "bread",
+        "bake_flour",
+        "brew_ale"
+      ]
+    },
+    {
+      "id": "ore_vein",
+      "name": "Iron ore seam",
+      "kind": "deposit",
+      "center": [
+        35,
+        28.7,
+        -760
+      ],
+      "size": [
+        0.55,
+        1.4,
+        1.6
+      ],
+      "approaches": [
+        [
+          36.5,
+          28,
+          -760
+        ],
+        [
+          36.5,
+          28,
+          -759
+        ]
+      ],
+      "recipe": "mine_iron",
+      "batches": 24
+    },
+    {
+      "id": "mine_rubble",
+      "name": "Collapsed mine passage",
+      "kind": "obstruction",
+      "center": [
+        45,
+        14.47,
+        -840
+      ],
+      "size": [
+        2.55,
+        0.94,
+        1.6
+      ],
+      "approaches": [
+        [
+          45,
+          14,
+          -838.2
+        ]
+      ],
+      "recipe": "clear_rubble",
+      "batches": 1
+    },
+    {
+      "id": "crystal_vein",
+      "name": "Mana crystal vein",
+      "kind": "deposit",
+      "center": [
+        43.97,
+        14.75,
+        -844
+      ],
+      "size": [
+        0.5,
+        1.5,
+        1.4
+      ],
+      "approaches": [
+        [
+          45,
+          14,
+          -843
+        ],
+        [
+          45,
+          14,
+          -845
+        ]
+      ],
+      "recipe": "mine_crystal",
+      "batches": 6
+    },
+    {
+      "id": "smelter_furnace",
+      "name": "Blast furnace",
+      "kind": "workstation",
+      "center": [
+        28.8,
+        27.2,
+        -632
+      ],
+      "size": [
+        2.2,
+        2.4,
+        1.4
+      ],
+      "approaches": [
+        [
+          29,
+          26,
+          -634
+        ],
+        [
+          31,
+          26,
+          -633
+        ],
+        [
+          31,
+          26,
+          -632
+        ]
+      ],
+      "recipe": "iron_bar",
+      "stock": "smelter_stock"
+    },
+    {
+      "id": "tavern_bed_1",
+      "name": "Guest room 1 bed",
+      "kind": "bed",
+      "center": [
+        29.7,
+        4.15,
+        -45.9
+      ],
+      "size": [
+        1.1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          28.4,
+          3.8,
+          -44.8
+        ]
+      ]
+    },
+    {
+      "id": "tavern_bed_2",
+      "name": "Guest room 2 bed",
+      "kind": "bed",
+      "center": [
+        33.7,
+        4.15,
+        -45.9
+      ],
+      "size": [
+        1.1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          32.4,
+          3.8,
+          -44.8
+        ]
+      ]
+    },
+    {
+      "id": "tavern_bed_3",
+      "name": "Guest room 3 bed",
+      "kind": "bed",
+      "center": [
+        37.7,
+        4.15,
+        -45.9
+      ],
+      "size": [
+        1.1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          36.4,
+          3.8,
+          -44.8
+        ]
+      ]
+    },
+    {
+      "id": "tavern_bed_4",
+      "name": "Guest room 4 bed",
+      "kind": "bed",
+      "center": [
+        41.7,
+        4.15,
+        -45.9
+      ],
+      "size": [
+        1.1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          40.4,
+          3.8,
+          -44.8
+        ]
+      ]
+    },
+    {
+      "id": "guild_archive_shelves",
+      "name": "Guild archive shelves",
+      "kind": "records",
+      "center": [
+        91,
+        5.1,
+        -40.5
+      ],
+      "size": [
+        3.2,
+        2,
+        0.4
+      ],
+      "approaches": [
+        [
+          91,
+          4.1,
+          -39.4
+        ]
+      ],
+      "text": "Bound ledgers of completed contracts and regional trade records. The shelves are kept in the locked upper archive."
+    },
+    {
+      "id": "watch_bell",
+      "name": "West gate alarm bell",
+      "kind": "bell",
+      "center": [
+        -24,
+        9.7,
+        -6.5
+      ],
+      "size": [
+        0.6,
+        0.8,
+        0.6
+      ],
+      "approaches": [
+        [
+          -25,
+          8.5,
+          -6.5
+        ]
+      ],
+      "recipe": "ring_alarm"
+    },
+    {
+      "id": "granary_mill",
+      "name": "Granary hand mill",
+      "kind": "workstation",
+      "center": [
+        25.5,
+        1.4,
+        35
+      ],
+      "size": [
+        1.0,
+        1.2,
+        1.2
+      ],
+      "approaches": [
+        [
+          24,
+          0.8,
+          35
+        ]
+      ],
+      "recipe": "mill_flour"
+    },
+    {
+      "id": "timber_bench",
+      "name": "Shoring timber bench",
+      "kind": "workstation",
+      "center": [
+        302,
+        0.6,
+        26
+      ],
+      "size": [
+        2.2,
+        1.2,
+        0.8
+      ],
+      "approaches": [
+        [
+          302,
+          0,
+          24.5
+        ]
+      ],
+      "recipe": "shape_brace"
+    },
+    {
+      "id": "chapel_cot_1",
+      "name": "Infirmary cot 1",
+      "kind": "bed",
+      "center": [
+        132.1,
+        0.35,
+        -27.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          131.1,
+          0,
+          -27.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_2",
+      "name": "Infirmary cot 2",
+      "kind": "bed",
+      "center": [
+        134.3,
+        0.35,
+        -27.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          133.3,
+          0,
+          -27.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_3",
+      "name": "Infirmary cot 3",
+      "kind": "bed",
+      "center": [
+        132.1,
+        0.35,
+        -22.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          131.1,
+          0,
+          -22.8
+        ]
+      ]
+    },
+    {
+      "id": "chapel_cot_4",
+      "name": "Infirmary cot 4",
+      "kind": "bed",
+      "center": [
+        134.3,
+        0.35,
+        -22.8
+      ],
+      "size": [
+        1,
+        0.7,
+        1.8
+      ],
+      "approaches": [
+        [
+          133.3,
+          0,
+          -22.8
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_1",
+      "name": "Miner bunk 1",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -633
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -633
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_2",
+      "name": "Miner bunk 2",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -629
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -629
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_3",
+      "name": "Miner bunk 3",
+      "kind": "bed",
+      "center": [
+        52.5,
+        26.4,
+        -625.5
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          53.8,
+          26,
+          -625.5
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_4",
+      "name": "Miner bunk 4",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -633
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -633
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_5",
+      "name": "Miner bunk 5",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -629
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -629
+        ]
+      ]
+    },
+    {
+      "id": "bunkhouse_bed_6",
+      "name": "Miner bunk 6",
+      "kind": "bed",
+      "center": [
+        67.5,
+        26.4,
+        -625.5
+      ],
+      "size": [
+        1.1,
+        0.8,
+        2
+      ],
+      "approaches": [
+        [
+          66.2,
+          26,
+          -625.5
+        ]
+      ]
+    },
+    {
+      "id": "forge_stock",
+      "building": "forge",
+      "name": "Smith storeroom stock",
+      "kind": "storage",
+      "center": [
+        115,
+        0.65,
+        30
+      ],
+      "size": [
+        3,
+        1.3,
+        0.8
+      ],
+      "approaches": [
+        [
+          115,
+          0,
+          31.6
+        ]
+      ]
+    },
+    {
+      "id": "forge_furnace",
+      "building": "forge",
+      "name": "Smith furnace",
+      "kind": "workstation",
+      "center": [
+        118,
+        1.2,
+        37
+      ],
+      "size": [
+        2.2,
+        2.4,
+        1.6
+      ],
+      "approaches": [
+        [
+          116.2,
+          0,
+          37
+        ]
+      ],
+      "recipe": "iron_bar",
+      "stock": "forge_stock"
+    },
+    {
+      "id": "forge_bellows",
+      "building": "forge",
+      "name": "Smith bellows",
+      "kind": "bellows",
+      "center": [
+        120.3,
+        0.55,
+        37.8
+      ],
+      "size": [
+        1.2,
+        1.1,
+        1.6
+      ],
+      "approaches": [
+        [
+          118,
+          0,
+          40
+        ]
+      ]
+    },
+    {
+      "id": "forge_quench_trough",
+      "building": "forge",
+      "name": "Smith quench trough",
+      "kind": "trough",
+      "center": [
+        120.5,
+        0.45,
+        34.9
+      ],
+      "size": [
+        1.2,
+        0.9,
+        1.8
+      ],
+      "approaches": [
+        [
+          118.8,
+          0,
+          34.9
+        ]
+      ]
+    },
+    {
+      "id": "granary_loft_stock",
+      "building": "granary",
+      "name": "Loft salt and provision chests",
+      "kind": "storage",
+      "center": [
+        24.5,
+        4.35,
+        35
+      ],
+      "size": [
+        2.4,
+        1.1,
+        1.2
+      ],
+      "approaches": [
+        [
+          23,
+          3.8,
+          36
+        ]
+      ]
+    }
+  ],
+  "links": [
+    {
+      "id": "treewatch_lower_ladder",
+      "from": [
+        518,
+        18,
+        40
+      ],
+      "to": [
+        518,
+        24.125,
+        40
+      ],
+      "control": "treewatch_ladder"
+    },
+    {
+      "id": "treewatch_upper_ladder",
+      "from": [
+        518,
+        24.125,
+        40
+      ],
+      "to": [
+        518,
+        30.125,
+        40
+      ]
+    },
+    {
+      "id": "treewatch_bridge_west",
+      "from": [
+        522.4,
+        30.125,
+        40
+      ],
+      "to": [
+        524.6,
+        30.125,
+        40
+      ]
+    },
+    {
+      "id": "treewatch_bridge_east",
+      "from": [
+        529.4,
+        30.125,
+        40
+      ],
+      "to": [
+        531.6,
+        30.125,
+        40
+      ]
+    },
+    {
+      "id": "mine_shaft",
+      "from": [
+        45,
+        28,
+        -800
+      ],
+      "to": [
+        45,
+        14,
+        -800
+      ]
+    },
+    {
+      "id": "guild_upper_join",
+      "from": [
+        77.6,
+        4.1,
+        -37.1
+      ],
+      "to": [
+        79.2,
+        4.1,
+        -36.9
+      ]
+    },
+    {
+      "id": "tavern_upper_join",
+      "from": [
+        35,
+        3.8,
+        -41
+      ],
+      "to": [
+        35,
+        3.8,
+        -39.5
+      ]
+    },
+    {
+      "from": [
+        -26.3,
+        3.2,
+        -85
+      ],
+      "to": [
+        -24,
+        3.2,
+        -87.8
+      ]
+    },
+    {
+      "from": [
+        165,
+        3.2,
+        -87.8
+      ],
+      "to": [
+        167.8,
+        3.2,
+        -85
+      ]
+    },
+    {
+      "from": [
+        167.8,
+        3.2,
+        85
+      ],
+      "to": [
+        165,
+        3.2,
+        87.8
+      ]
+    },
+    {
+      "from": [
+        -24,
+        3.2,
+        87.8
+      ],
+      "to": [
+        -26.3,
+        3.2,
+        85
+      ]
+    },
+    {
+      "id": "granary_loft_join",
+      "from": [
+        14.9,
+        3.8,
+        34.5
+      ],
+      "to": [
+        16.5,
+        3.8,
+        34.5
+      ]
+    },
+    {
+      "from": [
+        115,
+        0,
+        40.2
+      ],
+      "to": [
+        115,
+        0,
+        42.5
+      ]
+    }
+  ],
+  "roads": [
+    {
+      "id": "west_road",
+      "width": 6,
+      "points": [
+        [
+          -32,
+          0,
+          0
+        ],
+        [
+          -65,
+          0.15,
+          0
+        ],
+        [
+          -120,
+          1,
+          8
+        ],
+        [
+          -180,
+          2,
+          15
+        ],
+        [
+          -230,
+          2.5,
+          80
+        ],
+        [
+          -292,
+          3,
+          152
+        ]
+      ]
+    },
+    {
+      "id": "south_road",
+      "width": 6,
+      "points": [
+        [
+          172,
+          0,
+          10
+        ],
+        [
+          183,
+          0,
+          65
+        ],
+        [
+          187,
+          0,
+          103
+        ],
+        [
+          138,
+          0,
+          143
+        ],
+        [
+          80,
+          0,
+          180
+        ],
+        [
+          110,
+          1,
+          280
+        ],
+        [
+          140,
+          2,
+          368
+        ],
+        [
+          40,
+          1,
+          440
+        ],
+        [
+          -10,
+          0,
+          480
+        ],
+        [
+          -22,
+          0,
+          480
+        ]
+      ]
+    },
+    {
+      "id": "north_road",
+      "width": 6,
+      "points": [
+        [
+          60,
+          0,
+          -92
+        ],
+        [
+          55,
+          4,
+          -200
+        ],
+        [
+          50,
+          12,
+          -360
+        ],
+        [
+          45,
+          20,
+          -500
+        ],
+        [
+          40,
+          26,
+          -640
+        ]
+      ]
+    },
+    {
+      "id": "east_trail",
+      "width": 3.5,
+      "points": [
+        [
+          172,
+          0,
+          10
+        ],
+        [
+          240,
+          2,
+          14
+        ],
+        [
+          300,
+          7,
+          18
+        ],
+        [
+          340,
+          12,
+          20
+        ],
+        [
+          420,
+          15,
+          28
+        ],
+        [
+          520,
+          18,
+          40
+        ]
+      ]
+    },
+    {
+      "id": "spring_trail",
+      "width": 2.5,
+      "points": [
+        [
+          520,
+          18,
+          40
+        ],
+        [
+          600,
+          20,
+          -20
+        ],
+        [
+          690,
+          22,
+          -100
+        ],
+        [
+          780,
+          24,
+          -180
+        ]
+      ]
+    },
+    {
+      "id": "ruins_trail",
+      "width": 3,
+      "points": [
+        [
+          -292,
+          3,
+          152
+        ],
+        [
+          -400,
+          12,
+          40
+        ],
+        [
+          -520,
+          24,
+          -220
+        ],
+        [
+          -620,
+          38,
+          -548
+        ]
+      ]
+    },
+    {
+      "id": "ravine_track",
+      "width": 3.2,
+      "points": [
+        [
+          -670,
+          38,
+          -530
+        ],
+        [
+          -702,
+          32,
+          -481
+        ],
+        [
+          -736,
+          36,
+          -447
+        ],
+        [
+          -756,
+          42,
+          -425
+        ],
+        [
+          -760,
+          42,
+          -407
+        ]
+      ]
+    },
+    {
+      "id": "wolf_track",
+      "width": 3.2,
+      "points": [
+        [
+          -760,
+          42,
+          -407
+        ],
+        [
+          -755,
+          40,
+          -391
+        ],
+        [
+          -742,
+          31,
+          -379
+        ],
+        [
+          -723,
+          39,
+          -360
+        ],
+        [
+          -720,
+          40,
+          -336
+        ]
+      ]
+    },
+    {
+      "id": "ferry_west_road",
+      "width": 4,
+      "points": [
+        [
+          -120,
+          1,
+          8
+        ],
+        [
+          -120,
+          0,
+          200
+        ],
+        [
+          -90,
+          0,
+          340
+        ],
+        [
+          -62,
+          0,
+          480
+        ]
+      ]
+    }
+  ],
+  "places": {
+    "town_square": [
+      50,
+      0,
+      0
+    ],
+    "market_wagon_bay": [
+      61,
+      0,
+      -18
+    ],
+    "west_gate": [
+      -36,
+      0,
+      0
+    ],
+    "west_gate_inside": [
+      -24,
+      0,
+      0
+    ],
+    "north_gate": [
+      60,
+      0,
+      -96
+    ],
+    "north_gate_inside": [
+      60,
+      0,
+      -84
+    ],
+    "east_postern": [
+      176,
+      0,
+      10
+    ],
+    "east_postern_inside": [
+      164,
+      0,
+      10
+    ],
+    "guild_hall": [
+      85,
+      0,
+      -35
+    ],
+    "guild_doorstep": [
+      85,
+      0,
+      -26.6
+    ],
+    "tavern": [
+      35,
+      0,
+      -40
+    ],
+    "tavern_doorstep": [
+      35,
+      0,
+      -31.2
+    ],
+    "forge": [
+      115,
+      0,
+      35
+    ],
+    "granary": [
+      20,
+      0.8,
+      40
+    ],
+    "granary_doorstep": [
+      20,
+      0.8,
+      47.6
+    ],
+    "chapel": [
+      130,
+      0,
+      -25
+    ],
+    "miller_croft": [
+      -292,
+      3,
+      152
+    ],
+    "sheep_pen_gate": [
+      -272,
+      3,
+      183.4
+    ],
+    "oakford": [
+      140,
+      2,
+      368
+    ],
+    "south_ferry": [
+      -10,
+      0,
+      480
+    ],
+    "ferry_west": [
+      -62,
+      0,
+      480
+    ],
+    "ferry_east": [
+      -22,
+      0,
+      480
+    ],
+    "anvil_yard": [
+      40,
+      26,
+      -640
+    ],
+    "mine_portal": [
+      45,
+      28,
+      -685
+    ],
+    "mine_level2": [
+      45,
+      14,
+      -830
+    ],
+    "treewatch": [
+      520,
+      18,
+      40
+    ],
+    "treewatch_mid": [
+      520,
+      24.125,
+      40
+    ],
+    "treewatch_top": [
+      520,
+      30.125,
+      40
+    ],
+    "treewatch_east": [
+      532.5,
+      30.125,
+      40
+    ],
+    "sacred_spring": [
+      780,
+      24,
+      -180
+    ],
+    "sunken_spire": [
+      -620,
+      38,
+      -548
+    ],
+    "spire_west_gap": [
+      -650,
+      38,
+      -560
+    ],
+    "spire_floor": [
+      -641,
+      38,
+      -560
+    ],
+    "spire_steps": [
+      -637,
+      38,
+      -567.35
+    ],
+    "spire_ledge": [
+      -643.2,
+      47,
+      -564.8
+    ],
+    "spire_vestibule": [
+      -637,
+      30,
+      -554.5
+    ],
+    "goblin_ravine": [
+      -759,
+      42,
+      -403
+    ],
+    "goblin_cave": [
+      -758.5,
+      42,
+      -424
+    ],
+    "wolf_den": [
+      -720,
+      40,
+      -350
+    ],
+    "west_road": [
+      -180,
+      2,
+      15
+    ],
+    "tavern_room_1_doorstep": [
+      29,
+      3.8,
+      -41.2
+    ],
+    "tavern_room_2_doorstep": [
+      33,
+      3.8,
+      -41.2
+    ],
+    "tavern_room_3_doorstep": [
+      37,
+      3.8,
+      -41.2
+    ],
+    "tavern_room_4_doorstep": [
+      41,
+      3.8,
+      -41.2
+    ],
+    "tavern_landing": [
+      28,
+      3.8,
+      -41.2
+    ],
+    "guild_landing": [
+      77,
+      4.1,
+      -37.2
+    ],
+    "guild_archive_doorstep": [
+      85,
+      4.1,
+      -36.1
+    ],
+    "wall_walk": [
+      -26.3,
+      3.2,
+      -20.1
+    ],
+    "wall_walk_north": [
+      -24,
+      3.2,
+      -87.8
+    ],
+    "wall_walk_east": [
+      167.8,
+      3.2,
+      -85
+    ],
+    "wall_walk_south": [
+      165,
+      3.2,
+      87.8
+    ],
+    "wall_walk_southwest": [
+      -26.3,
+      3.2,
+      85
+    ],
+    "west_watch": [
+      -25,
+      8.5,
+      -6.5
+    ],
+    "north_watch": [
+      64,
+      8,
+      -87
+    ],
+    "smith_stock_access": [
+      115,
+      0,
+      31.6
+    ],
+    "granary_stair_foot": [
+      20,
+      0,
+      52.4
+    ],
+    "granary_loft": [
+      21,
+      3.8,
+      36
+    ]
+  },
+  "mine": {
+    "portal": [
+      45,
+      28,
+      -685
+    ],
+    "width": 3,
+    "height": 2.8,
+    "level1_to_z": -890,
+    "shaft": [
+      45,
+      28,
+      -800
+    ],
+    "level2_y": 14,
+    "level2_to_z": -860
+  },
+  "upper_rooms": [
+    {
+      "id": "guild_archive",
+      "name": "Guild archive",
+      "bounds": [
+        76,
+        94,
+        -42,
+        -37.8
+      ],
+      "floor_y": 4.1,
+      "ceiling_y": 7.8,
+      "door": "guild_archive",
+      "exterior_back": true
+    },
+    {
+      "id": "tavern_room_1",
+      "name": "Guest room 1",
+      "bounds": [
+        27,
+        31,
+        -48,
+        -42.7
+      ],
+      "floor_y": 3.8,
+      "ceiling_y": 7.3,
+      "door": "tavern_room_1",
+      "exterior_back": true
+    },
+    {
+      "id": "tavern_room_2",
+      "name": "Guest room 2",
+      "bounds": [
+        31,
+        35,
+        -48,
+        -42.7
+      ],
+      "floor_y": 3.8,
+      "ceiling_y": 7.3,
+      "door": "tavern_room_2",
+      "exterior_back": true
+    },
+    {
+      "id": "tavern_room_3",
+      "name": "Guest room 3",
+      "bounds": [
+        35,
+        39,
+        -48,
+        -42.7
+      ],
+      "floor_y": 3.8,
+      "ceiling_y": 7.3,
+      "door": "tavern_room_3",
+      "exterior_back": true
+    },
+    {
+      "id": "tavern_room_4",
+      "name": "Guest room 4",
+      "bounds": [
+        39,
+        43,
+        -48,
+        -42.7
+      ],
+      "floor_y": 3.8,
+      "ceiling_y": 7.3,
+      "door": "tavern_room_4",
+      "exterior_back": true
+    },
+    {
+      "id": "smith_back_storeroom",
+      "building": "forge",
+      "name": "Smith back storeroom",
+      "bounds": [
+        108.2,
+        121.8,
+        29.2,
+        33.8
+      ],
+      "floor_y": 0,
+      "ceiling_y": 4.76,
+      "door": "smith_storeroom",
+      "exterior_back": true
+    }
+  ],
+  "stairs": [
+    {
+      "id": "tavern_stairs",
+      "name": "Inn staircase",
+      "from": [
+        28,
+        0,
+        -33.5
+      ],
+      "to": [
+        28,
+        3.8,
+        -41.2
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "guild_stairs",
+      "name": "Guild staircase",
+      "from": [
+        77,
+        0,
+        -29.5
+      ],
+      "to": [
+        77,
+        4.1,
+        -37.2
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "wall_walk_stairs",
+      "name": "Wall patrol stair",
+      "from": [
+        -26.3,
+        0,
+        -26.5
+      ],
+      "to": [
+        -26.3,
+        3.2,
+        -20.1
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "west_watch_stairs",
+      "name": "West watch stair",
+      "from": [
+        -26.3,
+        3.2,
+        -19
+      ],
+      "to": [
+        -26.3,
+        8.5,
+        -7.5
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "north_watch_stairs",
+      "name": "North watch stair",
+      "from": [
+        72,
+        3.2,
+        -87
+      ],
+      "to": [
+        64,
+        8,
+        -87
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "granary_entrance_stairs",
+      "building": "granary",
+      "name": "Granary entrance stair",
+      "from": [
+        20,
+        0,
+        52.4
+      ],
+      "to": [
+        20,
+        0.8,
+        49.25
+      ],
+      "width": 2.4
+    },
+    {
+      "id": "granary_loft_stairs",
+      "building": "granary",
+      "name": "Granary loft stair",
+      "from": [
+        14,
+        0.8,
+        43.8
+      ],
+      "to": [
+        14,
+        3.8,
+        35.8
+      ],
+      "width": 1.4
+    }
+  ]
+}
