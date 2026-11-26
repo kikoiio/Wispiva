@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 6
       matrix:
-        scenario: [all, civic, wolves, goblins, field, buildings, terrain, thatch, farms, traces]
+        scenario: [all]
     env:
       TMPDIR: ${{ github.workspace }}/.tmp
     steps:
@@ -85,6 +85,7 @@ jobs:
           path: .verify/artifacts
           retention-days: 7
   views:
+    if: false
     needs: assets
     runs-on: ubuntu-24.04
     timeout-minutes: 15

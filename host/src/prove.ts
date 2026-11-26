@@ -734,7 +734,13 @@ async function proveSpire(world: WorldClient): Promise<void> {
     return response.result;
   }
   async function reach(destination: string) {
-    const result = resultOf(await walk(world, traveler, destination));
+    let result = resultOf(await walk(world, traveler, destination));
+    for (let attempt = 0; attempt < 12 && result.arrived !== true; attempt++) {
+      if (!isRecord(result.blocked) || result.blocked.kind !== "agent") break;
+      const waited = await world.call("host", "world_step", { minutes: 1 });
+      assert.ok(waited.ok, JSON.stringify(waited.error));
+      result = resultOf(await walk(world, traveler, destination));
+    }
     assert.equal(result.arrived, true, `${destination}: ${JSON.stringify(result)}`);
     return result;
   }
