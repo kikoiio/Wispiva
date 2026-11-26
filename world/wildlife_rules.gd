@@ -9,7 +9,8 @@ func _init(world_root) -> void:
 func advance_beast(beast, target: Vector3, distance: float) -> void:
 	if beast.pos.distance_to(target) < 1.2:
 		return
-	var changed: bool = not beast.has("route_target") or beast.route_target.distance_to(target) > 5.0
+	var generation := NavigationServer3D.map_get_iteration_id(world.map_rid)
+	var changed: bool = not beast.has("route_target") or beast.route_target.distance_to(target) > 0.75 or beast.get("route_generation", -1) != generation
 	if changed or not beast.has("route"):
 		var start := NavigationServer3D.map_get_closest_point(world.map_rid, beast.pos)
 		var goal := NavigationServer3D.map_get_closest_point(world.map_rid, target)
@@ -17,6 +18,7 @@ func advance_beast(beast, target: Vector3, distance: float) -> void:
 		beast.route = world.avoid_blocker_on_path(beast, start, goal, beast.route)
 		beast["route_index"] = 1
 		beast["route_target"] = target
+		beast["route_generation"] = generation
 	if beast.route.size() < 2:
 		return
 	var speed_factor: float = world.speed_mpm(beast, "walk") / 84.0
@@ -26,8 +28,6 @@ func advance_beast(beast, target: Vector3, distance: float) -> void:
 	beast.route_index = step.index
 	if step.walked > 0.02:
 		beast.visual.rotation.y = atan2(prior.x - beast.pos.x, prior.z - beast.pos.z)
-	if step.blocked != null or step.index >= beast.route.size():
-		beast.erase("route")
 
 func seen(beast, other, reach: float) -> bool:
 	return world.can_see(beast, other.pos + Vector3.UP * world.eye(other), other.body, reach, false)

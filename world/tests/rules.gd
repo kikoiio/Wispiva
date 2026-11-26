@@ -9,6 +9,12 @@ class RulesWorld extends "res://world.gd":
 
 func _initialize() -> void:
 	var world := RulesWorld.new()
+	var wagon := Transform3D(Basis.looking_at(Vector3.BACK), Vector3(0, 0.65, 0))
+	var turn := world.cart_pose_after_step(Vector3(0.01, 0, 2.55), wagon)
+	if turn.origin.distance_to(wagon.origin) > 0.02 or turn.basis.z.angle_to(wagon.basis.z) > 0.01:
+		push_error("A tiny turn by the hauler must not swing the trailing cart across the road")
+		quit(1)
+		return
 	var payer := {"sp": 1, "cp": 0}
 	var receiver := {"sp": 0, "cp": 0}
 	if not world.move_stack(payer, receiver, "cp", 2) or payer != {"sp": 0, "cp": 8} or receiver.cp != 2:
@@ -29,5 +35,5 @@ func _initialize() -> void:
 		quit(1)
 		return
 	world.free()
-	print("PASS denomination exchange, failed payment, and disguised observation identifiers")
+	print("PASS cart articulation, denomination exchange, failed payment, and disguised observation identifiers")
 	quit(0)

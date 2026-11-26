@@ -101,10 +101,20 @@ func verify_navigation() -> void:
 		push_error("The Miller cart road must avoid the steep shoulder: " + str(journey.blocked))
 		quit(1)
 		return
+	world.set_pos(driver, Vector3(140, 2, 368))
+	wagon.body.global_transform = Transform3D(Basis.looking_at(Vector3.FORWARD), Vector3(140, 2.65, 370.55))
+	start = NavigationServer3D.map_get_closest_point(world.cart_map_rid, driver.pos)
+	goal = NavigationServer3D.map_get_closest_point(world.cart_map_rid, Vector3(50, 0, 0))
+	cart_path = world.nav_path(start, goal, true, true)
+	journey = world.walk_path(driver, cart_path)
+	if cart_path.size() < 2 or journey.blocked != null or journey.pos.distance_to(goal) > 0.1:
+		push_error("The Oakford cart must clear the town gate and its turn: " + str(journey.blocked))
+		quit(1)
+		return
 	print("PASS all %d registered forest trees and the spring return have physical routes" % checked)
 	print("PASS disguised public targets resolve through the ordinary observation interface")
 	print("PASS starting specialist weapons and the master forging hammer are usable")
-	print("PASS cart navigation follows the graded road into Miller's Croft")
+	print("PASS carts follow graded roads and clear the town gate without striking its jamb")
 	world.queue_free()
 	await process_frame
 	quit(0)

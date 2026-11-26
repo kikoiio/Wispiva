@@ -181,6 +181,7 @@ var cart_region_rid: RID
 var cart_link_rids: Array[RID] = []
 var nav_verts := PackedVector3Array()
 var nav_polys: Array = []
+var cart_polys: Array = []
 var vert_index := {}
 var corner_height := {}
 var nav_covers: Array = []
@@ -2225,7 +2226,7 @@ func create_nav_map() -> RID:
 func install_nav_region(nav_map: RID, cart_path: bool) -> RID:
 	var mesh := NavigationMesh.new()
 	mesh.vertices = nav_verts
-	for poly in nav_polys:
+	for poly in (cart_polys if cart_path else nav_polys):
 		if not cart_path:
 			mesh.add_polygon(poly)
 			continue
@@ -2249,6 +2250,7 @@ func build_navigation() -> void:
 func fill_navmesh() -> void:
 	nav_verts = PackedVector3Array()
 	nav_polys = []
+	cart_polys = []
 	vert_index = {}
 	nav_covers = []
 	road_links = []
@@ -2399,7 +2401,7 @@ func emit_miter_strip(pts: Array[Vector3], width: float) -> void:
 		left.append(point + side)
 		right.append(point - side)
 	for i in range(pts.size() - 1):
-		push_quad(left[i], left[i + 1], right[i + 1], right[i])
+		push_quad(left[i], left[i + 1], right[i + 1], right[i], width >= CART_SIZE.x + 0.2)
 
 func raster(x0: int, x1: int, z0: int, z1: int, step: int, fine: bool) -> void:
 	var z := z0
@@ -2436,13 +2438,30 @@ func emit_run(x_start: int, x_end: int, z: int, step: int, _y: float) -> void:
 	while x <= x_end:
 		var x0 := float(x) - half
 		var x1 := float(x) + half
-		nav_polys.append(PackedInt32Array([
+		var poly := PackedInt32Array([
 			nav_vertex(x0, corner_y(x0, z0), z0),
 			nav_vertex(x1, corner_y(x1, z0), z0),
 			nav_vertex(x1, corner_y(x1, z1), z1),
 			nav_vertex(x0, corner_y(x0, z1), z1),
-		]))
+		])
+		nav_polys.append(poly)
+		if cart_cell_clear(x0, x1, z0, z1):
+			cart_polys.append(poly)
 		x += step
+
+func cart_cell_clear(x0: float, x1: float, z0: float, z1: float) -> bool:
+	var low := INF
+	var high := -INF
+	for point in [Vector2(x0, z0), Vector2(x1, z0), Vector2(x1, z1), Vector2(x0, z1)]:
+		var height := corner_y(point.x, point.y)
+		low = minf(low, height)
+		high = maxf(high, height)
+	var pad := CART_SIZE.x * 0.5 + 0.1
+	var probe := AABB(Vector3(x0 - pad, low + 0.15, z0 - pad), Vector3(x1 - x0 + pad * 2, high - low + CART_SIZE.y, z1 - z0 + pad * 2))
+	for solid in solids:
+		if blocks_now(solid) and solid.aabb.intersects(probe):
+			return false
+	return true
 
 func corner_y(x: float, z: float) -> float:
 	var key := "%d,%d" % [int(round(x * 1000.0)), int(round(z * 1000.0))]
@@ -2466,16 +2485,19 @@ func push_ribbon(a: Vector3, b: Vector3, width: float) -> void:
 	if flat.length() < 0.05:
 		return
 	var side := Vector3(-flat.z, 0, flat.x).normalized() * width * 0.5
-	push_quad(a + side, b + side, b - side, a - side)
+	push_quad(a + side, b + side, b - side, a - side, width >= CART_SIZE.x + 0.2)
 
-func push_quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
+func push_quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3, cart_allowed := true) -> void:
 	var pts: Array[Vector3] = [a, b, c, d]
 	if (b - a).cross(c - a).y < 0.0:
 		pts = [a, d, c, b]
 	var base := nav_verts.size()
 	for point in pts:
 		nav_verts.append(point)
-	nav_polys.append(PackedInt32Array([base, base + 1, base + 2, base + 3]))
+	var poly := PackedInt32Array([base, base + 1, base + 2, base + 3])
+	nav_polys.append(poly)
+	if cart_allowed:
+		cart_polys.append(poly)
 
 func build_links() -> void:
 	for link_rid in cart_link_rids:
@@ -2487,7 +2509,7 @@ func build_links() -> void:
 	for spec in layout.links:
 		add_link(v3(spec["from"]), v3(spec.to), spec.get("control", "") != "treewatch_ladder" or ladder_lowered)
 	for stair in layout.stairs:
-		add_link(v3(stair["from"]), v3(stair.to), true)
+		add_link(v3(stair["from"]), v3(stair.to), true, float(stair.width) >= CART_SIZE.x + 0.2)
 	var portal := v3(layout.mine.portal)
 	add_link(portal + Vector3(0, 0, 3.0), portal + Vector3(0, 0, -2.0), true)
 	var vault = doors.get("rune_vault")
@@ -2522,16 +2544,23 @@ func link_door(door) -> void:
 	var b := center + along * reach
 	a.y = box.position.y
 	b.y = box.position.y
-	add_link(a, b, door.open)
+	add_link(a, b, door.open, maxf(box.size.x, box.size.z) >= CART_SIZE.x + 0.2, CART_TRAIL_M + CART_SIZE.z * 0.5 + 0.5)
 
-func add_link(a: Vector3, b: Vector3, enabled: bool) -> void:
+func add_link(a: Vector3, b: Vector3, enabled: bool, cart_allowed := true, cart_reach := 0.0) -> void:
 	for nav_map in [map_rid, cart_map_rid]:
 		var link := NavigationServer3D.link_create()
 		NavigationServer3D.link_set_map(link, nav_map)
-		NavigationServer3D.link_set_start_position(link, a)
-		NavigationServer3D.link_set_end_position(link, b)
+		var start := a
+		var end := b
+		if nav_map == cart_map_rid and cart_reach > 0.0:
+			var middle := (a + b) * 0.5
+			var direction := (b - a).normalized()
+			start = middle - direction * cart_reach
+			end = middle + direction * cart_reach
+		NavigationServer3D.link_set_start_position(link, start)
+		NavigationServer3D.link_set_end_position(link, end)
 		NavigationServer3D.link_set_bidirectional(link, true)
-		var traversable: bool = enabled and (nav_map == map_rid or absf(a.y - b.y) <= maxf(0.6, flat_dist(a, b) * 0.5))
+		var traversable: bool = enabled and (nav_map == map_rid or (cart_allowed and absf(a.y - b.y) <= maxf(0.6, flat_dist(a, b) * 0.5)))
 		NavigationServer3D.link_set_enabled(link, traversable)
 		if nav_map == map_rid:
 			link_rids.append(link)
@@ -3344,7 +3373,8 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 	var pts: PackedVector3Array = [pos]
 	while index < path.size() and walked < budget:
 		var waypoint: Vector3 = path[index]
-		var nxt := pos.move_toward(waypoint, budget - walked)
+		var distance_budget := minf(budget - walked, 0.5) if not wagon.is_empty() else budget - walked
+		var nxt := pos.move_toward(waypoint, distance_budget)
 		var fraction := travel_fraction(agent, pos, nxt)
 		if fraction < 0.99999:
 			var clearance_fraction := 0.025 / maxf(pos.distance_to(nxt), 0.025)
@@ -3352,7 +3382,7 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 			blocked = identify_block(agent, stop, nxt)
 			nxt = stop
 		if not wagon.is_empty():
-			var proposed := cart_pose_after_step(pos, nxt, wagon_pose)
+			var proposed := cart_pose_after_step(nxt, wagon_pose)
 			var obstruction := cart_step_error(agent, wagon, wagon_pose, proposed, pos, nxt)
 			if not obstruction.is_empty():
 				blocked = obstruction
@@ -3365,7 +3395,7 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 			break
 		if nxt.is_equal_approx(waypoint):
 			index += 1
-		else:
+		elif wagon.is_empty() or walked >= budget:
 			break
 	pts.append(pos)
 	return {"pos": pos, "walked": walked, "blocked": blocked, "pts": pts, "index": index, "cart_pose": wagon_pose}
@@ -3814,8 +3844,8 @@ func set_cart_parked(wagon: Dictionary, parked: bool) -> void:
 	if map_rid.is_valid():
 		navigation_dirty = true
 
-func cart_pose_after_step(from: Vector3, to: Vector3, previous: Transform3D) -> Transform3D:
-	var direction := Vector3(to.x - from.x, 0, to.z - from.z)
+func cart_pose_after_step(to: Vector3, previous: Transform3D) -> Transform3D:
+	var direction := Vector3(to.x - previous.origin.x, 0, to.z - previous.origin.z)
 	if direction.length_squared() < 0.002:
 		return previous
 	direction = direction.normalized()

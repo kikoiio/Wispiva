@@ -623,9 +623,11 @@ async function proveBuildings(world: WorldClient): Promise<void> {
 }
 
 async function proveTraces(world: WorldClient): Promise<void> {
-  const actor = "demon_kael";
+  const actor = "human_kestrel";
   const caster = "human_garrick";
   assert.ok((await world.call("host", "world_inject_event", { kind: "weather", weather: "rain" })).ok);
+  assert.equal(resultOf(await walk(world, actor, "35,0,-34")).arrived, true);
+  assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: "tavern_entrance", action: "open" })).ok);
   const moved = resultOf(await walk(world, actor, "-170,2,15"));
   assert.equal(moved.arrived, true, JSON.stringify(moved));
   const look = resultOf(await agentCall(world, actor, "look", {}));
@@ -839,11 +841,12 @@ async function proveFarms(world: WorldClient): Promise<void> {
   await reach(west, "sheep_pen_gate");
   assert.equal(await sheepOn("pen"), 14);
   await use(west, "toggle_lock", { door_id: "sheep_pen_gate", action: "open" });
+  await reach(west, "-269.3,3,182");
   for (let i = 0; i < 4; i++) await step(4);
-  assert.equal(await sheepOn("pasture"), 14);
+  assert.equal(await sheepOn("pasture"), 14, "all sheep must pass the gate after their shepherd steps aside");
   await work(west, "shepherd_post", "herd_sheep", 5);
   for (let i = 0; i < 4; i++) await step(4);
-  assert.equal(await sheepOn("pen"), 14);
+  assert.equal(await sheepOn("pen"), 14, "the entire flock must return through the open gate");
   await reach(west, "sheep_pen_gate");
   await use(west, "toggle_lock", { door_id: "sheep_pen_gate", action: "close" });
   await reach(east, "163,2,379.5");
