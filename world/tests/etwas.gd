@@ -98,7 +98,7 @@ func verify() -> void:
 
 func verify_explorer() -> void:
 	var east_bank := Vector3(7.15, 2.6, 0.0)
-	var bath_door := Vector3(7.1, 2.6, 8.0)
+	var bath_door := Vector3(7.45, 2.6, 8.0)
 	if not await walk_to(east_bank) or not await walk_to(bath_door):
 		return
 	player.look_toward(Vector3(12, 3.88, 8))
@@ -109,9 +109,9 @@ func verify_explorer() -> void:
 		return
 	if not await walk_to(Vector3(10.7, 2.6, 8.0)):
 		return
-	await walk_to(Vector3(7.2, 2.6, 6.4))
-	await walk_to(Vector3(6.5, 0.48, 13.0))
-	await walk_to(Vector3(7.2, 2.6, 6.4))
+	await walk_to(Vector3(6.14, 2.6, 6.4))
+	await walk_to(Vector3(6.14, 0.48, 12.28))
+	await walk_to(Vector3(6.14, 2.6, 6.4))
 
 	var trailhead := Vector3(9, 2.60, -25)
 	if not await walk_to(trailhead):
@@ -143,3 +143,50 @@ func verify_residents(snapshot: Dictionary) -> void:
 		var status := result("status", {}, actor)
 		check(status.get("agentId") == actor, "A resident must be able to read their own status")
 		result("look", {}, actor)
+	var keeper := "human_sela"
+	walk_resident(keeper, "inn_hearth")
+	var look := result("look", {"focus": "inn_hearth"}, keeper)
+	check(look.get("visible_fixtures", []).any(func(fixture): return fixture.id == "inn_hearth"),
+		"The innkeeper must see the actual hearth")
+	result("inspect", {"target_id": "inn_hearth"}, keeper)
+	var fire := result("work_craft", {"station_id": "inn_hearth", "recipe_or_task": "light_campfire", "minutes": 4}, keeper)
+	check(fire.get("pending", false), "Lighting the hearth must take world time")
+	result("world_step", {"minutes": 4})
+	check(result("status", {}, keeper).get("near_fire", false), "The lit hearth must provide warmth")
+	walk_resident(keeper, "inn_bed_sela")
+	rest_at(keeper, "inn_bed_sela")
+
+	var spring := "river_spring"
+	var resident := "elf_orla"
+	walk_resident(resident, spring)
+	result("inspect", {"target_id": spring}, resident)
+	var water := result("work_craft", {"station_id": spring, "recipe_or_task": "draw_water", "minutes": 2}, resident)
+	check(water.get("pending", false), "Water must be drawn from the spring fixture")
+	result("world_step", {"minutes": 2})
+	var events: Array = result("host_pending", {"agentId": resident}).get("events", [])
+	check(events.any(func(event): return event.get("produced", {}).get("spring_water") == 1),
+		"Drawing water must produce one unit of spring water")
+	walk_resident(resident, "summit_seat")
+	rest_at(resident, "summit_seat")
+	walk_resident(resident, "east_gate")
+	if failures == 0:
+		print("PASS residents saw the hearth, lit it, used a bed, fetched water and rested at the spring")
+
+
+func walk_resident(actor: String, destination: String) -> void:
+	var moved := result("move_to", {"destination": destination, "pace": "walk"}, actor)
+	if moved.get("pending", false):
+		result("world_step", {"minutes": 12, "stop_on_action": true})
+		var events: Array = result("host_pending", {"agentId": actor}).get("events", [])
+		for event in events:
+			if event.get("action", {}).get("destination") == destination:
+				moved = event.get("result", {})
+				break
+	check(moved.get("arrived", false), "%s could not reach %s: %s" % [actor, destination, moved])
+
+
+func rest_at(actor: String, fixture: String) -> void:
+	result("inspect", {"target_id": fixture}, actor)
+	var rest := result("rest", {"minutes": 2, "location_id": fixture}, actor)
+	check(rest.get("action", {}).get("location_id") == fixture, "Rest must use the selected fixture " + fixture)
+	result("world_step", {"minutes": 2})

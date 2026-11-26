@@ -51,21 +51,21 @@
     },
     {
       "id": "village_stairs",
-      "width": 1.7,
+      "width": 1.4,
       "points": [
-        [6.5, 2.6, 7],
-        [6.5, 2.05, 9.5],
-        [6.5, 1.2, 11.3],
-        [6.5, 0.48, 13]
+        [6.15, 2.6, 7.5],
+        [6.15, 2.02, 9.5],
+        [6.15, 1.12, 11.2],
+        [6.15, 0.48, 12.36]
       ]
     },
     {
       "id": "quay_walk",
-      "width": 2.4,
+      "width": 1.7,
       "points": [
-        [6.5, 0.48, 13],
-        [8.1, 0.48, 14.4],
-        [10.2, 0.48, 14.4]
+        [6.15, 0.48, 12.36],
+        [5.65, 0.48, 12.36],
+        [5.0, 0.48, 12.2]
       ]
     },
     {
@@ -209,119 +209,94 @@
       "id": "inn_bed_sela",
       "name": "Sela's inn bed",
       "kind": "bed",
-      "center": [-14.7, 1.86, -3.2],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[-13.2, 1.5, -3.2]]
+      "center": [-10.1, 2.07, -2.35],
+      "size": [1.6, 0.65, 1.2],
+      "approaches": [[-8.9, 1.5, -2.35]]
     },
     {
       "id": "inn_bed_beran",
       "name": "Beran's inn bed",
       "kind": "bed",
-      "center": [-14.7, 1.86, -6.8],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[-13.2, 1.5, -6.8]]
+      "center": [-14.45, 2.2, -2.38],
+      "size": [1.6, 0.85, 1.05],
+      "approaches": [[-13.2, 1.5, -2.38]]
     },
     {
       "id": "inn_hearth",
       "name": "Inn hearth",
       "kind": "fire",
-      "center": [-15.2, 1.85, -5.0],
-      "size": [0.9, 0.7, 0.9],
-      "approaches": [[-13.9, 1.5, -5.0]],
+      "center": [-9.45, 2.22, -7.62],
+      "size": [0.56, 1.44, 0.66],
+      "approaches": [[-10.65, 1.5, -7.62]],
       "recipe": "light_campfire"
     },
     {
       "id": "inn_oven",
-      "name": "Bread oven",
+      "name": "Inn serving counter",
       "kind": "workstation",
-      "center": [-14.8, 1.95, -8.0],
-      "size": [1.1, 0.9, 1.1],
-      "approaches": [[-13.3, 1.5, -8.0]],
+      "center": [-14.65, 2.08, -7.65],
+      "size": [1.28, 1.12, 2.1],
+      "approaches": [[-13.3, 1.5, -7.65]],
       "recipes": ["bread", "bake_flour", "brew_ale"]
     },
     {
       "id": "home_bed_edric",
       "name": "Edric's bed",
       "kind": "bed",
-      "center": [14.5, 2.96, -8.4],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[13.0, 2.6, -8.4]]
-    },
-    {
-      "id": "home_bed_orla",
-      "name": "Orla's bed",
-      "kind": "bed",
-      "center": [14.5, 2.96, -11.7],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[13.0, 2.6, -11.7]]
+      "center": [14.75, 2.93, -12.4],
+      "size": [1.64, 0.62, 1.3],
+      "approaches": [[14.75, 2.6, -11.25]]
     },
     {
       "id": "home_hearth",
       "name": "Home hearth",
       "kind": "fire",
-      "center": [15.9, 2.95, -12.6],
-      "size": [0.9, 0.7, 0.9],
-      "approaches": [[14.5, 2.6, -12.6]],
+      "center": [15.45, 2.98, -7.58],
+      "size": [1.18, 0.96, 0.82],
+      "approaches": [[16.1, 2.6, -7.58]],
       "recipe": "light_campfire"
     },
     {
-      "id": "home_seat",
-      "name": "Window bench",
+      "id": "home_table",
+      "name": "Cottage table",
+      "kind": "table",
+      "center": [13.55, 2.82, -7.48],
+      "size": [1.02, 0.56, 0.86],
+      "approaches": [[12.7, 2.6, -7.48]]
+    },
+    {
+      "id": "bath_bench_north",
+      "name": "North bath bench",
       "kind": "seat",
-      "center": [11.2, 2.98, -12.2],
-      "size": [1.5, 0.55, 0.65],
-      "approaches": [[11.2, 2.6, -11.1]]
+      "center": [13.2, 2.97, 5.28],
+      "size": [4.55, 0.72, 0.7],
+      "approaches": [[10.7, 2.6, 5.28]]
     },
     {
-      "id": "bath_bed_tamsin",
-      "name": "Tamsin's room bed",
-      "kind": "bed",
-      "center": [14.6, 2.96, 5.4],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[13.1, 2.6, 5.4]]
-    },
-    {
-      "id": "bath_bed_peren",
-      "name": "Peren's room bed",
-      "kind": "bed",
-      "center": [14.6, 2.96, 10.7],
-      "size": [1.5, 0.7, 2.0],
-      "approaches": [[13.1, 2.6, 10.7]]
-    },
-    {
-      "id": "bath_hearth",
-      "name": "Bathhouse boiler hearth",
-      "kind": "fire",
-      "center": [15.5, 2.95, 8.0],
-      "size": [0.9, 0.7, 0.9],
-      "approaches": [[14.2, 2.6, 8.0]],
-      "recipe": "light_campfire"
+      "id": "bath_bench_south",
+      "name": "South bath bench",
+      "kind": "seat",
+      "center": [13.2, 2.97, 10.72],
+      "size": [4.55, 0.72, 0.7],
+      "approaches": [[10.7, 2.6, 10.72]]
     },
     {
       "id": "bath_boiler",
-      "name": "Bathhouse herb counter",
-      "kind": "workstation",
-      "center": [13.8, 2.95, 11.1],
-      "size": [1.1, 0.8, 0.8],
-      "approaches": [[12.5, 2.6, 11.1]],
-      "recipe": "herbal_tonic"
-    },
-    {
-      "id": "river_spring",
-      "name": "Quay spring spout",
+      "name": "Bathhouse wash basin",
       "kind": "spring",
-      "center": [6.5, 0.95, 14.2],
-      "size": [0.9, 0.9, 0.9],
-      "approaches": [[6.5, 0.48, 12.8]],
-      "recipe": "draw_water"
+      "center": [14.55, 2.93, 8.0],
+      "size": [1.05, 0.56, 1.1],
+      "approaches": [[13.2, 2.6, 8.0]],
+      "recipe": "draw_water",
+      "recipes": ["draw_water", "herbal_tonic"]
     },
     {
-      "id": "quay_seat",
-      "name": "Quay bench",
+      "id": "east_bench",
+      "name": "East bank bench",
       "kind": "seat",
-      "center": [9.2, 0.78, 14.4],
-      "size": [1.8, 0.55, 0.7],
-      "approaches": [[9.2, 0.48, 13.3]]
+      "center": [9.2, 3.02, 18.0],
+      "size": [0.58, 0.12, 1.65],
+      "approaches": [[8.3, 2.6, 18.0]]
     },
     {
       "id": "summit_pool",
@@ -350,7 +325,7 @@
     "west_street": [-9, 1.5, 1],
     "east_street": [6.5, 2.6, 3.7],
     "east_gate": [9, 2.6, -25],
-    "lower_quay": [6.5, 0.48, 13],
+    "lower_quay": [5.0, 0.48, 12.2],
     "inn": [-6.5, 1.5, -5],
     "bath": [6.6, 2.6, 8],
     "home": [7.8, 2.6, -10],

@@ -120,6 +120,8 @@ class MeshBuilder:
         self.material_lookup = {material.name: index for index, material in enumerate(self.materials)}
 
     def material_id(self, material):
+        if isinstance(material, str):
+            material = MAT[material]
         if material.name not in self.material_lookup:
             self.material_lookup[material.name] = len(self.materials)
             self.materials.append(material)

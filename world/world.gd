@@ -5112,23 +5112,28 @@ func advance_interval(minutes: int) -> bool:
 				update_window_light(door)
 		update_weather()
 		refresh_fire_states()
-		var orchard: Dictionary = fixtures.oakford_orchard
-		var fruit_year := int((clock_day() - 1) / 120)
-		var fruit_season := season() in ["summer", "autumn"]
-		if fruit_season and int(orchard.fruit_year) != fruit_year:
-			orchard.fruit_year = fruit_year
-			orchard.batches = int(orchard.spec.batches)
-		orchard.fruit.visible = fruit_season and int(orchard.batches) > 0
+		var orchard: Dictionary = fixtures.get("oakford_orchard", {})
+		if not orchard.is_empty():
+			var fruit_year := int((clock_day() - 1) / 120)
+			var fruit_season := season() in ["summer", "autumn"]
+			if fruit_season and int(orchard.fruit_year) != fruit_year:
+				orchard.fruit_year = fruit_year
+				orchard.batches = int(orchard.spec.batches)
+			orchard.fruit.visible = fruit_season and int(orchard.batches) > 0
 	if before < 20 and (after >= 20 or after < before):
 		for gate_id in ["west_gate", "north_gate", "east_postern"]:
-			var gate = doors[gate_id]
+			var gate: Dictionary = doors.get(gate_id, {})
+			if gate.is_empty():
+				continue
 			gate.open = false
 			gate.lock = "locked"
 			apply_door_visual(gate)
 	if before >= 20 or before < 6:
 		if after >= 6 and after < 20:
 			for gate_id in ["west_gate", "north_gate", "east_postern"]:
-				var gate = doors[gate_id]
+				var gate: Dictionary = doors.get(gate_id, {})
+				if gate.is_empty():
+					continue
 				gate.open = true
 				gate.lock = "unlocked"
 				apply_door_visual(gate)

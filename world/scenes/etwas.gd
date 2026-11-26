@@ -20,10 +20,16 @@ func _ready() -> void:
 	dress_meshes($EtwasValley)
 	dress_meshes($EtwasTown)
 	if DisplayServer.get_name() != "headless":
+		light_room(Vector3(-12.8, 3.45, -5.75), 4.4, 1.05)
+		light_room(Vector3(13.0, 4.65, 8.1), 3.9, 0.82)
+		light_room(Vector3(13.5, 4.46, -9.4), 3.45, 0.87)
 		make_steam(Vector3(105.24, 34.9, -123.15), 1.24, 0.76, 0.46, 11)
 		make_steam(Vector3(7.0, 0.11, 17.6), 2.65, 3.6, 1.35, 6)
 		make_steam(Vector3(4.25, 0.05, -12.0), 1.0, 3.2, 0.72, 4)
+		make_steam(Vector3(14.55, 3.24, 8.0), 0.62, 0.57, 0.77, 5)
 	await super._ready()
+	if watching:
+		finish_doors()
 
 
 func dress_meshes(root: Node) -> void:
@@ -46,6 +52,33 @@ func dress_meshes(root: Node) -> void:
 		surface.material_override = material
 		if shader != SHELF:
 			surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func light_room(center: Vector3, reach: float, energy: float) -> void:
+	var lamp := OmniLight3D.new()
+	lamp.position = center
+	lamp.light_color = Color(1.0, 0.72, 0.43)
+	lamp.light_energy = energy
+	lamp.omni_range = reach
+	lamp.omni_attenuation = 1.45
+	add_child(lamp)
+
+
+func finish_doors() -> void:
+	var straps := flat_mat(Color(0.13, 0.12, 0.115))
+	straps.metallic = 0.56
+	var latch := flat_mat(Color(0.37, 0.25, 0.13))
+	latch.metallic = 0.68
+	for door in doors.values():
+		var body: StaticBody3D = door.body
+		var size: Vector3 = door.solid.aabb.size
+		for side in [-1.0, 1.0]:
+			var x: float = side * (size.x * 0.5 + 0.01)
+			for y in [-0.68, 0.68]:
+				visual_box(body, straps, Vector3(x, y, 0.31), Vector3(0.028, 0.084, 1.03))
+				visual_box(body, latch, Vector3(x + side * 0.018, y, 0.73), Vector3(0.034, 0.115, 0.10))
+			visual_box(body, straps, Vector3(x, -0.06, -0.60), Vector3(0.028, 0.22, 0.13))
+			visual_box(body, latch, Vector3(x + side * 0.045, -0.047, -0.60), Vector3(0.11, 0.073, 0.075))
 
 
 func make_steam(origin: Vector3, width: float, length: float, rise: float, count: int) -> void:
