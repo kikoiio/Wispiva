@@ -2113,7 +2113,7 @@ func blocked_point(cx: float, cz: float) -> bool:
 	if in_water(cx, cz) and not on_bridge(cx, cz):
 		return true
 	var half := 1.0 + body_margin
-	var low := ground_y(cx, cz)
+	var low := corner_y(cx, cz)
 	var high := low
 	for dx in [-1.0, 1.0]:
 		for dz in [-1.0, 1.0]:
@@ -2141,7 +2141,7 @@ func blocked_coarse(cx: float, cz: float, step: float) -> bool:
 	return false
 
 func platform_covers_ground(x: float, z: float) -> bool:
-	var foot := ground_y(x, z)
+	var foot := corner_y(x, z)
 	for platform in layout.platforms:
 		var center := v3(platform.center)
 		var size := v3(platform.size)
@@ -2185,7 +2185,6 @@ func fill_navmesh() -> void:
 	vert_index = {}
 	nav_covers = []
 	road_links = []
-	corner_height = {}
 	cover_raster(-56, 184, -104, 108, 2)
 	cover_raster(-136, -104, -8, 30, 2)
 	cover_raster(0, 100, -760, -546, 2)
@@ -2347,7 +2346,7 @@ func raster(x0: int, x1: int, z0: int, z1: int, step: int, fine: bool) -> void:
 			var free := false
 			if fine or not in_fine(fx, fz):
 				free = not (blocked_point(fx, fz) if fine else blocked_coarse(fx, fz, float(step)))
-			var y := ground_y(fx, fz)
+			var y := corner_y(fx, fz)
 			if free and run_x != null and absf(y - run_y) < 0.001 and int((x - int(run_x)) / step) < 30:
 				x += step
 				continue

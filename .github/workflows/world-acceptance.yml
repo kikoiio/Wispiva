@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 6
       matrix:
-        scenario: [all, civic, wolves, goblins, field, buildings]
+        scenario: [all, civic, wolves, goblins, field, buildings, terrain]
     env:
       TMPDIR: ${{ github.workspace }}/.tmp
     steps:
@@ -65,12 +65,17 @@ jobs:
           godot --headless --path world --script res://tests/collision.gd 2>&1 | tee .verify/artifacts/collision.log
           ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/collision.log
           scenario='${{ matrix.scenario }}'
-          if [ "$scenario" = all ]; then
-            python3 .verify/check.py | tee .verify/artifacts/proof.log
+          if [ "$scenario" = terrain ]; then
+            godot --headless --path world --script res://tests/navigation.gd 2>&1 | tee .verify/artifacts/proof.log
+            ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/proof.log
+          elif [ "$scenario" = all ]; then
+            python3 .verify/check.py 2>&1 | tee .verify/artifacts/proof.log
           else
-            python3 .verify/check.py "$scenario" | tee .verify/artifacts/proof.log
+            python3 .verify/check.py "$scenario" 2>&1 | tee .verify/artifacts/proof.log
           fi
-          ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/godot-*.log
+          if compgen -G '.verify/artifacts/godot-*.log' >/dev/null; then
+            ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/godot-*.log
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:

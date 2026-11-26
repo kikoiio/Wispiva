@@ -165,12 +165,11 @@ export async function proveWolfPredation(world: WorldClient): Promise<void> {
   assert.deepEqual(await inspectFlock(world, closedEvents), protectedFlock, "a closed pen must protect every sheep from injury");
   assert.equal(closedEvents.some(event => event.type === "noise" && event.text === bite), false);
 
-  await reach(world, shepherd, "-270.9,3,186.4");
+  await reach(world, shepherd, "-270,3,187");
   assert.equal((await use(world, shepherd, "inspect", { target_id: gate })).open, false);
   await pending(world, shepherd);
   const openEvents: Record<string, unknown>[] = [];
   assert.equal((await use(world, shepherd, "toggle_lock", { door_id: gate, action: "open" })).open, true);
-  await reach(world, shepherd, "-270,3,200", openEvents);
   let entered = false;
   for (let attempt = 0; attempt <= 60; attempt++) {
     if (attempt > 0) await host(world, "world_step", { minutes: 1 });
@@ -183,6 +182,7 @@ export async function proveWolfPredation(world: WorldClient): Promise<void> {
   }
   assert.ok(entered, "opening the real gate must let a wolf physically enter the pen");
   assert.ok(openEvents.some(event => event.type === "noise" && event.text === bite), "Miller must hear an actual wolf bite");
+  await host(world, "world_step", { minutes: 10 });
   const wounded = await inspectFlock(world);
   assert.ok(wounded.some(sheep => sheep.injuries.includes("lacerated") && sheep.injuries.includes("bleeding")),
     `an inspected sheep must acquire real bite injuries ${JSON.stringify(wounded)}`);
@@ -195,7 +195,7 @@ export async function proveGoblinRaids(world: WorldClient): Promise<void> {
   const cargoIds = ["grain_sack", "iron_ore"];
   const raid = "Cargo is dragged from a cart.";
   await host(world, "world_inject_event", { kind: "weather", weather: "clear" });
-  await reach(world, guard, "west_gate");
+  await reach(world, guard, "-28,0,0");
   await use(world, guard, "toggle_lock", { door_id: "west_gate", action: "unlock" });
   await use(world, guard, "toggle_lock", { door_id: "west_gate", action: "open" });
   await reach(world, guard, "-24,0,8");
