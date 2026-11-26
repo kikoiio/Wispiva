@@ -338,10 +338,20 @@ async function proveEconomy(world: WorldClient): Promise<void> {
   const service = await use(poster, "guild_contract", { action: "post", summary: "Survey the west road", reward_sp: 3 });
   const serviceId = str(service, "id");
   await use(holder, "guild_contract", { action: "accept", contract_id: serviceId });
+  await reach(poster, "town_square");
+  await world.call("host", "host_pending", { agentId: poster });
   assert.equal((await use(holder, "guild_contract", { action: "complete", contract_id: serviceId })).state, "awaiting_confirmation");
+  assert.equal(list(resultOf(await world.call("host", "host_pending", { agentId: poster })), "events")
+    .some(event => isRecord(event) && event.type === "contract"), false, "guild records must not notify a distant poster");
+  await reach(poster, "guild_board");
   assert.equal(num(await use(holder, "status"), "sp"), beforeHolder + 7);
   assert.equal((await agentCall(world, holder, "guild_contract", { action: "confirm", contract_id: serviceId })).error?.code, "rejected");
+  await reach(holder, "85,0,-27");
+  await world.call("host", "host_pending", { agentId: holder });
   await use(poster, "guild_contract", { action: "confirm", contract_id: serviceId });
+  assert.equal(list(resultOf(await world.call("host", "host_pending", { agentId: holder })), "events")
+    .some(event => isRecord(event) && event.type === "contract"), false, "confirmation must remain a local guild record");
+  await reach(holder, "guild_board");
   await use(holder, "guild_contract", { action: "complete", contract_id: serviceId });
   assert.equal(num(await use(holder, "status"), "sp"), beforeHolder + 10);
   assert.equal(num(await use(poster, "status"), "sp"), beforePoster - 10);
@@ -518,6 +528,54 @@ async function proveFieldActions(world: WorldClient): Promise<void> {
   await use(mage, "cast_spell", { spell_name: "flame", target: "wolf_2", mana_spend: 12 });
   await world.call("host", "world_step", { seconds: 3 });
   assert.ok(list(await use(mage, "inspect", { target_id: "wolf_2" }), "injuries").includes("burned"));
+}
+
+async function proveThatch(world: WorldClient): Promise<void> {
+  async function use(actor: string, tool: string, args: Record<string, unknown> = {}) {
+    const response = await agentCall(world, actor, tool, args);
+    assert.ok(response.ok && response.result, `${actor} ${tool}: ${JSON.stringify(response.error)}`);
+    return response.result;
+  }
+  async function reach(actor: string, destination: string) {
+    const arrived = resultOf(await walk(world, actor, destination));
+    assert.equal(arrived.arrived, true, `${actor} -> ${destination}: ${JSON.stringify(arrived)}`);
+  }
+  const mage = "human_elena";
+  await reach(mage, "85,0,-30");
+  await use(mage, "toggle_lock", { door_id: "guild_entrance", action: "open" });
+  await reach("human_tomas", "20,0.8,45");
+  await use("human_tomas", "toggle_lock", { door_id: "granary_door", action: "unlock" });
+  await use("human_tomas", "toggle_lock", { door_id: "granary_door", action: "open" });
+  await reach("human_tomas", "town_square");
+  await reach(mage, "granary_loft_stock");
+  await world.call("host", "world_inject_event", { kind: "weather", region: "stonebridge", weather: "clear" });
+  const roof = "granary_thatch";
+  const initial = await use(mage, "inspect", { target_id: roof });
+  assert.equal(initial.remaining_batches, 4);
+  assert.equal(initial.lit, false);
+  assert.equal((await use(mage, "status")).sheltered, true);
+  async function ignite() {
+    const before = num(await use(mage, "status"), "mana");
+    const cast = await use(mage, "cast_spell", { spell_name: "flame", target: roof, mana_spend: 5 });
+    assert.equal(cast.pending, true);
+    await world.call("host", "world_step", { seconds: 10, stop_on_action: true });
+    assert.equal(num(await use(mage, "status"), "mana"), before - 5);
+  }
+  await ignite();
+  assert.equal((await use(mage, "inspect", { target_id: roof })).lit, true);
+  assert.equal((await use(mage, "inspect", { target_id: roof })).remaining_batches, 3);
+  await world.call("host", "world_inject_event", { kind: "weather", region: "stonebridge", weather: "rain" });
+  assert.equal((await use(mage, "inspect", { target_id: roof })).lit, false);
+  assert.equal((await agentCall(world, mage, "cast_spell", { spell_name: "flame", target: roof, mana_spend: 5 })).error?.code, "rejected");
+  await world.call("host", "world_inject_event", { kind: "weather", region: "stonebridge", weather: "clear" });
+  for (let section = 0; section < 3; section++) await ignite();
+  assert.equal((await use(mage, "inspect", { target_id: roof })).remaining_batches, 0);
+  assert.equal((await use(mage, "status")).sheltered, false);
+  assert.equal((await agentCall(world, mage, "cast_spell", { spell_name: "flame", target: roof, mana_spend: 5 })).error?.code, "depleted");
+  await world.call("host", "world_inject_event", { kind: "weather", region: "stonebridge", weather: "rain" });
+  const wetBefore = num(await use(mage, "status"), "wetness");
+  await world.call("host", "world_step", { minutes: 10 });
+  assert.ok(num(await use(mage, "status"), "wetness") > wetBefore, "losing the roof must expose the loft occupant to rain");
 }
 
 async function proveBuildings(world: WorldClient): Promise<void> {
@@ -825,9 +883,16 @@ async function proveFarms(world: WorldClient): Promise<void> {
     await use(east, "cart", { cart_id, action: "unload", item_id: "grain_sack", quantity });
     await use(east, "transfer_item", { action: "drop", item_id: "grain_sack", quantity });
   }
+  const payerBefore = await use(east, "status");
+  const ferrymanBefore = await use("human_fenn", "status");
   const request = await use(east, "move_to", { destination: "ferry_west", pace: "walk" });
   assert.ok(isRecord(request.action) && request.action.kind === "ferry");
   assert.equal(request.action.cart_id, cart_id);
+  assert.equal(request.action.fare_cp, 2);
+  const payerAfter = await use(east, "status");
+  const ferrymanAfter = await use("human_fenn", "status");
+  assert.equal(num(payerAfter, "sp") * 10 + num(payerAfter, "cp"), num(payerBefore, "sp") * 10 + num(payerBefore, "cp") - 2);
+  assert.equal(num(ferrymanAfter, "sp") * 10 + num(ferrymanAfter, "cp"), num(ferrymanBefore, "sp") * 10 + num(ferrymanBefore, "cp") + 2);
   const reserved = await use(east, "inspect", { target_id: "ferry_east" });
   assert.equal(reserved.cart_id, cart_id);
   assert.ok(num(reserved, "reserved_kg") > 475 && num(reserved, "reserved_kg") < 600);
@@ -1390,6 +1455,7 @@ if (scenario === undefined) {
     ["traces", proveTraces],
     ["magic", proveMagic],
     ["field", proveFieldActions],
+    ["thatch", proveThatch],
     ["civic", proveCivic],
     ["ecology", proveEcology],
     ["wolves", proveWolfPredation],

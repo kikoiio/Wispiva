@@ -104,7 +104,7 @@ const OUTPUT_ITEMS := {
 	"bandage": ["bandage", 0.15],
 	"raw_mana_crystal": ["raw mana crystal", 0.55],
 }
-const TOOL_LIFETIMES := {"hand_axe": 16, "iron_pickaxe": 24, "smith_hammer": 60, "appraisal_loupe": 200, "sheep_crook": 100}
+const TOOL_LIFETIMES := {"hand_axe": 16, "iron_pickaxe": 24, "smith_hammer": 60, "forging_hammer": 120, "appraisal_loupe": 200, "sheep_crook": 100}
 const ITEM_LITERS := {"grain_sack": 32.0, "seed_sack": 12.0, "flour_sack": 7.0, "timber": 10.0, "timber_brace": 10.0, "charcoal": 16.0, "iron_ore": 5.0, "iron_bar": 1.1, "spring_water": 1.0, "bread": 1.0, "ale": 0.6}
 const STATION_ALIASES := {"inn_pantry": "inn_oven", "smelter_stock": "smelter_furnace", "forge_stock": "forge_furnace"}
 const STOCK_RECIPES := {
@@ -646,6 +646,38 @@ func build_building(building) -> void:
 	add_solid(str(building.id) + "_roof", Vector3(floor.x, y1 - 0.12, floor.z), Vector3(size.x, 0.24, size.z), "roof", true, null, L_WORLD, COL.roof)
 	landmarks[str(building.id)] = {"name": str(building.name), "center": floor, "surfaces": solids.slice(first_solid)}
 	dress_building(str(building.id))
+	if building.get("roof_material", "") == "thatch":
+		register_thatch(building, solids.back())
+
+func register_thatch(building: Dictionary, roof: Dictionary) -> void:
+	var id := str(building.id) + "_thatch"
+	var body: StaticBody3D = roof.body
+	var flame := Node3D.new()
+	body.add_child(flame)
+	var glow := flat_mat(Color(0.98, 0.37, 0.08))
+	glow.emission_enabled = true
+	glow.emission = Color(1.0, 0.4, 0.1)
+	for offset in [-1.0, 0.0, 1.0]:
+		visual_box(flame, glow, Vector3(offset, 0.5, 0), Vector3(0.35, 1.0, 0.4))
+	flame.hide()
+	var floor := v3(building.floor)
+	fixtures[id] = {"spec": {"id": id, "name": str(building.name) + " thatched roof", "kind": "thatch", "building": building.id, "approaches": [[floor.x, floor.y, floor.z]]}, "body": body, "solid": roof, "batches": 4, "lit_until": -1, "flame": flame}
+
+func scorch_thatch(fixture: Dictionary) -> void:
+	fixture.batches -= 1
+	set_fire(fixture, minute + 30)
+	var landmark: Dictionary = landmarks[fixture.spec.building]
+	if landmark.has("model"):
+		for mesh in landmark.model.find_children("*", "MeshInstance3D", true, false):
+			if str(mesh.name).contains("roof_straw"):
+				mesh.material_override = flat_mat(Color(0.12, 0.10, 0.08))
+				mesh.visible = fixture.batches > 0
+	if fixture.batches == 0:
+		fixture.body.collision_layer = 0
+		fixture.solid.nav = false
+		hide_mesh(fixture.body)
+		leave_trace("ash", v3(fixture.spec.approaches[0]))
+		navigation_dirty = true
 
 func build_windowed_wall(building: Dictionary, side: String, start: float, end: float, bottom := 0.0) -> void:
 	var floor := v3(building.floor)
@@ -697,6 +729,7 @@ func dress_building(id: String) -> void:
 				if part is MeshInstance3D:
 					part.visible = false
 	add_child(model)
+	landmarks[id]["model"] = model
 	dressed += 1
 
 func load_model(path: String) -> Node3D:
@@ -2575,8 +2608,25 @@ func handle_line(line: String):
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return {"id": "", "ok": false, "error": {"code": "bad_json", "message": "expected an object"}}
 	var response = dispatch(str(parsed.get("role", "agent")), str(parsed.get("agentId", "")), str(parsed.get("tool", "")), parsed.get("args", {}))
+	if parsed.get("role", "agent") == "agent":
+		response = public_observation(response)
 	response["id"] = str(parsed.get("id", ""))
 	return response
+
+func public_observation(value, field := ""):
+	if value is Dictionary:
+		var result := {}
+		for key in value:
+			result[key] = public_observation(value[key], str(key))
+		return result
+	if value is Array:
+		var result: Array = []
+		for entry in value:
+			result.append(public_observation(entry, field))
+		return result
+	if value is String and value == "demon_kael" and field in ["id", "agentId", "from", "partner_id", "target_id", "target", "destination", "poster", "holder", "owner", "issuer", "handler", "patient", "visible_listeners"]:
+		return "traveler_kael"
+	return value
 
 func dispatch(role: String, agent_id: String, tool: String, args) -> Dictionary:
 	if typeof(args) != TYPE_DICTIONARY:
@@ -2591,6 +2641,10 @@ func dispatch(role: String, agent_id: String, tool: String, args) -> Dictionary:
 			_: return fail("unknown_tool", "unknown host tool " + tool)
 	if role != "agent":
 		return fail("forbidden", "unknown role")
+	args = args.duplicate()
+	for field in ["focus", "target_id", "target", "partner_id", "destination"]:
+		if args.get(field) == "traveler_kael":
+			args[field] = "demon_kael"
 	if not agents_by_id.has(agent_id):
 		return fail("unknown_agent", "unknown agent")
 	var agent = agents_by_id[agent_id]
@@ -2896,6 +2950,9 @@ func tool_inspect(agent, args) -> Dictionary:
 			details["repair_spell"] = "stone_mend"
 		if fixture.spec.kind == "fire":
 			details["lit"] = int(fixture.lit_until) > minute
+		if fixture.spec.kind == "thatch":
+			details["lit"] = int(fixture.lit_until) > minute
+			details["remaining_batches"] = fixture.batches
 		if fixture.spec.kind == "field":
 			var plot: Dictionary = crop_plots[target_id]
 			details["crop_state"] = crop_state(plot)
@@ -2935,6 +2992,8 @@ func tool_inspect(agent, args) -> Dictionary:
 	if doors.has(target_id):
 		var door: Dictionary = doors[target_id]
 		var center: Vector3 = door.body.global_position
+		if door.solid != null:
+			center = closest_on_aabb(door.solid.aabb, agent.pos + Vector3.UP * eye(agent))
 		if flat_dist(agent.pos, center) > 2.5 or absf(agent.pos.y - center.y) > 2.5:
 			return fail("too_far", "too far to inspect")
 		if not can_see(agent, center, door.body, view_range(agent), false):
@@ -3420,6 +3479,9 @@ func board_ferry(agent, landing: Vector3) -> Dictionary:
 		return fail("encumbered", "the ferry cannot carry that load")
 	if not ferry_trip.is_empty() and (int(ferry_trip.seats) >= FERRY_PASSENGERS or float(ferry_trip.mass_kg) + kg > FERRY_CAPACITY_KG):
 		return fail("encumbered", "the ferry has reached its passenger or weight limit")
+	var fare := 0 if agent.id == "human_fenn" else 2
+	if fare > 0 and not move_stack(agent, agents_by_id.human_fenn, "cp", fare):
+		return fail("no_item", "the ferry crossing costs two copper")
 	if ferry_trip.is_empty():
 		var wait := 1 if ferry_dock == source else FERRY_CROSSING_MINUTES + 1
 		ferry_trip = {
@@ -3432,7 +3494,7 @@ func board_ferry(agent, landing: Vector3) -> Dictionary:
 	ferry_trip.mass_kg += kg
 	watch_note(agent, "Waiting for the ferry", Color(0.75, 0.87, 0.98))
 	return start_action(agent, int(ferry_trip.arrive) - minute, {
-		"kind": "ferry", "depart_at": ferry_trip.depart, "wait_minutes": int(ferry_trip.depart) - minute, "cart_id": cart_id,
+		"kind": "ferry", "depart_at": ferry_trip.depart, "wait_minutes": int(ferry_trip.depart) - minute, "cart_id": cart_id, "fare_cp": fare,
 		"duration_seconds": int(ferry_trip.arrive) * 60 - elapsed_seconds,
 	}, {"landing": landing, "seat": seat, "distance": flat_dist(source, landing)})
 
@@ -3475,6 +3537,7 @@ func ferry_status() -> Dictionary:
 	return {
 		"dock": dock if not active else null, "crossing": active,
 		"capacity_kg": FERRY_CAPACITY_KG, "capacity_seats": FERRY_PASSENGERS,
+		"fare_cp": 2,
 		"reserved_kg": ferry_trip.get("mass_kg", 0.0), "reserved_seats": ferry_trip.get("seats", 0),
 		"depart_at": ferry_trip.get("depart"), "arrive_at": ferry_trip.get("arrive"), "cart_id": ferry_trip.get("cart_id"),
 	}
@@ -3885,24 +3948,30 @@ func patient_in_reach(healer, patient, reach: float) -> bool:
 	return healer.pos.distance_to(patient.pos) <= reach and can_see(healer, point, patient.body, view_range(healer), false)
 
 func move_stack(src, dst, item_id: String, quantity: int) -> bool:
-	if item_id == "sp":
-		if int(src.sp) < quantity:
+	if item_id in ["sp", "cp"]:
+		if not take_stack(src, item_id, quantity):
 			return false
-		src.sp -= quantity
-		dst.sp += quantity
-		return true
-	if item_id == "cp":
-		if int(src.cp) < quantity:
-			return false
-		src.cp -= quantity
-		dst.cp += quantity
+		dst[item_id] += quantity
 		return true
 	return move_inventory_stack(src.items, dst.items, item_id, quantity)
 
+func coin_quantity(holder, denomination: String) -> int:
+	var copper := int(holder.sp) * 10 + int(holder.cp)
+	return copper / 10 if denomination == "sp" else copper
+
 func take_stack(holder, item_id: String, quantity: int) -> bool:
 	if item_id == "sp" or item_id == "cp":
-		if int(holder[item_id]) < quantity:
+		if coin_quantity(holder, item_id) < quantity:
 			return false
+		if int(holder[item_id]) < quantity:
+			if item_id == "cp":
+				var silver := int(ceil(float(quantity - int(holder.cp)) / 10.0))
+				holder.sp -= silver
+				holder.cp += silver * 10
+			else:
+				var silver := quantity - int(holder.sp)
+				holder.cp -= silver * 10
+				holder.sp += silver
 		holder[item_id] -= quantity
 		return true
 	return not extract_stack(holder.items, item_id, quantity).is_empty()
@@ -4115,7 +4184,7 @@ func tool_trade(agent, args) -> Dictionary:
 		var lease_error: Dictionary = civic_rules.market_error(agent)
 		if not lease_error.is_empty():
 			return lease_error
-	var available := int(agent[offer.offer_item]) if offer.offer_item in ["sp", "cp"] else qty_of(agent.items, offer.offer_item)
+	var available := coin_quantity(agent, offer.offer_item) if offer.offer_item in ["sp", "cp"] else qty_of(agent.items, offer.offer_item)
 	if available < offer.offer_qty:
 		return fail("no_item", "you cannot cover your side of the trade; use an item id and quantity from your inventory")
 	var theirs = offers.get(partner_id)
@@ -4181,7 +4250,7 @@ func tool_contract(agent, args) -> Dictionary:
 		if str(contract.poster) != agent.id or contract.state != "awaiting_confirmation":
 			return fail("rejected", "only the poster can confirm a submitted service")
 		contract.state = "verified"
-		push_event(agents_by_id[contract.holder], {"type": "contract", "contract_id": contract.id, "text": "Your work was confirmed. Collect the reward at the guild board."})
+		notify_at_guild(agents_by_id[contract.holder], {"type": "contract", "contract_id": contract.id, "text": "Your work was confirmed. Collect the reward at the guild board."})
 		return ok(contract)
 	if action == "collect":
 		if contract.poster != agent.id or contract.state != "complete" or contract.get("delivery_item", "") == "" or contract.get("collected", false):
@@ -4200,7 +4269,7 @@ func tool_contract(agent, args) -> Dictionary:
 		var delivery_item := str(contract.get("delivery_item", ""))
 		if delivery_item == "" and contract.state == "accepted":
 			contract.state = "awaiting_confirmation"
-			push_event(agents_by_id[contract.poster], {"type": "contract", "contract_id": contract.id, "text": "The holder reports the service finished. Confirm it at the guild board after checking the work."})
+			notify_at_guild(agents_by_id[contract.poster], {"type": "contract", "contract_id": contract.id, "text": "The holder reports the service finished. Confirm it at the guild board after checking the work."})
 			return ok(contract)
 		var reward := int(contract.reward_sp)
 		if int(containers.guild_lockbox.sp) < reward:
@@ -4296,16 +4365,18 @@ func magic_target_error(agent, action: Dictionary) -> Dictionary:
 				return fail("rejected", "no line of effect")
 		else:
 			var fixture: Dictionary = fixtures.get(target, {})
-			if fixture.is_empty() or fixture.spec.kind not in ["fire", "timber"]:
-				return fail("bad_args", "flame needs a creature, fire ring, or dry timber target")
+			if fixture.is_empty() or fixture.spec.kind not in ["fire", "timber", "thatch"]:
+				return fail("bad_args", "flame needs a creature, fire ring, dry timber, or thatch target")
 			var pos: Vector3 = fixture.body.global_position
+			if fixture.spec.kind == "thatch":
+				pos = closest_on_aabb(fixture.solid.aabb, agent.pos + Vector3.UP * eye(agent))
 			if not fixture.body.visible or not can_see(agent, pos, fixture.body, 30.0, false):
 				return fail("rejected", "no line of effect")
 			if wet_weather(local_weather(pos)) and not under_cover(pos):
 				return fail("rejected", "exposed wet fuel will not catch fire")
 			if fixture.spec.kind == "fire" and (int(fixture.lit_until) > minute or qty_of(agent.items, "timber") < 1):
 				return fail("rejected", "an unlit fire ring and one timber fuel are required")
-			if fixture.spec.kind == "timber" and fixture.batches <= 0:
+			if fixture.spec.kind in ["timber", "thatch"] and fixture.batches <= 0:
 				return fail("depleted", "no dry timber remains")
 	return {}
 
@@ -4345,6 +4416,9 @@ func finish_spell(agent, action: Dictionary) -> Dictionary:
 					take_stack(agent, "timber", 1)
 					set_fire(fixture, minute + 180)
 					result["until_minute"] = fixture.lit_until
+				elif fixture.spec.kind == "thatch":
+					scorch_thatch(fixture)
+					result["remaining_batches"] = fixture.batches
 				else:
 					fixture.batches -= 1
 					leave_trace("ash", v3(fixture.spec.approaches[0]))
@@ -4357,7 +4431,7 @@ func finish_spell(agent, action: Dictionary) -> Dictionary:
 		"barrier":
 			var pose: Transform3D = field_actions.barrier_pose(agent, action)
 			var until := minute + maxi(1, int(spend / 5.0))
-			var body := add_solid("barrier_%s_%d" % [agent.id, elapsed_seconds], pose.origin, Vector3(1.2, 2.0, 0.3), "stone", true, null, L_WORLD, Color(0.5, 0.7, 1.0, 0.45))
+			var body := add_solid("barrier_%s_%d" % ["traveler_kael" if agent.id == "demon_kael" else agent.id, elapsed_seconds], pose.origin, Vector3(1.2, 2.0, 0.3), "stone", true, null, L_WORLD, Color(0.5, 0.7, 1.0, 0.45))
 			body.basis = pose.basis
 			body.force_update_transform()
 			solids.back().aabb = pose * AABB(-Vector3(1.2, 2.0, 0.3) * 0.5, Vector3(1.2, 2.0, 0.3))
@@ -4421,7 +4495,10 @@ func tool_craft(agent, args) -> Dictionary:
 		duration = int(ceil(duration * 1.5))
 	if minutes < duration:
 		return fail("rejected", "that task needs %d minutes" % duration)
-	if recipe.has("tool") and qty_of(agent.items, recipe.tool) == 0:
+	var tool_id := str(recipe.get("tool", ""))
+	if tool_id == "smith_hammer" and qty_of(agent.items, tool_id) == 0 and qty_of(agent.items, "forging_hammer") > 0:
+		tool_id = "forging_hammer"
+	if tool_id != "" and qty_of(agent.items, tool_id) == 0:
 		return fail("no_item", "you need a " + str(recipe.tool).replace("_", " "))
 	for action in pending_actions.values():
 		if action.get("station_id") == station_id:
@@ -4446,8 +4523,8 @@ func tool_craft(agent, args) -> Dictionary:
 		left -= from_agent
 		if left > 0:
 			take_from_inv(box_items, item_id, left)
-	if recipe.has("tool") and TOOL_LIFETIMES.has(recipe.tool):
-		wear_tool(agent, str(recipe.tool))
+	if TOOL_LIFETIMES.has(tool_id):
+		wear_tool(agent, tool_id)
 	if recipe_name == "cut_timber":
 		civic_rules.note_logging(agent, fixture.body.position)
 	if not fixture.is_empty() and fixture.batches > 0:
@@ -4701,7 +4778,11 @@ func tool_nav(args) -> Dictionary:
 	return ok({"points": path.size(), "length_m": round2(length), "snap_from": round2(a.distance_to(frm)), "snap_to": round2(b.distance_to(to)), "reached": not path.is_empty() and path[path.size() - 1].distance_to(b) < 0.5, "end": [] if path.is_empty() else [path[path.size() - 1].x, path[path.size() - 1].y, path[path.size() - 1].z]})
 
 func push_event(agent, event) -> void:
-	agent.events.append(event)
+	agent.events.append(public_observation(event))
+
+func notify_at_guild(agent, event: Dictionary) -> void:
+	if fixture_access_error(agent, fixtures.guild_board).is_empty():
+		push_event(agent, event)
 
 func can_wake(agent) -> bool:
 	return not agent.dead and not agent.unconscious and not pending_actions.has(str(agent.id)) and not agent.events.is_empty()
@@ -4711,7 +4792,7 @@ func advance(minutes: float, stop_on_action := false) -> void:
 	while elapsed_seconds < target:
 		var next := mini(target, (minute + 60 - posmod(minute, 60)) * 60)
 		for fixture in fixtures.values():
-			if fixture.spec.kind == "fire" and int(fixture.lit_until) > minute:
+			if fixture.spec.kind in ["fire", "thatch"] and int(fixture.lit_until) > minute:
 				next = mini(next, int(fixture.lit_until) * 60)
 		for solid in solids:
 			if int(solid.until) > minute:
@@ -4755,14 +4836,14 @@ func set_fire(fixture: Dictionary, until: int) -> void:
 
 func refresh_fire_states() -> void:
 	for fixture in fixtures.values():
-		if fixture.spec.kind != "fire" or int(fixture.lit_until) == -1:
+		if fixture.spec.kind not in ["fire", "thatch"] or int(fixture.lit_until) == -1:
 			continue
 		if int(fixture.lit_until) <= minute or (wet_weather(local_weather(fixture.body.position)) and not under_cover(fixture.body.position)):
 			set_fire(fixture, -1)
 
 func warmth_from_fire(agent, at_minute: int) -> bool:
 	for fixture in fixtures.values():
-		if fixture.spec.kind != "fire" or int(fixture.lit_until) <= at_minute:
+		if fixture.spec.kind not in ["fire", "thatch"] or int(fixture.lit_until) <= at_minute:
 			continue
 		var origin: Vector3 = fixture.body.position + Vector3.UP * 0.55
 		if can_see(agent, origin, fixture.body, 7.0, false):

@@ -36,7 +36,7 @@ jobs:
       fail-fast: false
       max-parallel: 6
       matrix:
-        scenario: [all, civic, wolves, goblins, field, buildings, terrain]
+        scenario: [all, civic, wolves, goblins, field, buildings, terrain, thatch]
     env:
       TMPDIR: ${{ github.workspace }}/.tmp
     steps:
@@ -64,6 +64,8 @@ jobs:
           set -o pipefail
           godot --headless --path world --script res://tests/collision.gd 2>&1 | tee .verify/artifacts/collision.log
           ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/collision.log
+          godot --headless --path world --script res://tests/rules.gd 2>&1 | tee .verify/artifacts/rules.log
+          ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/rules.log
           scenario='${{ matrix.scenario }}'
           if [ "$scenario" = terrain ]; then
             godot --headless --path world --script res://tests/navigation.gd 2>&1 | tee .verify/artifacts/proof.log

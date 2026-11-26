@@ -165,7 +165,7 @@ export async function proveWolfPredation(world: WorldClient): Promise<void> {
   assert.deepEqual(await inspectFlock(world, closedEvents), protectedFlock, "a closed pen must protect every sheep from injury");
   assert.equal(closedEvents.some(event => event.type === "noise" && event.text === bite), false);
 
-  await reach(world, shepherd, "-270,3,187");
+  await reach(world, shepherd, "-270.1,3,187");
   assert.equal((await use(world, shepherd, "inspect", { target_id: gate })).open, false);
   await pending(world, shepherd);
   const openEvents: Record<string, unknown>[] = [];
@@ -195,6 +195,7 @@ export async function proveGoblinRaids(world: WorldClient): Promise<void> {
   const cargoIds = ["grain_sack", "iron_ore"];
   const raid = "Cargo is dragged from a cart.";
   await host(world, "world_inject_event", { kind: "weather", weather: "clear" });
+  await reach(world, "demon_kael", "-120,1,24");
   await reach(world, guard, "-28,0,0");
   await use(world, guard, "toggle_lock", { door_id: "west_gate", action: "unlock" });
   await use(world, guard, "toggle_lock", { door_id: "west_gate", action: "open" });

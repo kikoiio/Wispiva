@@ -44,7 +44,53 @@ func verify_navigation() -> void:
 		push_error("The spring return route collides with the timber stand")
 		quit(1)
 		return
+	world.set_pos(actor, Vector3(-178, 2, 15))
+	var looked: Dictionary = world.handle_line(JSON.stringify({"role": "agent", "agentId": actor.id, "tool": "look", "args": {"focus": "traveler_kael"}}))
+	var scholar_seen := false
+	for person in looked.result.visible_agents:
+		if person.id == "traveler_kael":
+			scholar_seen = true
+		if person.id == "demon_kael":
+			push_error("Observation exposed a hidden identity")
+			quit(1)
+			return
+	if not scholar_seen:
+		push_error("The public scholar identifier must resolve to the visible person")
+		quit(1)
+		return
+	for trial in [["elf_sylvar", "longbow", "wolf_1"], ["elf_sylvar", "elven_blade", "wolf_1"], ["elf_lyra", "bow", "wolf_2"], ["dwarf_torin", "steel_axe", "wolf_3"], ["demon_kael", "dark_dagger", "wolf_4"]]:
+		var fighter = world.agents_by_id[trial[0]]
+		var target = world.find_wild(trial[2])
+		world.set_pos(fighter, Vector3(340, 12, 20))
+		world.set_pos(target, Vector3(341, 12, 20))
+		var arrows: int = world.qty_of(fighter.items, "arrow")
+		var attack: Dictionary = world.dispatch("agent", fighter.id, "attack", {"target_id": target.id, "weapon": trial[1]})
+		if not attack.ok or not attack.result.pending:
+			push_error("Starting specialist weapon is unusable: " + str(trial))
+			quit(1)
+			return
+		world.advance(0.1)
+		if "bleeding" not in target.injuries or (trial[1] in ["bow", "longbow"] and world.qty_of(fighter.items, "arrow") != arrows - 1):
+			push_error("Specialist weapon must cause a real impact and consume its ammunition")
+			quit(1)
+			return
+	var smith = world.agents_by_id.dwarf_torin
+	world.set_pos(smith, Vector3(113.5, 0, 36.5))
+	world.tool_inject({"kind": "item", "place": smith.id, "item_id": "iron_bar", "quantity": 1})
+	world.dispatch("agent", smith.id, "transfer_item", {"action": "pick", "item_id": "iron_bar", "quantity": 1})
+	var forged: Dictionary = world.dispatch("agent", smith.id, "work_craft", {"station_id": "forge_anvil", "recipe_or_task": "forge_nails", "minutes": 15})
+	if not forged.ok or not forged.result.pending:
+		push_error("Torin's master hammer cannot perform an ordinary forging recipe")
+		quit(1)
+		return
+	world.advance(15.0)
+	if world.qty_of(smith.items, "iron_nails") != 20 or world.qty_of(smith.items, "iron_bar") != 0 or world.tool_uses(world.item_stack(smith.items, "forging_hammer"))[0] != 119:
+		push_error("Forging must consume iron and master-hammer durability and produce nails")
+		quit(1)
+		return
 	print("PASS all %d registered forest trees and the spring return have physical routes" % checked)
+	print("PASS disguised public targets resolve through the ordinary observation interface")
+	print("PASS starting specialist weapons and the master forging hammer are usable")
 	world.queue_free()
 	await process_frame
 	quit(0)

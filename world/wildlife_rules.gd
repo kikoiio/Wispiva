@@ -11,7 +11,6 @@ func advance_beast(beast, target: Vector3, distance: float) -> void:
 		return
 	var changed: bool = not beast.has("route_target") or beast.route_target.distance_to(target) > 5.0
 	if changed or not beast.has("route"):
-		world.refresh_nav()
 		var start := NavigationServer3D.map_get_closest_point(world.map_rid, beast.pos)
 		var goal := NavigationServer3D.map_get_closest_point(world.map_rid, target)
 		beast["route"] = world.nav_path(start, goal, true)

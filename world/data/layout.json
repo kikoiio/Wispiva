@@ -409,7 +409,8 @@
           "height": 1.3,
           "open": true
         }
-      ]
+      ],
+      "roof_material": "thatch"
     },
     {
       "id": "chapel",
@@ -685,7 +686,8 @@
           "height": 1.3,
           "open": true
         }
-      ]
+      ],
+      "roof_material": "thatch"
     },
     {
       "id": "miller_barn",
@@ -720,7 +722,8 @@
           "height": 1.3,
           "open": true
         }
-      ]
+      ],
+      "roof_material": "thatch"
     },
     {
       "id": "oakford_house",

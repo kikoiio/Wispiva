@@ -1,7 +1,17 @@
 extends RefCounted
 
 const BodyState = preload("res://body_state.gd")
-const WEAPONS := {"steel_sword": 2.2, "shortsword": 2.0, "hand_axe": 1.8, "shortbow": 35.0}
+const WEAPONS := {
+	"steel_sword": 2.2,
+	"shortsword": 2.0,
+	"elven_blade": 2.2,
+	"hand_axe": 1.8,
+	"steel_axe": 1.8,
+	"dark_dagger": 1.5,
+	"shortbow": 35.0,
+	"bow": 35.0,
+	"longbow": 35.0,
+}
 
 var world
 
@@ -35,17 +45,23 @@ func attack_target_error(actor, action: Dictionary) -> Dictionary:
 func attack(actor, args: Dictionary) -> Dictionary:
 	var weapon := str(args.get("weapon", ""))
 	if not WEAPONS.has(weapon) or world.qty_of(actor.items, weapon) < 1:
-		return world.fail("no_item", "equip an owned sword, hand axe, or shortbow")
+		return world.fail("no_item", "equip an owned sword, axe, dagger, or bow")
 	if actor.stamina < 10.0:
 		return world.fail("rejected", "you are too exhausted to attack")
-	var action := {"kind": "attack", "target_id": str(args.get("target_id", "")), "weapon": weapon, "duration_seconds": 4 if weapon == "shortbow" else 2}
+	var is_bow := weapon in ["shortbow", "bow", "longbow"]
+	var action := {
+		"kind": "attack",
+		"target_id": str(args.get("target_id", "")),
+		"weapon": weapon,
+		"duration_seconds": 4 if is_bow else 2,
+	}
 	var invalid := attack_target_error(actor, action)
 	if not invalid.is_empty():
 		return invalid
-	if weapon == "shortbow" and not world.take_stack(actor, "arrow", 1):
+	if is_bow and not world.take_stack(actor, "arrow", 1):
 		return world.fail("no_item", "a bow shot consumes one arrow")
 	actor.stamina -= 6.0
-	world.watch_note(actor, "Aiming" if weapon == "shortbow" else "Striking", Color(1.0, 0.6, 0.4))
+	world.watch_note(actor, "Aiming" if is_bow else "Striking", Color(1.0, 0.6, 0.4))
 	return world.start_action(actor, 1, action)
 
 func finish_attack(actor, action: Dictionary) -> Dictionary:
