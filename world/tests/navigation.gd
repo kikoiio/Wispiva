@@ -125,11 +125,29 @@ func verify_navigation() -> void:
 		push_error("A person must be able to pass a standing guard in the wide gate")
 		quit(1)
 		return
+	var road_start := Vector3(-400, 12, 40)
+	var guard_stand := Vector3(-515, 24, -220)
+	if world.door_separates_goal(world.doors.tavern_entrance, road_start, guard_stand):
+		push_error("A distant tavern door cannot block the northwest hill trail")
+		quit(1)
+		return
+	world.set_pos(actor, road_start)
+	var approach: Dictionary = world.dispatch("agent", actor.id, "move_to", {"destination": "-515,24,-220", "pace": "walk"})
+	if not approach.ok or not approach.result.get("pending", false):
+		push_error("A guard must be able to stand beside a cart on the hill trail")
+		quit(1)
+		return
+	world.advance(20.0, true)
+	if world.flat_dist(actor.pos, guard_stand) > 2.2 or world.pending_actions.has(actor.id):
+		push_error("The hill-trail approach must finish at the requested lookout")
+		quit(1)
+		return
 	print("PASS all %d registered forest trees and the spring return have physical routes" % checked)
 	print("PASS disguised public targets resolve through the ordinary observation interface")
 	print("PASS starting specialist weapons and the master forging hammer are usable")
 	print("PASS carts follow graded roads and clear the town gate without striking its jamb")
 	print("PASS the wide gate leaves room to walk past an occupied approach")
+	print("PASS the hill-trail clearing is reachable and unrelated doors do not redirect travel")
 	world.queue_free()
 	await process_frame
 	quit(0)

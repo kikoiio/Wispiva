@@ -2268,6 +2268,7 @@ func fill_navmesh() -> void:
 	cover_raster(-320, -240, 120, 210, 2)
 	cover_raster(100, 190, 330, 430, 2)
 	cover_raster(-690, -590, -610, -510, 2)
+	cover_raster(-542, -494, -246, -190, 2)
 	cover_raster(-772, -748, -442, -404, 2)
 	cover_raster(-732, -708, -373, -335, 2)
 	cover_raster(260, 820, -220, 200, 2)
@@ -3300,7 +3301,7 @@ func tool_move(agent, args) -> Dictionary:
 		approach = approach + delta.normalized() * 1.4
 	var start := NavigationServer3D.map_get_closest_point(nav_map, agent.pos)
 	var goal := NavigationServer3D.map_get_closest_point(nav_map, approach)
-	if goal.distance_to(approach) > 5.0:
+	if flat_dist(goal, approach) > 2.2 or absf(goal.y - approach.y) > 2.0:
 		return ok({"arrived": false, "reason": "not_walkable", "x": round2(agent.pos.x), "y": round2(agent.pos.y), "z": round2(agent.pos.z), "distance_m": 0, "minutes": 0, "blocked": {"kind": "terrain", "id": "", "reason": "no walkable ground there"}})
 	var path := nav_path(start, goal, true, agent.cart_id != "")
 	# A shut door drops its crossing from the navigation mesh, so no path gets past it.
@@ -3531,6 +3532,8 @@ func shut_door_between(agent, goal: Vector3) -> Dictionary:
 		var door = doors[door_id]
 		if door.solid == null or door.open or (door.solid.aabb.size.y < DOORWAY and not door.passage):
 			continue
+		if not door_separates_goal(door, agent.pos, goal):
+			continue
 		var box: AABB = door.solid.aabb
 		var along := Vector3.RIGHT if box.size.x < box.size.z else Vector3.BACK
 		if (agent.pos - box.get_center()).dot(along) * (goal - box.get_center()).dot(along) > 0.0:
@@ -3543,6 +3546,29 @@ func shut_door_between(agent, goal: Vector3) -> Dictionary:
 			best = door
 			best_dist = near.distance_to(agent.pos)
 	return best
+
+func door_separates_goal(door: Dictionary, from: Vector3, goal: Vector3) -> bool:
+	if door.solid.aabb.grow(body_margin).intersects_segment(from + Vector3.UP, goal + Vector3.UP) != null:
+		return true
+	for building in layout.buildings:
+		if not building.doors.any(func(spec): return spec.id == door.id):
+			continue
+		var size := v3(building.size)
+		var box := AABB(v3(building.floor) - Vector3(size.x * 0.5, 0, size.z * 0.5), size)
+		if box.has_point(from + Vector3.UP * 0.1) != box.has_point(goal + Vector3.UP * 0.1):
+			return true
+	for room in layout.upper_rooms:
+		if room.door != door.id:
+			continue
+		var bounds: Array = room.bounds
+		var box := AABB(Vector3(bounds[0], room.floor_y, bounds[2]), Vector3(float(bounds[1]) - float(bounds[0]), float(room.ceiling_y) - float(room.floor_y), float(bounds[3]) - float(bounds[2])))
+		if box.has_point(from + Vector3.UP * 0.1) != box.has_point(goal + Vector3.UP * 0.1):
+			return true
+	if door.id in ["west_gate", "north_gate", "east_postern"]:
+		var town: Dictionary = layout.town_wall
+		var box := AABB(Vector3(town.x0, town.floor_y, town.z0), Vector3(float(town.x1) - float(town.x0), town.height, float(town.z1) - float(town.z0)))
+		return box.has_point(from + Vector3.UP * 0.1) != box.has_point(goal + Vector3.UP * 0.1)
+	return false
 
 # A standing spot beside a door, on whichever side `from` is, where the door's crossing would begin.
 func door_front(door, from: Vector3) -> Vector3:
