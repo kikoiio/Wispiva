@@ -15,6 +15,7 @@ const L_WATER := 8
 const L_PROP := 16
 const L_FLOOR := 32
 const L_FOLIAGE := 64
+const L_SMOKE := 128
 # A door shorter than this is furniture, not a way through.
 const DOORWAY := 2.0
 const MOVE_MASK := L_WORLD | L_DOOR | L_WATER | L_PROP | L_AGENT
@@ -136,6 +137,7 @@ var agents_by_id: Dictionary = {}
 var wildlife: Array = []
 var containers: Dictionary = {}
 var fixtures: Dictionary = {}
+var smoke_sources := 0
 var landmarks: Dictionary = {}
 var carts: Dictionary = {}
 var ferry_dock := FERRY_EAST
@@ -662,6 +664,12 @@ func register_thatch(building: Dictionary, roof: Dictionary) -> void:
 	flame.hide()
 	var floor := v3(building.floor)
 	fixtures[id] = {"spec": {"id": id, "name": str(building.name) + " thatched roof", "kind": "thatch", "building": building.id, "approaches": [[floor.x, floor.y, floor.z]]}, "body": body, "solid": roof, "batches": 4, "lit_until": -1, "flame": flame}
+	add_smoke(fixtures[id])
+
+func add_smoke(fixture: Dictionary) -> void:
+	var smoke := add_solid(str(fixture.spec.id) + "_smoke", fixture.body.global_position + Vector3.UP * 2.6, Vector3(1.8, 3.2, 1.8), "smoke", false, null, 0, Color(0.16, 0.14, 0.12, 0.65))
+	smoke.hide()
+	fixture["smoke"] = smoke
 
 func scorch_thatch(fixture: Dictionary) -> void:
 	fixture.batches -= 1
@@ -1015,6 +1023,7 @@ func build_props() -> void:
 			flame.hide()
 			fixtures[id]["flame"] = flame
 			fixtures[id]["lit_until"] = -1
+			add_smoke(fixtures[id])
 		elif spec.kind == "field":
 			hide_mesh(body)
 			var crop := Node3D.new()
@@ -2867,6 +2876,11 @@ func can_see(agent, target: Vector3, body: Node, reach: float, cone := true) -> 
 		var ang := atan2(target.z - from.z, target.x - from.x)
 		if absf(wrapf(ang - agent.yaw, -PI, PI)) > deg_to_rad(55.0):
 			return false
+	if smoke_sources > 0:
+		var smoke_query := PhysicsRayQueryParameters3D.create(from, target, L_SMOKE)
+		smoke_query.hit_from_inside = true
+		if not space().intersect_ray(smoke_query).is_empty():
+			return false
 	var query := PhysicsRayQueryParameters3D.create(from, target, SIGHT_MASK)
 	query.exclude = [agent.body.get_rid()]
 	var hit := space().intersect_ray(query)
@@ -3345,11 +3359,11 @@ func tick_walk(agent, travel: Dictionary) -> bool:
 		if qty_of(wagon.items, "grain_sack") > 0 or qty_of(wagon.items, "iron_ore") > 0:
 			var crossing: float = civic_rules.bridge_crossing_distance(step.pts)
 			if crossing >= 0.0:
-				if agent.sp < 1:
+				if coin_quantity(agent, "sp") < 1:
 					step = walk_path(agent, travel.path, travel.index, maxf(0.0, crossing - 3.0))
 					step.blocked = {"kind": "toll", "id": "stone_bridge", "reason": "a loaded ore or grain cart owes one silver bridge toll"}
 				else:
-					agent.sp -= 1
+					take_stack(agent, "sp", 1)
 					civic_rules.treasury_sp += 1
 					push_event(agent, {"type": "payment", "reason": "bridge cart toll", "paid_sp": 1})
 	var previous: Vector3 = agent.pos
@@ -3471,6 +3485,12 @@ func board_ferry(agent, landing: Vector3) -> Dictionary:
 		return fail("busy", "the ferry is already crossing")
 	var cart_id := str(agent.cart_id)
 	var kg := (64.0 if agent.race == "dwarf" else 75.0) + mass_of(agent)
+	var fare := 0 if agent.id == "human_fenn" else 2
+	var wallet := {"sp": int(agent.sp), "cp": int(agent.cp)}
+	if fare > 0:
+		if not take_stack(wallet, "cp", fare):
+			return fail("no_item", "the ferry crossing costs two copper")
+		kg += float(wallet.sp + wallet.cp - agent.sp - agent.cp) * 0.012
 	if cart_id != "":
 		kg += CART_TARE_KG + cart_cargo_mass(carts[cart_id])
 	if not ferry_trip.is_empty() and (cart_id != "" or ferry_trip.cart_id != ""):
@@ -3479,7 +3499,6 @@ func board_ferry(agent, landing: Vector3) -> Dictionary:
 		return fail("encumbered", "the ferry cannot carry that load")
 	if not ferry_trip.is_empty() and (int(ferry_trip.seats) >= FERRY_PASSENGERS or float(ferry_trip.mass_kg) + kg > FERRY_CAPACITY_KG):
 		return fail("encumbered", "the ferry has reached its passenger or weight limit")
-	var fare := 0 if agent.id == "human_fenn" else 2
 	if fare > 0 and not move_stack(agent, agents_by_id.human_fenn, "cp", fare):
 		return fail("no_item", "the ferry crossing costs two copper")
 	if ferry_trip.is_empty():
@@ -4193,14 +4212,17 @@ func tool_trade(agent, args) -> Dictionary:
 			var lease_error: Dictionary = civic_rules.market_error(partner)
 			if not lease_error.is_empty():
 				return lease_error
+		var agent_before := {"sp": agent.sp, "cp": agent.cp, "items": agent.items.duplicate(true)}
+		var partner_before := {"sp": partner.sp, "cp": partner.cp, "items": partner.items.duplicate(true)}
 		if not move_stack(agent, partner, offer.offer_item, offer.offer_qty):
 			return fail("no_item", "you cannot cover your side of the trade")
 		if not move_stack(partner, agent, offer.request_item, offer.request_qty):
-			move_stack(partner, agent, offer.offer_item, offer.offer_qty)
+			agent.merge(agent_before, true)
+			partner.merge(partner_before, true)
 			return fail("no_item", "they cannot cover their side of the trade")
 		if mass_of(agent) > 70.0 or mass_of(partner) > 70.0:
-			move_stack(agent, partner, offer.request_item, offer.request_qty)
-			move_stack(partner, agent, offer.offer_item, offer.offer_qty)
+			agent.merge(agent_before, true)
+			partner.merge(partner_before, true)
 			return fail("encumbered", "the trade would exceed someone's carrying capacity")
 		offers.erase(partner_id)
 		offers.erase(agent.id)
@@ -4220,14 +4242,14 @@ func tool_contract(agent, args) -> Dictionary:
 		return ok({"contracts": contracts, "escrow_sp": int(containers.guild_lockbox.get("sp", 0))})
 	if action == "post":
 		var reward := int(args.get("reward_sp", 0))
-		if reward < 1 or agent.sp < reward:
+		if reward < 1 or coin_quantity(agent, "sp") < reward:
 			return fail("no_item", "you cannot escrow that reward")
 		var delivery_item := str(args.get("delivery_item", ""))
 		var delivery_qty := int(args.get("delivery_qty", 0))
 		var summary := str(args.get("summary", "")).strip_edges()
 		if summary == "" or (delivery_item == "" and delivery_qty != 0) or (delivery_item != "" and (delivery_qty < 1 or delivery_item in ["sp", "cp"])):
 			return fail("bad_args", "give a summary and an optional item delivery with a positive quantity")
-		agent.sp -= reward
+		take_stack(agent, "sp", reward)
 		containers.guild_lockbox.sp = int(containers.guild_lockbox.sp) + reward
 		var contract = {"id": "contract_%d" % next_contract, "summary": summary, "reward_sp": reward, "poster": agent.id, "holder": "", "state": "open", "delivery_item": delivery_item, "delivery_qty": delivery_qty, "collected": false}
 		next_contract += 1
@@ -4829,10 +4851,16 @@ func under_cover(pos: Vector3) -> bool:
 	return not space().intersect_ray(roof).is_empty()
 
 func set_fire(fixture: Dictionary, until: int) -> void:
+	var was_lit: bool = int(fixture.lit_until) > -1
+	var lit := until > minute
 	if int(fixture.lit_until) > -1 and until == -1:
 		leave_trace("ash", v3(fixture.spec.approaches[0]))
 	fixture.lit_until = until
-	fixture.flame.visible = until > minute
+	fixture.flame.visible = lit
+	if was_lit != lit:
+		smoke_sources += 1 if lit else -1
+	fixture.smoke.visible = lit
+	fixture.smoke.collision_layer = L_SMOKE if lit else 0
 
 func refresh_fire_states() -> void:
 	for fixture in fixtures.values():
@@ -4846,7 +4874,13 @@ func warmth_from_fire(agent, at_minute: int) -> bool:
 		if fixture.spec.kind not in ["fire", "thatch"] or int(fixture.lit_until) <= at_minute:
 			continue
 		var origin: Vector3 = fixture.body.position + Vector3.UP * 0.55
-		if can_see(agent, origin, fixture.body, 7.0, false):
+		var from: Vector3 = agent.pos + Vector3.UP * eye(agent)
+		if from.distance_to(origin) > 7.0:
+			continue
+		var query := PhysicsRayQueryParameters3D.create(from, origin, SIGHT_MASK)
+		query.exclude = [agent.body.get_rid()]
+		var hit := space().intersect_ray(query)
+		if hit.is_empty() or hit.collider == fixture.body:
 			return true
 	return false
 

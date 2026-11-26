@@ -35,9 +35,9 @@ func use(agent, args: Dictionary) -> Dictionary:
 			if current.owner != agent.id:
 				return world.fail("busy", "another merchant has leased this stall")
 			return world.ok({"stall_id": target_id, "paid_sp": 0, "until_minute": current.until})
-		if agent.sp < 2:
+		if world.coin_quantity(agent, "sp") < 2:
 			return world.fail("no_item", "a weekly market lease costs two silver")
-		agent.sp -= 2
+		world.take_stack(agent, "sp", 2)
 		treasury_sp += 2
 		leases[target_id] = {"owner": agent.id, "until": world.minute + WEEK}
 		return world.ok({"stall_id": target_id, "paid_sp": 2, "until_minute": world.minute + WEEK})

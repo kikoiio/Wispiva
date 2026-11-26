@@ -47,6 +47,28 @@ func verify_collision() -> void:
 		quit(1)
 		return
 	print("PASS sloping cells exclude obstacles across their whole height range")
+	world.set_pos(actor, Vector3.ZERO)
+	var fire_body := world.add_solid("test_fire", Vector3(5, 0.1, 0), Vector3(0.5, 0.2, 0.5), "stone", false, null, world.L_PROP, Color.WHITE)
+	var flame := Node3D.new()
+	fire_body.add_child(flame)
+	var fire := {"spec": {"id": "test_fire", "kind": "fire", "approaches": [[5, 0, 0]]}, "body": fire_body, "lit_until": -1, "flame": flame}
+	world.fixtures.test_fire = fire
+	world.add_smoke(fire)
+	world.set_fire(fire, 60)
+	await physics_frame
+	await physics_frame
+	if world.can_see(actor, Vector3(10, 1.6, 0), null, 20.0, false) or not world.warmth_from_fire(actor, 0):
+		push_error("Dense smoke must obscure vision while the nearby fire still provides warmth")
+		quit(1)
+		return
+	world.set_fire(fire, -1)
+	await physics_frame
+	await physics_frame
+	if not world.can_see(actor, Vector3(10, 1.6, 0), null, 20.0, false):
+		push_error("Extinguishing the fire must clear its smoke obstruction")
+		quit(1)
+		return
+	print("PASS smoke blocks sight, preserves fire warmth, and clears on extinction")
 	world.queue_free()
 	await process_frame
 	quit(0)
