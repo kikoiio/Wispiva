@@ -33,16 +33,6 @@ func seen(beast, other, reach: float) -> bool:
 	return world.can_see(beast, other.pos + Vector3.UP * world.eye(other), other.body, reach, false)
 
 func step(minutes: int) -> void:
-	if minutes > 1 and world.doors.sheep_pen_gate.open:
-		var finish: int = world.minute
-		for offset in range(minutes):
-			world.minute = finish - minutes + offset + 1
-			step_interval(1)
-		world.minute = finish
-	else:
-		step_interval(minutes)
-
-func step_interval(minutes: int) -> void:
 	var hour: int = world.clock_hour()
 	var night := hour >= 20 or hour < 5
 	var winter: bool = world.season() == "winter"

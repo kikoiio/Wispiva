@@ -4901,6 +4901,8 @@ func advance(minutes: float, stop_on_action := false) -> void:
 	var target := elapsed_seconds + maxi(1, int(round(minutes * 60.0)))
 	while elapsed_seconds < target:
 		var next := mini(target, (minute + 60 - posmod(minute, 60)) * 60)
+		if doors.sheep_pen_gate.open:
+			next = mini(next, (minute + 1) * 60)
 		for fixture in fixtures.values():
 			if fixture.spec.kind in ["fire", "thatch"] and int(fixture.lit_until) > minute:
 				next = mini(next, int(fixture.lit_until) * 60)
