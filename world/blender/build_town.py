@@ -53,7 +53,7 @@ STYLES = {
     "guild_hall": {"wall": "stone", "base_h": 0.0, "plinth": 0.4, "plinth_out": 0.1, "rise": 3.3, "ridge": "x", "overhang": 0.7, "verge": 0.4, "roof": "roof", "chimney": (0.76, -1.0, 0.85, 1.7), "frame": False, "sign": False, "string_y": 4.0, "hood": True},
     "tavern": {"wall": "stone", "upper": "plaster", "base_h": 2.55, "plinth": 0.36, "plinth_out": 0.08, "rise": 4.0, "ridge": "x", "overhang": 0.8, "verge": 0.45, "roof": "roof_dark", "chimney": (0.28, -1.0, 1.05, 2.0), "frame": True, "sign": True, "string_y": 0.0, "hood": True},
     "forge": {"wall": "soot", "base_h": 0.0, "plinth": 0.28, "plinth_out": 0.06, "rise": 1.7, "ridge": "x", "overhang": 0.95, "verge": 0.3, "roof": "roof_soot", "chimney": (0.8, -1.0, 1.15, 2.3), "frame": False, "sign": False, "string_y": 0.0, "hood": False, "bay": True},
-    "granary": {"wall": "stone", "base_h": 0.0, "plinth": 0.82, "plinth_out": 0.16, "rise": 2.15, "ridge": "x", "overhang": 0.55, "verge": 0.3, "roof": "roof_straw", "chimney": None, "frame": False, "sign": False, "string_y": 0.0, "hood": True},
+    "granary": {"wall": "stone", "base_h": 0.0, "plinth": 0.28, "plinth_out": 0.16, "rise": 2.15, "ridge": "x", "overhang": 0.55, "verge": 0.3, "roof": "roof_straw", "chimney": None, "frame": False, "sign": False, "string_y": 0.0, "hood": True},
     "chapel": {"wall": "limestone", "base_h": 0.0, "plinth": 0.34, "plinth_out": 0.08, "rise": 3.6, "ridge": "z", "overhang": 0.4, "verge": 0.28, "roof": "slate", "chimney": None, "frame": False, "sign": False, "string_y": 0.0, "hood": True, "finial": True},
     "smelter": {"wall": "soot", "base_h": 0.0, "plinth": 0.35, "plinth_out": 0.1, "rise": 1.9, "ridge": "x", "overhang": 0.8, "verge": 0.35, "roof": "roof_soot", "chimney": (0.22, -1.0, 1.3, 2.6), "frame": False, "sign": False, "string_y": 0.0, "hood": False, "bay": True},
     "bunkhouse": {"wall": "stone", "base_h": 0.0, "plinth": 0.4, "plinth_out": 0.1, "rise": 1.7, "ridge": "x", "overhang": 0.55, "verge": 0.3, "roof": "slate", "chimney": (0.7, -1.0, 0.8, 1.5), "frame": False, "sign": False, "string_y": 0.0, "hood": True},
@@ -545,9 +545,12 @@ def add_sign(house):
     house.add_box("sign", (x, y - 0.38, z + 0.6), (0.72, 0.58, 0.06))
 
 
-def add_floor(house):
+def add_floor(house, layout=None):
+    if layout and any(platform["id"] == house.id + "_floor" for platform in layout["platforms"]):
+        return
     name = "timber" if house.id in ("tavern", "guild_hall", "granary") else house.style["wall"]
     house.add_box(name, (house.cx, house.y0 + 0.04, house.cz), (house.sx - house.thick * 2.0 - 0.08, 0.08, house.sz - house.thick * 2.0 - 0.08))
+
 
 
 def to_linear(channel):
@@ -633,7 +636,9 @@ def export(objects, path):
     bpy.ops.export_scene.gltf(filepath=str(path), export_format="GLB", use_selection=True, export_apply=True)
 
 
-def build_one(collection, building):
+def build_one(collection, building, layout=None):
+    if layout is None:
+        layout = json.loads(LAYOUT_PATH.read_text())
     house = House(building)
     subtract_fill(house)
     add_corners(house)
@@ -646,7 +651,7 @@ def build_one(collection, building):
     add_chimney(house)
     add_finial(house)
     add_sign(house)
-    add_floor(house)
+    add_floor(house, layout)
     objects = emit(collection, house)
     if not objects:
         raise RuntimeError(house.id + " produced no mesh")
@@ -665,7 +670,7 @@ def main():
     collection = bpy.data.collections.new("Stonebridge")
     bpy.context.scene.collection.children.link(collection)
     for building_id in TOWN:
-        build_one(collection, buildings[building_id])
+        build_one(collection, buildings[building_id], layout)
 
 
 if __name__ == "__main__":

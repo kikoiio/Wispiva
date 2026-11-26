@@ -39,10 +39,14 @@ jobs:
         run: |
           set -o pipefail
           python3 .verify/check.py | tee .verify/artifacts/proof.log
-      - name: Capture five regions and ferry
+          python3 .verify/check.py civic | tee .verify/artifacts/civic.log
+          python3 .verify/check.py field | tee .verify/artifacts/field.log
+          python3 .verify/check.py buildings | tee .verify/artifacts/building-proof.log
+      - name: Capture regions and interiors
+        if: always()
         run: |
           unset WAYLAND_DISPLAY
-          for view in square wood mine ruins farm ferry inn_upper archive walls; do
+          for view in square wood mine ruins farm ferry inn_upper archive walls granary forge; do
             mkdir -p ".verify/artifacts/$view"
             xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 120 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
             if grep -Eq 'SCRIPT ERROR|ERROR:' ".verify/artifacts/$view.log"; then

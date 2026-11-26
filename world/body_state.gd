@@ -33,6 +33,13 @@ static func dress_wound(body: Dictionary) -> void:
 	body.injuries.erase("bleeding")
 	body.injuries.erase("lacerated")
 
+static func bleed(body: Dictionary, amount: float) -> void:
+	injure(body, "lacerated")
+	injure(body, "bleeding")
+	body.blood_loss += amount
+	body.unconscious = body.blood_loss >= BLOOD_LOSS_FAINT or body.warmth < 28.5
+	body.dead = body.blood_loss >= BLOOD_LOSS_FATAL or body.warmth < 26.0
+
 static func step(body: Dictionary, minutes: int, air_c: float, wet: bool, sheltered: bool, fire: bool, winter_clothes: bool, resting: bool) -> void:
 	const HOURS := 1.0 / 60.0
 	for _minute in range(minutes):

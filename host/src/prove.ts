@@ -3,6 +3,7 @@ import { installCharacterHooks } from "./hooks/builtins.ts";
 import { triggerHooks } from "./hooks/core.ts";
 import { worldToolNames } from "./mcp.ts";
 import { WorldClient, type WorldResult } from "./world.ts";
+import { proveCivic } from "./proofs/civic.ts";
 
 installCharacterHooks();
 
@@ -412,6 +413,14 @@ async function proveProduction(world: WorldClient): Promise<void> {
     }
     assert.ok((await world.call("host", "world_step", { minutes: spec.minutes })).ok);
     const after = list(await use(actor, "status"), "inventory");
+    if (typeof spec.tool === "string") {
+      const toolBefore = before.find(item => isRecord(item) && item.id === spec.tool);
+      const toolAfter = after.find(item => isRecord(item) && item.id === spec.tool);
+      assert.ok(isRecord(toolBefore) && isRecord(toolAfter));
+      const previousUses = list(toolBefore, "tool_uses")[0];
+      assert.ok(typeof previousUses === "number");
+      assert.equal(list(toolAfter, "tool_uses")[0], previousUses - 1);
+    }
     for (const [item_id, quantity] of Object.entries(spec.out)) {
       assert.ok(typeof quantity === "number");
       assert.equal(itemQuantity(after, item_id), itemQuantity(before, item_id) + quantity);
@@ -420,6 +429,24 @@ async function proveProduction(world: WorldClient): Promise<void> {
   for (const recipe of ["forge_nails", "forge_lock", "forge_sword", "forge_arrowheads"]) {
     await make("human_bram", "forge_anvil", recipe);
   }
+  function hammerUses(status: Record<string, unknown>) {
+    const hammer = list(status, "inventory").find(item => isRecord(item) && item.id === "smith_hammer");
+    assert.ok(isRecord(hammer));
+    return list(hammer, "tool_uses");
+  }
+  const worn = await use("human_bram", "status");
+  assert.ok(num(worn, "volume_l") > 0);
+  const durability = hammerUses(worn);
+  await use("human_bram", "transfer_item", { action: "drop", item_id: "smith_hammer", quantity: 1 });
+  await use("human_bram", "transfer_item", { action: "pick", item_id: "smith_hammer", quantity: 1 });
+  assert.deepEqual(hammerUses(await use("human_bram", "status")), durability);
+  assert.equal(resultOf(await walk(world, "human_bram", "smith_storeroom")).arrived, true);
+  await use("human_bram", "toggle_lock", { door_id: "smith_storeroom", action: "unlock" });
+  await use("human_bram", "toggle_lock", { door_id: "smith_storeroom", action: "open" });
+  assert.equal(resultOf(await walk(world, "human_bram", "115,0,31.6")).arrived, true);
+  await use("human_bram", "transfer_item", { action: "store", container_id: "forge_stock", item_id: "smith_hammer", quantity: 1 });
+  await use("human_bram", "transfer_item", { action: "pick", item_id: "smith_hammer", quantity: 1 });
+  assert.deepEqual(hammerUses(await use("human_bram", "status")), durability);
   await make("human_tomas", "granary_mill", "mill_flour");
   await make("human_greta", "inn_oven", "bake_flour");
   await make("human_greta", "inn_oven", "brew_ale");
@@ -433,6 +460,107 @@ async function proveProduction(world: WorldClient): Promise<void> {
   const treated = await use("human_clara", "status");
   assert.equal(list(treated, "injuries").includes("fever"), false);
   assert.equal(itemQuantity(list(treated, "inventory"), "fever_poultice"), 0);
+}
+
+async function proveFieldActions(world: WorldClient): Promise<void> {
+  async function use(actor: string, tool: string, args: Record<string, unknown> = {}) {
+    const response = await agentCall(world, actor, tool, args);
+    assert.ok(response.ok && response.result, `${actor} ${tool}: ${JSON.stringify(response.error)}`);
+    return response.result;
+  }
+  async function reach(actor: string, destination: string) {
+    const arrived = resultOf(await walk(world, actor, destination));
+    assert.equal(arrived.arrived, true, `${actor} → ${destination}: ${JSON.stringify(arrived)}`);
+  }
+  const mage = "human_elena";
+  await reach(mage, "85,0,-30");
+  await use(mage, "toggle_lock", { door_id: "guild_entrance", action: "open" });
+  await reach(mage, "20,26,-653.8");
+  const iron = await use(mage, "inspect", { target_id: "vault_door" });
+  assert.ok(num(iron, "rust") > 0);
+  const before = num(await use(mage, "status"), "mana");
+  await use(mage, "cast_spell", { spell_name: "derust", target: "vault_door", mana_spend: 4 });
+  assert.ok((await world.call("host", "world_step", { seconds: 1 })).ok);
+  assert.equal(num(await use(mage, "inspect", { target_id: "vault_door" }), "rust"), 0);
+  assert.equal(num(await use(mage, "status"), "mana"), before - 4);
+  assert.equal((await agentCall(world, mage, "cast_spell", { spell_name: "derust", target: "vault_door", mana_spend: 4 })).error?.code, "rejected");
+
+  await reach(mage, "menhir_0");
+  assert.equal((await agentCall(world, mage, "cast_spell", { spell_name: "stone_mend", target: "menhir_0", mana_spend: 8 })).error?.code, "no_item");
+  await world.call("host", "world_inject_event", { kind: "item", place: mage, item_id: "stone_fragment", quantity: 1 });
+  await use(mage, "transfer_item", { action: "pick", item_id: "stone_fragment", quantity: 1 });
+  const cracked = num(await use(mage, "inspect", { target_id: "menhir_0" }), "integrity");
+  await use(mage, "cast_spell", { spell_name: "stone_mend", target: "menhir_0", mana_spend: 8 });
+  await world.call("host", "world_step", { seconds: 2 });
+  assert.ok(num(await use(mage, "inspect", { target_id: "menhir_0" }), "integrity") > cracked);
+  assert.equal(itemQuantity(list(await use(mage, "status"), "inventory"), "stone_fragment"), 0);
+
+  const archer = "human_kestrel";
+  await reach(archer, "35,0,-34");
+  await use(archer, "toggle_lock", { door_id: "tavern_entrance", action: "open" });
+  await reach(archer, "wolf_1");
+  const arrows = itemQuantity(list(await use(archer, "status"), "inventory"), "arrow");
+  const attack = await use(archer, "attack", { target_id: "wolf_1", weapon: "shortbow" });
+  assert.equal(attack.pending, true);
+  assert.equal(itemQuantity(list(await use(archer, "status"), "inventory"), "arrow"), arrows - 1);
+  assert.equal(list(await use(archer, "inspect", { target_id: "wolf_1" }), "injuries").includes("bleeding"), false);
+  await world.call("host", "world_step", { seconds: 4 });
+  assert.equal(list(await use(archer, "inspect", { target_id: "wolf_1" }), "injuries").includes("bleeding"), true);
+  await world.call("host", "world_step", { minutes: 60 });
+  const beasts = list(resultOf(await world.call("host", "world_snapshot")), "wildlife");
+  const wolf = beasts.find(entry => isRecord(entry) && entry.id === "wolf_1");
+  assert.ok(isRecord(wolf));
+  assert.equal(wolf.condition, "dead");
+
+  await reach("elf_lyra", "treewatch");
+  await reach(mage, "wolf_2");
+  await use(mage, "cast_spell", { spell_name: "flame", target: "wolf_2", mana_spend: 12 });
+  await world.call("host", "world_step", { seconds: 3 });
+  assert.ok(list(await use(mage, "inspect", { target_id: "wolf_2" }), "injuries").includes("burned"));
+}
+
+async function proveBuildings(world: WorldClient): Promise<void> {
+  async function use(actor: string, tool: string, args: Record<string, unknown> = {}) {
+    const response = await agentCall(world, actor, tool, args);
+    assert.ok(response.ok && response.result, `${actor} ${tool}: ${JSON.stringify(response.error)}`);
+    return response.result;
+  }
+  async function reach(actor: string, destination: string) {
+    const arrived = resultOf(await walk(world, actor, destination));
+    assert.equal(arrived.arrived, true, `${actor} → ${destination}: ${JSON.stringify(arrived)}`);
+    return arrived;
+  }
+  const owner = "human_tomas";
+  const loft = await reach(owner, "granary_loft_stock");
+  assert.ok(Math.abs(num(loft, "y") - 3.8) < 0.2);
+  const chest = await use(owner, "inspect", { target_id: "granary_loft_stock" });
+  assert.equal(chest.accessible, true, "a closed exterior door still permits access from inside the granary");
+  assert.equal(itemQuantity(list(chest, "stock"), "salt"), 12);
+  assert.equal(itemQuantity(list(chest, "stock"), "ration"), 24);
+  await use(owner, "transfer_item", { action: "pick", item_id: "salt", quantity: 1 });
+  assert.equal(itemQuantity(list(await use(owner, "status"), "inventory"), "salt"), 1);
+  await use(owner, "transfer_item", { action: "store", container_id: "granary_loft_stock", item_id: "salt", quantity: 1 });
+  assert.equal(itemQuantity(list(await use(owner, "inspect", { target_id: "granary_loft_stock" }), "stock"), "salt"), 12);
+  await reach(owner, "granary_bins");
+  assert.ok(Math.abs(num(await use(owner, "status"), "y") - 0.8) < 0.2);
+  await reach(owner, "20,0.8,45.5");
+  await use(owner, "toggle_lock", { door_id: "granary_door", action: "unlock" });
+  await use(owner, "toggle_lock", { door_id: "granary_door", action: "open" });
+  assert.ok(num(await reach(owner, "20,0,54"), "y") < 0.1);
+
+  const smith = "human_bram";
+  await reach(smith, "115,0,35.3");
+  const closed = resultOf(await walk(world, smith, "forge_stock"));
+  assert.equal(closed.arrived, false);
+  assert.ok(isRecord(closed.blocked) && closed.blocked.id === "smith_storeroom", JSON.stringify(closed));
+  await use(smith, "toggle_lock", { door_id: "smith_storeroom", action: "unlock" });
+  await use(smith, "toggle_lock", { door_id: "smith_storeroom", action: "open" });
+  await reach(smith, "forge_stock");
+  assert.ok(itemQuantity(list(await use(smith, "inspect", { target_id: "forge_stock" }), "stock"), "iron_bar") > 0);
+  await reach(smith, "forge_bellows");
+  assert.equal((await use(smith, "inspect", { target_id: "forge_bellows" })).kind, "bellows");
+  await reach(smith, "forge_quench_trough");
+  assert.equal((await use(smith, "inspect", { target_id: "forge_quench_trough" })).kind, "trough");
 }
 
 async function proveTraces(world: WorldClient): Promise<void> {
@@ -1009,7 +1137,7 @@ async function main(): Promise<void> {
   const hostOnly = ["world_step", "world_snapshot", "world_inject_event", "host_pending", "host_nav"];
   check(
     "world tools live in this host",
-    names.length === 15
+    names.length === 17
       && names.every((name) => name.startsWith("mcp__world__") && name.length <= 64)
       && hostOnly.every((name) => !names.includes(`mcp__world__${name}`))
       && !names.some((name) => name.includes("bash")),
@@ -1260,6 +1388,9 @@ if (scenario === undefined) {
     ["production", proveProduction],
     ["traces", proveTraces],
     ["magic", proveMagic],
+    ["field", proveFieldActions],
+    ["civic", proveCivic],
+    ["buildings", proveBuildings],
   ]);
   const proof = scenarios.get(scenario);
   assert.ok(proof, `unknown scenario ${scenario}`);

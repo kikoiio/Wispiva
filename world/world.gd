@@ -1,6 +1,9 @@
 extends Node3D
 
 const BodyState = preload("res://body_state.gd")
+const CivicRules = preload("res://civic_rules.gd")
+const FieldActions = preload("res://field_actions.gd")
+const WildlifeRules = preload("res://wildlife_rules.gd")
 
 # Greybox basin. 1 unit = 1 m. +X east, +Y up, +Z south. Origin is the town bridge landing.
 
@@ -34,6 +37,7 @@ const SEASONS := ["spring", "summer", "autumn", "winter"]
 const WEATHER_STATES := ["clear", "overcast", "rain", "storm", "snow", "blizzard"]
 const GRAIN_GROWTH_MINUTES := 15 * MINUTES_PER_DAY
 const RECIPES := {
+	"salvage_stone": {"need": {}, "out": {"stone_fragment": 1}, "minutes": 4},
 	"ring_alarm": {"need": {}, "out": {}, "minutes": 1},
 	"light_campfire": {"need": {"timber": 1}, "out": {}, "minutes": 4},
 	"lift_spire_crystal": {"need": {}, "out": {"spire_crystal": 1}, "minutes": 6},
@@ -53,6 +57,8 @@ const RECIPES := {
 	"shape_brace": {"need": {"timber": 1}, "out": {"timber_brace": 1}, "minutes": 12, "tool": "hand_axe"},
 	"iron_bar": {"need": {"iron_ore": 1, "charcoal": 1}, "out": {"iron_bar": 1}, "minutes": 25},
 	"forge_pickaxe": {"need": {"iron_bar": 1, "timber": 1}, "out": {"iron_pickaxe": 1}, "minutes": 30, "tool": "smith_hammer"},
+	"forge_axe": {"need": {"iron_bar": 1, "timber": 1}, "out": {"hand_axe": 1}, "minutes": 25, "tool": "smith_hammer"},
+	"forge_hammer": {"need": {"iron_bar": 1, "timber": 1}, "out": {"smith_hammer": 1}, "minutes": 25, "tool": "smith_hammer"},
 	"forge_nails": {"need": {"iron_bar": 1}, "out": {"iron_nails": 20}, "minutes": 15, "tool": "smith_hammer"},
 	"forge_lock": {"need": {"iron_bar": 1}, "out": {"lock_mechanism": 1}, "minutes": 30, "tool": "smith_hammer"},
 	"forge_sword": {"need": {"iron_bar": 1, "charcoal": 1, "timber": 1}, "out": {"steel_sword": 1}, "minutes": 60, "tool": "smith_hammer"},
@@ -66,6 +72,10 @@ const RECIPES := {
 	"clear_rubble": {"need": {"timber_brace": 1}, "out": {}, "minutes": 15, "tool": "iron_pickaxe"},
 }
 const OUTPUT_ITEMS := {
+	"stone_fragment": ["salvaged stone fragment", 0.5],
+	"manacles": ["iron manacles", 1.2],
+	"hand_axe": ["hand axe", 1.6],
+	"smith_hammer": ["smith hammer", 1.8],
 	"flour_sack": ["flour sack", 4.5],
 	"ale": ["ale bottle", 0.6],
 	"iron_nails": ["iron nails", 0.2],
@@ -94,7 +104,9 @@ const OUTPUT_ITEMS := {
 	"bandage": ["bandage", 0.15],
 	"raw_mana_crystal": ["raw mana crystal", 0.55],
 }
-const STATION_ALIASES := {"inn_pantry": "inn_oven", "smelter_stock": "smelter_furnace"}
+const TOOL_LIFETIMES := {"hand_axe": 16, "iron_pickaxe": 24, "smith_hammer": 60, "appraisal_loupe": 200, "sheep_crook": 100}
+const ITEM_LITERS := {"grain_sack": 32.0, "seed_sack": 12.0, "flour_sack": 7.0, "timber": 10.0, "timber_brace": 10.0, "charcoal": 16.0, "iron_ore": 5.0, "iron_bar": 1.1, "spring_water": 1.0, "bread": 1.0, "ale": 0.6}
+const STATION_ALIASES := {"inn_pantry": "inn_oven", "smelter_stock": "smelter_furnace", "forge_stock": "forge_furnace"}
 const STOCK_RECIPES := {
 	"forge_stock": "iron_bar",
 	"chapel_cabinet": "bandage",
@@ -173,11 +185,17 @@ var peers: Array = []
 var ready_net := false
 var dressed := 0
 var modeled := 0
+var civic_rules
+var field_actions
+var wildlife_rules
 
 func _ready() -> void:
 	weather_rng.seed = 41026
 	layout = load_json("res://data/layout.json")
 	cast = load_json("res://data/cast.json")
+	civic_rules = CivicRules.new(self)
+	field_actions = FieldActions.new(self)
+	wildlife_rules = WildlifeRules.new(self)
 	build_scene()
 	update_sky(regional_weather.stonebridge)
 	watch_setup()
@@ -775,6 +793,7 @@ func make_door(spec) -> Dictionary:
 		"lock": str(spec.lock),
 		"key": str(spec.get("key", "")),
 		"material": str(spec.get("material", "wood")),
+		"rust": float(spec.get("rust", 0.4 if spec.get("material", "wood") == "iron" else 0.0)),
 		"mana_sealed": bool(spec.get("mana_sealed", false)),
 		"body": null,
 		"solid": null,
@@ -920,13 +939,18 @@ func paint_spire_stairs(material: Material, from: Vector3, to: Vector3, width: f
 func build_props() -> void:
 	add_solid("town_well", Vector3(56, 0.5, 6), Vector3(1.8, 1.0, 1.8), "stone", true, null, L_PROP, COL.stone)
 	for i in range(4):
-		add_solid("stall_%d" % i, Vector3(44 + float(i) * 3.2, 1.1, -8), Vector3(2.4, 2.2, 2.0), "wood", true, null, L_PROP, COL.wood)
-	add_solid("anvil", Vector3(112, 0.8, 33), Vector3(0.6, 0.8, 1.2), "iron", true, null, L_PROP, COL.iron)
-	add_solid("furnace", Vector3(118, 1.2, 31), Vector3(2.2, 2.4, 1.6), "stone", true, null, L_PROP, COL.roof)
+		var id := "stall_%d" % i
+		var center := Vector3(44 + float(i) * 3.2, 1.1, -8)
+		var body := add_solid(id, center, Vector3(2.4, 2.2, 2.0), "wood", true, null, L_PROP, COL.wood)
+		fixtures[id] = {"spec": {"id": id, "name": "Market stall %d" % (i + 1), "kind": "stall", "center": [center.x, center.y, center.z], "approaches": [[center.x, 0, -5.8]]}, "body": body, "solid": solids.back(), "batches": -1}
 	add_solid("waterwheel", Vector3(36, 28, -640), Vector3(0.4, 4.0, 4.0), "wood", true, null, L_PROP, COL.wood)
 	for i in range(3):
 		var ang := float(i) / 3.0 * TAU
 		add_solid("menhir_%d" % i, Vector3(780 + cos(ang) * 10.0, 25.2, -180 + sin(ang) * 10.0), Vector3(1.1, 2.4, 0.8), "stone", true, null, L_PROP, COL.stone.darkened(0.2))
+		if i == 0:
+			fixtures.menhir_0 = {"spec": {"id": "menhir_0", "name": "Cracked spring boundary stone", "kind": "masonry", "approaches": [[788.4, 24, -180]]}, "body": solids.back().body, "solid": solids.back(), "batches": -1, "integrity": 0.6}
+	add_solid("ruin_stone", Vector3(-650, 38.3, -542), Vector3(1.2, 0.6, 0.8), "stone", true, null, L_PROP, COL.stone)
+	fixtures.ruin_stone = {"spec": {"id": "ruin_stone", "name": "Loose courtyard stone", "kind": "deposit", "recipe": "salvage_stone", "approaches": [[-650, 38, -540.5]]}, "body": solids.back().body, "solid": solids.back(), "batches": 8}
 	add_solid("ferry_pier_w", Vector3(-62, 0.3, 480), Vector3(5, 0.4, 3), "wood", false, null, L_FLOOR, COL.wood)
 	add_solid("ferry_pier_e", Vector3(-22, 0.3, 480), Vector3(5, 0.4, 3), "wood", false, null, L_FLOOR, COL.wood)
 	ferry_raft = add_solid("ferry_raft", ferry_raft_center(ferry_dock), Vector3(6, 0.3, 3), "wood", false, null, L_FLOOR, COL.wood.lightened(0.05))
@@ -1006,6 +1030,25 @@ func build_props() -> void:
 		elif spec.kind == "storage":
 			for x in [-0.85, 0.0, 0.85]:
 				visual_box(body, flat_mat(Color(0.63, 0.49, 0.30)), Vector3(x, 0.64, 0), Vector3(0.6, 0.35, 0.62))
+		elif spec.kind == "bed":
+			hide_mesh(body)
+			var size := v3(spec.size)
+			visual_box(body, flat_mat(COL.wood), Vector3(0, -0.1, 0), Vector3(size.x, 0.28, size.z))
+			visual_box(body, flat_mat(Color(0.24, 0.36, 0.44)), Vector3(0, 0.12, 0.16), Vector3(size.x * 0.9, 0.22, size.z * 0.7))
+			visual_box(body, flat_mat(Color(0.79, 0.75, 0.62)), Vector3(0, 0.16, -size.z * 0.35), Vector3(size.x * 0.78, 0.18, 0.36))
+		elif spec.kind == "records":
+			hide_mesh(body)
+			var size := v3(spec.size)
+			var wood := flat_mat(COL.wood)
+			for level in range(4):
+				var y := -size.y * 0.5 + level * size.y / 3.0
+				visual_box(body, wood, Vector3(0, y, 0), Vector3(size.x, 0.08, size.z))
+				if level < 3:
+					for book in range(12):
+						var color := Color(0.34, 0.16 + 0.04 * (book % 3), 0.12 + 0.05 * (book % 4))
+						visual_box(body, flat_mat(color), Vector3(-size.x * 0.45 + book * size.x / 13.0, y + 0.28, 0), Vector3(0.16, 0.46, size.z * 0.9))
+			for x in [-size.x * 0.5, size.x * 0.5]:
+				visual_box(body, wood, Vector3(x, 0, 0), Vector3(0.08, size.y, size.z))
 		elif spec.kind == "workstation":
 			visual_box(body, flat_mat(Color(0.13, 0.09, 0.07)), Vector3(0, 0.15, 0.704), Vector3(1.05, 0.58, 0.012))
 			visual_box(body, flat_mat(Color(0.76, 0.30, 0.12)), Vector3(0, -0.09, 0.716), Vector3(0.78, 0.09, 0.013))
@@ -1066,8 +1109,8 @@ func dress_town() -> void:
 	for i in range(4):
 		dress_stall(get_node_or_null("stall_%d" % i) as StaticBody3D, wood, cloth[i])
 	pin_board(get_node_or_null("notice_post") as StaticBody3D, Vector3(1.15, 0.75, 0.06), Vector3(0, 0.55, 0.18), Color(0.78, 0.72, 0.58))
-	dress_furnace(get_node_or_null("furnace") as StaticBody3D, stone)
-	dress_anvil(get_node_or_null("anvil") as StaticBody3D, iron)
+	dress_furnace(fixtures.forge_furnace.body, stone)
+	dress_anvil(fixtures.forge_anvil.body, iron)
 
 func hide_mesh(body: Node) -> void:
 	if body == null:
@@ -1691,7 +1734,20 @@ func build_trees() -> void:
 		if Vector2(x - 780, z + 180).length() < 18.0:
 			continue
 		var trunk := 0.7 + float(i % 5) * 0.2
-		add_solid("tree_%d" % i, Vector3(x, ground_y(x, z) + 3.0, z), Vector3(trunk, 6.0, trunk), "wood", true, null, L_WORLD, COL.wood.darkened(0.35))
+		var id := "tree_%d" % i
+		var y := ground_y(x, z)
+		var body := add_solid(id, Vector3(x, y + 3.0, z), Vector3(trunk, 6.0, trunk), "wood", true, null, L_WORLD, COL.wood.darkened(0.35))
+		fixtures[id] = {"spec": {"id": id, "name": "Forest pine", "kind": "timber", "recipe": "cut_timber", "approaches": [[x - 1.5, ground_y(x - 1.5, z), z], [x + 1.5, ground_y(x + 1.5, z), z]]}, "body": body, "solid": solids.back(), "batches": 1}
+
+func fell_timber(fixture: Dictionary) -> void:
+	leave_trace("stump", v3(fixture.spec.approaches[0]))
+	fixture.body.hide()
+	fixture.body.collision_layer = 0
+	for child in fixture.body.get_children():
+		if child is CollisionObject3D:
+			child.collision_layer = 0
+	fixture.solid.nav = false
+	navigation_dirty = true
 
 func build_plateaus() -> void:
 	var pads = [
@@ -2039,6 +2095,8 @@ func blocker_name(cx: float, cz: float) -> String:
 func blocked_point(cx: float, cz: float) -> bool:
 	if in_cliff(cx, cz):
 		return true
+	if platform_covers_ground(cx, cz):
+		return true
 	if cx >= -639.5 and cx <= -634.5 and cz >= -566.7 and cz <= -553.0:
 		return true
 	# This chamber uses a floor mesh with a shared junction to the main gallery.
@@ -2064,12 +2122,28 @@ func blocked_point(cx: float, cz: float) -> bool:
 func blocked_coarse(cx: float, cz: float, step: float) -> bool:
 	if in_cliff(cx, cz):
 		return true
+	if platform_covers_ground(cx, cz):
+		return true
 	if in_water(cx, cz) and not on_bridge(cx, cz):
 		return true
 	var foot := ground_y(cx, cz)
 	var box := AABB(Vector3(cx - step * 0.5, foot + 0.35, cz - step * 0.5), Vector3(step, 1.3, step))
 	for solid in solids:
 		if blocks_now(solid) and solid.aabb.intersects(box):
+			return true
+	return false
+
+func platform_covers_ground(x: float, z: float) -> bool:
+	var foot := ground_y(x, z)
+	for platform in layout.platforms:
+		var center := v3(platform.center)
+		var size := v3(platform.size)
+		if absf(x - center.x) >= size.x * 0.5 or absf(z - center.z) >= size.z * 0.5:
+			continue
+		if platform.get("navigation_grid", false) and center.y + size.y * 0.5 <= foot + 0.1:
+			return true
+		var bottom := center.y - size.y * 0.5
+		if bottom > foot and bottom < foot + 1.8:
 			return true
 	return false
 
@@ -2114,6 +2188,7 @@ func fill_navmesh() -> void:
 	cover_raster(-772, -748, -442, -404, 2)
 	cover_raster(-732, -708, -373, -335, 2)
 	cover_raster(284, 326, 8, 32, 2)
+	cover_raster(328, 406, 0, 40, 2)
 	cover_raster(480, 570, 0, 80, 2)
 	cover_raster(754, 804, -204, -156, 2)
 	cover_raster(20, 70, -910, -762, 2)
@@ -2139,6 +2214,9 @@ func fill_navmesh() -> void:
 	for platform in layout.platforms:
 		if not str(platform.id).begins_with("treewatch_") and not bool(platform.get("walkable", false)):
 			continue
+		if platform.get("building", "") == "granary" or platform.get("navigation_grid", false):
+			push_platform_grid(platform)
+			continue
 		var size := v3(platform.size)
 		var c := v3(platform.center) + Vector3.UP * size.y * 0.5
 		var a := Vector3(size.x * 0.5 - 0.25, 0, 0)
@@ -2146,6 +2224,28 @@ func fill_navmesh() -> void:
 		push_quad(c - a - b, c + a - b, c + a + b, c - a + b)
 	for road in roads:
 		push_road_chain(road.points, float(road.width))
+
+func push_platform_grid(platform: Dictionary) -> void:
+	var size := v3(platform.size)
+	var center := v3(platform.center) + Vector3.UP * size.y * 0.5
+	var x0 := center.x - size.x * 0.5 + 0.25
+	var z0 := center.z - size.z * 0.5 + 0.25
+	var columns := maxi(1, int(ceil((size.x - 0.5) / 0.5)))
+	var rows := maxi(1, int(ceil((size.z - 0.5) / 0.5)))
+	var width := (size.x - 0.5) / columns
+	var depth := (size.z - 0.5) / rows
+	for column in range(columns):
+		for row in range(rows):
+			var x := x0 + column * width
+			var z := z0 + row * depth
+			var probe := AABB(Vector3(x - body_margin, center.y + 0.15, z - body_margin), Vector3(width + body_margin * 2, 1.6, depth + body_margin * 2))
+			var blocked := false
+			for solid in solids:
+				if blocks_now(solid) and solid.aabb.intersects(probe):
+					blocked = true
+					break
+			if not blocked:
+				push_quad(Vector3(x, center.y, z), Vector3(x + width, center.y, z), Vector3(x + width, center.y, z + depth), Vector3(x, center.y, z + depth))
 
 func cover_raster(x0: int, x1: int, z0: int, z1: int, step: int) -> void:
 	var half := float(step) * 0.5
@@ -2495,6 +2595,8 @@ func dispatch(role: String, agent_id: String, tool: String, args) -> Dictionary:
 		return ok(status_of(agent))
 	if agent.dead or agent.unconscious:
 		return fail("rejected", "you cannot act while unconscious or dead")
+	if civic_rules.custody.has(agent.id) and tool not in ["look", "inspect", "speak", "rest"]:
+		return fail("rejected", "physical restraints prevent that action")
 	if pending_actions.has(agent_id) and tool not in ["status", "look", "inspect"]:
 		return fail("busy", "finish your current action first")
 	match tool:
@@ -2512,6 +2614,8 @@ func dispatch(role: String, agent_id: String, tool: String, args) -> Dictionary:
 		"guild_contract": return tool_contract(agent, args)
 		"suppress_mana": return tool_suppress(agent, args)
 		"cast_spell": return tool_cast(agent, args)
+		"attack": return field_actions.attack(agent, args)
+		"civic": return civic_rules.use(agent, args)
 		_: return fail("unknown_tool", "unknown tool " + tool)
 
 func ok(result) -> Dictionary:
@@ -2621,7 +2725,7 @@ func tool_look(agent, args) -> Dictionary:
 			continue
 		# Someone close enough to touch is noticed without turning to look.
 		if can_see(agent, other.pos + Vector3(0, eye(other) * 0.85, 0), other.body, reach, flat_dist(agent.pos, other.pos) > 2.0):
-			seen_agents.append({"id": other.id, "name": other.name, "distance_m": round2(flat_dist(agent.pos, other.pos)), "direction": bearing(agent.pos, other.pos)})
+			seen_agents.append({"id": other.id, "name": other.name, "distance_m": round2(flat_dist(agent.pos, other.pos)), "direction": bearing(agent.pos, other.pos), "condition": body_condition(other)})
 	for door_id in doors.keys():
 		var door = doors[door_id]
 		var pos: Vector3 = door.body.global_position
@@ -2784,6 +2888,9 @@ func tool_inspect(agent, args) -> Dictionary:
 		if not obstructed.is_empty():
 			return obstructed
 		var details := fixture_label(fixture)
+		if fixture.has("integrity"):
+			details["integrity"] = fixture.integrity
+			details["repair_spell"] = "stone_mend"
 		if fixture.spec.kind == "fire":
 			details["lit"] = int(fixture.lit_until) > minute
 		if fixture.spec.kind == "field":
@@ -2814,7 +2921,7 @@ func tool_inspect(agent, args) -> Dictionary:
 		elif containers.has(target_id):
 			var box: Dictionary = containers[target_id]
 			var door_id: String = box.get("door", "")
-			details["accessible"] = door_id == "" or doors[door_id].open
+			details["accessible"] = can_access_container(agent, target_id, box)
 			if details.accessible:
 				details["stock"] = inventory_out(box.items)
 		return ok(details)
@@ -2829,7 +2936,7 @@ func tool_inspect(agent, args) -> Dictionary:
 			return fail("too_far", "too far to inspect")
 		if not can_see(agent, center, door.body, view_range(agent), false):
 			return fail("blocked", "you cannot see the door from here")
-		return ok({"id": target_id, "open": door.open, "lock": door.lock, "material": door.material, "mana_sealed": door.mana_sealed, "needs_key": door.key != ""})
+		return ok({"id": target_id, "open": door.open, "lock": door.lock, "material": door.material, "mana_sealed": door.mana_sealed, "needs_key": door.key != "", "rust": door.rust})
 	var pos = place_pos(target_id)
 	if pos == null:
 		return fail("bad_args", "unknown target")
@@ -2852,6 +2959,8 @@ func fixture_access_error(agent, fixture: Dictionary) -> Dictionary:
 	if not fixture.body.visible:
 		return fail("depleted", "nothing remains at that spot")
 	var target: Vector3 = fixture.body.global_position
+	if fixture.has("solid"):
+		target = closest_on_aabb(fixture.solid.aabb, agent.pos + Vector3.UP)
 	if fixture.spec.kind == "field":
 		target = v3(fixture.spec.approaches[0]) + Vector3.UP * 0.65
 	if agent.pos.distance_to(target) > FIXTURE_REACH:
@@ -2972,6 +3081,7 @@ func status_of(agent) -> Dictionary:
 		"yaw": round2(agent.yaw),
 		"inventory": inventory_out(agent.items),
 		"mass_kg": round2(mass),
+		"volume_l": round2(volume_of(agent.items)),
 		"encumbrance": "overloaded" if mass >= 45.0 else "burdened" if mass > carry_threshold(agent) else "normal",
 		"stamina": round2(agent.stamina),
 		"hunger": round2(agent.hunger),
@@ -2979,6 +3089,7 @@ func status_of(agent) -> Dictionary:
 		"wetness": round2(agent.wetness),
 		"blood_loss": round2(agent.blood_loss),
 		"condition": body_condition(agent),
+		"restrained": civic_rules.custody.has(agent.id),
 		"sheltered": under_cover(agent.pos),
 		"near_fire": warmth_from_fire(agent, minute),
 		"ambient_c": round2(ambient_temperature(local_weather(agent.pos), clock_hour())),
@@ -3157,6 +3268,18 @@ func tick_walk(agent, travel: Dictionary) -> bool:
 			travel.path = path
 			travel.index = 1
 			step = walk_path(agent, path, 1, speed)
+	if agent.cart_id != "":
+		var wagon: Dictionary = carts[agent.cart_id]
+		if qty_of(wagon.items, "grain_sack") > 0 or qty_of(wagon.items, "iron_ore") > 0:
+			var crossing: float = civic_rules.bridge_crossing_distance(step.pts)
+			if crossing >= 0.0:
+				if agent.sp < 1:
+					step = walk_path(agent, travel.path, travel.index, maxf(0.0, crossing - 3.0))
+					step.blocked = {"kind": "toll", "id": "stone_bridge", "reason": "a loaded ore or grain cart owes one silver bridge toll"}
+				else:
+					agent.sp -= 1
+					civic_rules.treasury_sp += 1
+					push_event(agent, {"type": "payment", "reason": "bridge cart toll", "paid_sp": 1})
 	var previous: Vector3 = agent.pos
 	var next: Vector3 = step.pos
 	set_pos(agent, next)
@@ -3472,8 +3595,8 @@ func tool_lock(agent, args) -> Dictionary:
 		return ok({"door_id": door_id, "open": ladder_lowered})
 	if not doors.has(door_id):
 		return fail("bad_args", "unknown door")
-	if action != "open" and action != "close" and action != "lock" and action != "unlock":
-		return fail("bad_args", "action must be open, close, lock, or unlock")
+	if action not in ["open", "close", "lock", "unlock", "force", "repair"]:
+		return fail("bad_args", "action must be open, close, lock, unlock, force, or repair")
 	var door = doors[door_id]
 	var pos: Vector3 = door.body.global_position
 	if door.solid != null:
@@ -3482,6 +3605,34 @@ func tool_lock(agent, args) -> Dictionary:
 		return fail("too_far", "too far from the door")
 	if not can_see(agent, pos, door.body, 4.0, false):
 		return fail("blocked", "you cannot reach the door through an obstruction")
+	if action == "force" or action == "repair":
+		for pending in pending_actions.values():
+			if pending.get("door_id", "") == door_id:
+				return fail("busy", "someone is already working on this entrance")
+		if door.mana_sealed:
+			return fail("locked", "the mana seal withstands ordinary tools")
+		if action == "repair":
+			if door.lock != "broken":
+				return fail("rejected", "the lock is intact")
+			if qty_of(agent.items, "smith_hammer") < 1 or qty_of(agent.items, "lock_mechanism") < 1:
+				return fail("no_item", "repair needs a smith hammer and a replacement lock mechanism")
+			take_stack(agent, "lock_mechanism", 1)
+			wear_tool(agent, "smith_hammer")
+			return start_action(agent, 6, {"kind": "repair_lock", "door_id": door_id})
+		if door.lock == "broken":
+			return ok({"door_id": door_id, "lock": "broken", "open": door.open})
+		if door.open:
+			return fail("rejected", "the door is already open")
+		var tool := "hand_axe" if qty_of(agent.items, "hand_axe") > 0 else "smith_hammer"
+		if qty_of(agent.items, tool) < 1:
+			return fail("no_item", "forcing a lock needs an axe or smith hammer")
+		wear_tool(agent, tool)
+		if door.key == "" or qty_of(agent.items, door.key) < 1:
+			civic_rules.observe_offense(agent, "forcing a locked entrance")
+		emit_noise(agent.pos + Vector3.UP * eye(agent), 65.0, "Repeated blows strike a door lock.")
+		return start_action(agent, 30 if door.material == "iron" else 8, {"kind": "force_lock", "door_id": door_id})
+	if door.lock == "broken" and action in ["lock", "unlock"]:
+		return fail("rejected", "the broken lock needs a replacement mechanism")
 	if door.mana_sealed and action == "unlock":
 		return fail("locked", "the slab is mana-sealed")
 	if (action == "lock" or action == "unlock") and door.key != "" and qty_of(agent.items, door.key) < 1:
@@ -3598,8 +3749,7 @@ func tool_cart(agent, args) -> Dictionary:
 			if (loading and cart_cargo_mass(wagon) + kg > CART_CAPACITY_KG) or (not loading and mass_of(agent) + kg > 70.0):
 				return fail("encumbered", "the destination cannot carry that load")
 			var target: Array = wagon.items if loading else agent.items
-			take_from_inv(source, item_id, quantity)
-			give_stack(target, item_id, str(item.name), float(item.kg), quantity)
+			move_inventory_stack(source, target, item_id, quantity)
 			wagon.freight.visible = cart_cargo_mass(wagon) > 0.0
 		_:
 			return fail("bad_args", "use hitch, unhitch, load, or unload")
@@ -3638,10 +3788,15 @@ func tool_transfer(agent, args) -> Dictionary:
 			return fail("encumbered", "they cannot carry that")
 		return ok({"action": "give", "item_id": item_id, "quantity": quantity, "target_agent": target_id})
 	if action == "drop":
-		var item := item_stack(agent.items, item_id)
-		if not take_stack(agent, item_id, quantity):
-			return fail("no_item", "you do not have that many")
-		drop_stack(agent.pos, item_id, quantity, item.get("name", item_id), float(item.get("kg", 0.012)))
+		if item_id == "sp" or item_id == "cp":
+			if not take_stack(agent, item_id, quantity):
+				return fail("no_item", "you do not have that many")
+			drop_stack(agent.pos, item_id, quantity, item_id, 0.012)
+		else:
+			var moved := extract_stack(agent.items, item_id, quantity)
+			if moved.is_empty():
+				return fail("no_item", "you do not have that many")
+			drop_inventory_stack(agent.pos, moved)
 		return ok({"action": "drop", "item_id": item_id, "quantity": quantity})
 	if action == "store":
 		var container_id := str(args.get("container_id", ""))
@@ -3650,12 +3805,11 @@ func tool_transfer(agent, args) -> Dictionary:
 		var box: Dictionary = containers[container_id]
 		if agent.pos.distance_to(v3(box.at)) > 2.0:
 			return fail("too_far", "you are not beside the container")
-		if not can_access_container(container_id, box):
+		if not can_access_container(agent, container_id, box):
 			return fail("locked", "the container is closed")
 		var item := item_stack(agent.items, item_id)
-		if item.is_empty() or not take_stack(agent, item_id, quantity):
+		if not move_inventory_stack(agent.items, box.items, item_id, quantity):
 			return fail("no_item", "you do not have that many")
-		give_stack(box.items, item_id, str(item.name), float(item.kg), quantity)
 		return ok({"action": "store", "item_id": item_id, "container_id": container_id, "quantity": quantity})
 	if action == "pick":
 		return pick_stack(agent, item_id, quantity)
@@ -3730,46 +3884,77 @@ func move_stack(src, dst, item_id: String, quantity: int) -> bool:
 		src.cp -= quantity
 		dst.cp += quantity
 		return true
-	var name := ""
-	var kg := 0.1
-	for item in src.items:
-		if str(item.id) == item_id:
-			name = str(item.name)
-			kg = float(item.kg)
-	if not take_stack(src, item_id, quantity):
-		return false
-	give_stack(dst.items, item_id, name, kg, quantity)
-	return true
+	return move_inventory_stack(src.items, dst.items, item_id, quantity)
 
 func take_stack(holder, item_id: String, quantity: int) -> bool:
-	if item_id == "sp":
-		if int(holder.sp) < quantity:
+	if item_id == "sp" or item_id == "cp":
+		if int(holder[item_id]) < quantity:
 			return false
-		holder.sp -= quantity
+		holder[item_id] -= quantity
 		return true
-	if item_id == "cp":
-		if int(holder.cp) < quantity:
-			return false
-		holder.cp -= quantity
-		return true
-	for item in holder.items:
-		if str(item.id) == item_id and int(item.qty) >= quantity:
-			item.qty = int(item.qty) - quantity
-			return true
-	return false
+	return not extract_stack(holder.items, item_id, quantity).is_empty()
+
+func tool_uses(item: Dictionary) -> Array:
+	if item.has("tool_uses"):
+		return item.tool_uses.duplicate()
+	var uses: Array = []
+	uses.resize(int(item.qty))
+	uses.fill(int(TOOL_LIFETIMES[item.id]))
+	return uses
+
+func wear_tool(agent, item_id: String) -> void:
+	var tool := item_stack(agent.items, item_id)
+	var uses := tool_uses(tool)
+	uses[0] = int(uses[0]) - 1
+	if uses[0] <= 0:
+		uses.pop_front()
+		tool.qty = int(tool.qty) - 1
+	tool["tool_uses"] = uses
+
+func extract_stack(inv: Array, item_id: String, quantity: int) -> Dictionary:
+	var item := item_stack(inv, item_id)
+	if quantity < 1 or int(item.get("qty", 0)) < quantity:
+		return {}
+	var extracted := item.duplicate(true)
+	if TOOL_LIFETIMES.has(item_id):
+		var uses := tool_uses(item)
+		extracted["tool_uses"] = uses.slice(0, quantity)
+		item["tool_uses"] = uses.slice(quantity)
+	extracted.qty = quantity
+	item.qty = int(item.qty) - quantity
+	return extracted
+
+func add_stack(inv: Array, item: Dictionary) -> void:
+	var target := item_stack(inv, str(item.id))
+	if target.is_empty():
+		inv.append(item)
+		return
+	if TOOL_LIFETIMES.has(item.id):
+		var uses := tool_uses(target)
+		uses.append_array(tool_uses(item))
+		target["tool_uses"] = uses
+	target.qty = int(target.qty) + int(item.qty)
+
+func move_inventory_stack(source: Array, target: Array, item_id: String, quantity: int) -> bool:
+	var moved := extract_stack(source, item_id, quantity)
+	if moved.is_empty():
+		return false
+	add_stack(target, moved)
+	return true
 
 func give_stack(inv: Array, item_id: String, item_name: String, kg: float, quantity: int) -> void:
-	for item in inv:
-		if str(item.id) == item_id:
-			item.qty = int(item.qty) + quantity
-			return
-	inv.append({"id": item_id, "name": item_name if item_name != "" else item_id, "kg": kg, "qty": quantity})
+	add_stack(inv, {"id": item_id, "name": item_name if item_name != "" else item_id, "kg": kg, "qty": quantity})
 
-func can_access_container(container_id: String, box: Dictionary) -> bool:
+func can_access_container(agent, container_id: String, box: Dictionary) -> bool:
 	if bool(box.get("sealed", false)) or container_id == "guild_lockbox":
 		return false
 	var door_id := str(box.get("door", ""))
-	return door_id == "" or not doors.has(door_id) or doors[door_id].open
+	if doors.has(door_id) and not doors[door_id].open and doors[door_id].solid.aabb.size.y < DOORWAY:
+		return false
+	var fixture: Dictionary = fixtures.get(container_id, {})
+	if not fixture.is_empty():
+		return fixture_access_error(agent, fixture).is_empty()
+	return can_see(agent, v3(box.at) + Vector3.UP * 0.6, null, 3.5, false)
 
 func pick_stack(agent, item_id: String, quantity: int) -> Dictionary:
 	for pile in piles:
@@ -3777,7 +3962,7 @@ func pick_stack(agent, item_id: String, quantity: int) -> Dictionary:
 			return claim_stack(agent, pile.items, item_id, quantity)
 	for container_id in containers.keys():
 		var box = containers[container_id]
-		if not can_access_container(container_id, box):
+		if not can_access_container(agent, container_id, box):
 			continue
 		if agent.pos.distance_to(v3(box.at)) > 2.0:
 			continue
@@ -3786,35 +3971,38 @@ func pick_stack(agent, item_id: String, quantity: int) -> Dictionary:
 				return fail("encumbered", "that is too heavy to lift")
 			box.sp = int(box.sp) - quantity
 			agent.sp += quantity
+			civic_rules.note_taking(agent, box)
 			return ok({"action": "pick", "item_id": item_id, "quantity": quantity})
 		if qty_of(box.items, item_id) >= quantity:
-			return claim_stack(agent, box.items, item_id, quantity)
+			var claimed := claim_stack(agent, box.items, item_id, quantity)
+			if claimed.ok:
+				civic_rules.note_taking(agent, box)
+			return claimed
 	return fail("no_item", "nothing like that is within reach")
 
 func claim_stack(agent, inventory: Array, item_id: String, quantity: int) -> Dictionary:
 	var item := item_stack(inventory, item_id)
 	if mass_of(agent) + float(item.kg) * quantity > 70.0:
 		return fail("encumbered", "that is too heavy to lift")
-	take_from_inv(inventory, item_id, quantity)
 	if item_id == "sp" or item_id == "cp":
+		extract_stack(inventory, item_id, quantity)
 		agent[item_id] += quantity
 	else:
-		give_stack(agent.items, item_id, str(item.name), float(item.kg), quantity)
+		move_inventory_stack(inventory, agent.items, item_id, quantity)
 	return ok({"action": "pick", "item_id": item_id, "quantity": quantity})
 
 func take_from_inv(inv: Array, item_id: String, quantity: int) -> bool:
-	for item in inv:
-		if str(item.id) == item_id and int(item.qty) >= quantity:
-			item.qty = int(item.qty) - quantity
-			return true
-	return false
+	return not extract_stack(inv, item_id, quantity).is_empty()
 
 func drop_stack(pos: Vector3, item_id: String, quantity: int, item_name: String, kg: float) -> void:
+	drop_inventory_stack(pos, {"id": item_id, "name": item_name, "kg": kg, "qty": quantity})
+
+func drop_inventory_stack(pos: Vector3, item: Dictionary) -> void:
 	for pile in piles:
 		if pos.distance_to(pile.pos) < 1.0:
-			give_stack(pile.items, item_id, item_name, kg, quantity)
+			add_stack(pile.items, item)
 			return
-	piles.append({"pos": pos, "items": [{"id": item_id, "name": item_name, "kg": kg, "qty": quantity}]})
+	piles.append({"pos": pos, "items": [item]})
 
 func item_stack(inv: Array, item_id: String) -> Dictionary:
 	for item in inv:
@@ -3831,12 +4019,24 @@ func mass_of(agent) -> float:
 		total += float(item.kg) * float(item.qty)
 	return total
 
+func volume_of(items: Array) -> float:
+	var liters := 0.0
+	for item in items:
+		liters += item_liters(item) * int(item.qty)
+	return liters
+
+func item_liters(item: Dictionary) -> float:
+	return float(item.get("liters", ITEM_LITERS.get(str(item.id), maxf(0.01, float(item.kg) * 1.5))))
+
 func inventory_out(inv: Array) -> Array:
 	var out: Array = []
 	for item in inv:
 		if int(item.qty) <= 0:
 			continue
-		out.append({"id": str(item.id), "name": str(item.name), "qty": int(item.qty), "kg": float(item.kg)})
+		var details := {"id": str(item.id), "name": str(item.name), "qty": int(item.qty), "kg": float(item.kg), "liters": item_liters(item)}
+		if TOOL_LIFETIMES.has(item.id):
+			details["tool_uses"] = tool_uses(item)
+		out.append(details)
 	return out
 
 func tool_speak(agent, args) -> Dictionary:
@@ -3898,11 +4098,19 @@ func tool_trade(agent, args) -> Dictionary:
 	}
 	if offer.offer_qty < 1 or offer.request_qty < 1:
 		return fail("bad_args", "quantities must be at least 1")
+	if offer.request_item in ["sp", "cp"] and offer.offer_item not in ["sp", "cp"]:
+		var lease_error: Dictionary = civic_rules.market_error(agent)
+		if not lease_error.is_empty():
+			return lease_error
 	var available := int(agent[offer.offer_item]) if offer.offer_item in ["sp", "cp"] else qty_of(agent.items, offer.offer_item)
 	if available < offer.offer_qty:
 		return fail("no_item", "you cannot cover your side of the trade; use an item id and quantity from your inventory")
 	var theirs = offers.get(partner_id)
 	if theirs != null and str(theirs.partner_id) == agent.id and str(theirs.offer_item) == offer.request_item and int(theirs.offer_qty) == offer.request_qty and str(theirs.request_item) == offer.offer_item and int(theirs.request_qty) == offer.offer_qty:
+		if offer.offer_item in ["sp", "cp"] and offer.request_item not in ["sp", "cp"]:
+			var lease_error: Dictionary = civic_rules.market_error(partner)
+			if not lease_error.is_empty():
+				return lease_error
 		if not move_stack(agent, partner, offer.offer_item, offer.offer_qty):
 			return fail("no_item", "you cannot cover your side of the trade")
 		if not move_stack(partner, agent, offer.request_item, offer.request_qty):
@@ -3970,8 +4178,7 @@ func tool_contract(agent, args) -> Dictionary:
 			return fail("no_item", "the delivered stock is missing")
 		if mass_of(agent) + float(item.kg) * int(contract.delivery_qty) > 70.0:
 			return fail("encumbered", "you cannot carry the delivery")
-		take_from_inv(containers.guild_lockbox.items, contract.delivery_item, int(contract.delivery_qty))
-		give_stack(agent.items, contract.delivery_item, item.name, float(item.kg), int(contract.delivery_qty))
+		move_inventory_stack(containers.guild_lockbox.items, agent.items, contract.delivery_item, int(contract.delivery_qty))
 		contract.collected = true
 		return ok(contract)
 	if action == "complete":
@@ -3990,8 +4197,7 @@ func tool_contract(agent, args) -> Dictionary:
 			var quantity := int(contract.delivery_qty)
 			if int(item.get("qty", 0)) < quantity:
 				return fail("no_item", "bring the required goods before claiming the reward")
-			take_stack(agent, delivery_item, quantity)
-			give_stack(containers.guild_lockbox.items, delivery_item, item.name, float(item.kg), quantity)
+			move_inventory_stack(agent.items, containers.guild_lockbox.items, delivery_item, quantity)
 		containers.guild_lockbox.sp = int(containers.guild_lockbox.sp) - reward
 		agent.sp += reward
 		contract.state = "complete"
@@ -4045,9 +4251,9 @@ func tool_cast(agent, args) -> Dictionary:
 	if spell == "light":
 		if target != "" and target != agent.id:
 			return fail("bad_args", "light is cast on yourself")
-	if spell not in ["light", "bandage", "flame", "barrier", "mend"]:
+	if spell not in ["light", "bandage", "flame", "barrier", "mend", "derust", "stone_mend"]:
 		return fail("bad_args", "unknown spell")
-	var action := {"kind": "spell", "spell": spell, "target": target, "mana_spend": spend, "concentration_seconds": clampi(int(ceil(spend / 5.0)), 1, 10)}
+	var action := {"kind": "spell", "spell": spell, "target": target, "mana_spend": spend, "cast_yaw": agent.yaw, "concentration_seconds": clampi(int(ceil(spend / 5.0)), 1, 10)}
 	var invalid := magic_target_error(agent, action)
 	if not invalid.is_empty():
 		return invalid
@@ -4058,6 +4264,10 @@ func tool_cast(agent, args) -> Dictionary:
 func magic_target_error(agent, action: Dictionary) -> Dictionary:
 	var spell := str(action.spell)
 	var target := str(action.target)
+	if spell in ["derust", "stone_mend"]:
+		return field_actions.utility_error(agent, action)
+	if spell == "barrier":
+		return field_actions.barrier_error(agent, action)
 	if spell in ["bandage", "mend"]:
 		var patient = agent if target == "" or target == agent.id else agents_by_id.get(target)
 		if patient == null or patient.dead or not patient_in_reach(agent, patient, 8.0):
@@ -4067,7 +4277,7 @@ func magic_target_error(agent, action: Dictionary) -> Dictionary:
 		if spell == "mend" and "lacerated" not in patient.injuries and "bleeding" not in patient.injuries:
 			return fail("rejected", "mend closes minor cuts; it cannot regrow tissue or mend fractures")
 	if spell == "flame":
-		var other = agents_by_id.get(target)
+		var other = field_actions.creature(target)
 		if other != null:
 			if not can_see(agent, other.pos + Vector3(0, eye(other), 0), other.body, 30.0, false):
 				return fail("rejected", "no line of effect")
@@ -4095,6 +4305,8 @@ func finish_spell(agent, action: Dictionary) -> Dictionary:
 	var spend := int(action.mana_spend)
 	var result := {"spell": spell, "applied": true}
 	match spell:
+		"derust", "stone_mend":
+			return field_actions.finish_utility(agent, action)
 		"light":
 			agent.light_until = minute + 10
 			result["until_minute"] = agent.light_until
@@ -4107,11 +4319,13 @@ func finish_spell(agent, action: Dictionary) -> Dictionary:
 			result["patient"] = patient.id
 			result["injuries"] = patient.injuries.duplicate()
 		"flame":
-			var other = agents_by_id.get(target)
+			var other = field_actions.creature(target)
 			if other != null:
 				if spend >= 12:
 					BodyState.injure(other, "burned")
 				push_event(other, {"type": "spell", "text": "Flame washes over you."})
+				if other.id != agent.id:
+					civic_rules.observe_offense(agent, "attacking a person with flame")
 			else:
 				var fixture: Dictionary = fixtures[target]
 				if fixture.spec.kind == "fire":
@@ -4124,16 +4338,16 @@ func finish_spell(agent, action: Dictionary) -> Dictionary:
 					drop_stack(fixture.body.global_position, "ash", 1, "wood ash", 0.2)
 					result["remaining_batches"] = fixture.batches
 					if fixture.batches == 0:
-						leave_trace("stump", v3(fixture.spec.approaches[0]))
-						fixture.body.hide()
-						fixture.body.collision_layer = 0
-						fixture.solid.nav = false
+						fell_timber(fixture)
 						rebuild_nav()
 			result["target"] = target
 		"barrier":
-			var ahead := (agent.pos as Vector3) + Vector3(cos(agent.yaw), 0, sin(agent.yaw)) * 1.6
+			var pose: Transform3D = field_actions.barrier_pose(agent, action)
 			var until := minute + maxi(1, int(spend / 5.0))
-			var body := add_solid("barrier_%s_%d" % [agent.id, minute], ahead + Vector3(0, 1.0, 0), Vector3(1.2, 2.0, 0.3), "stone", true, null, L_WORLD, Color(0.5, 0.7, 1.0, 0.45))
+			var body := add_solid("barrier_%s_%d" % [agent.id, elapsed_seconds], pose.origin, Vector3(1.2, 2.0, 0.3), "stone", true, null, L_WORLD, Color(0.5, 0.7, 1.0, 0.45))
+			body.basis = pose.basis
+			body.force_update_transform()
+			solids.back().aabb = pose * AABB(-Vector3(1.2, 2.0, 0.3) * 0.5, Vector3(1.2, 2.0, 0.3))
 			solids.back().until = until
 			body.set_meta("mana_integrity", spend)
 			barriers.append(solids.back())
@@ -4173,7 +4387,10 @@ func tool_craft(agent, args) -> Dictionary:
 		if fixture.batches == 0:
 			return fail("depleted", "nothing remains to extract here")
 		if fixture.spec.has("stock"):
-			box_items = containers[fixture.spec.stock].items
+			var stock: Dictionary = containers[fixture.spec.stock]
+			var door_id: String = stock.get("door", "")
+			if door_id == "" or doors[door_id].open:
+				box_items = stock.items
 	else:
 		if STOCK_RECIPES.get(station_id, "") != recipe_name:
 			return fail("bad_args", "unknown station")
@@ -4216,6 +4433,10 @@ func tool_craft(agent, args) -> Dictionary:
 		left -= from_agent
 		if left > 0:
 			take_from_inv(box_items, item_id, left)
+	if recipe.has("tool") and TOOL_LIFETIMES.has(recipe.tool):
+		wear_tool(agent, str(recipe.tool))
+	if recipe_name == "cut_timber":
+		civic_rules.note_logging(agent, fixture.body.position)
 	if not fixture.is_empty() and fixture.batches > 0:
 		fixture.batches -= 1
 	watch_note(agent, "Working on " + recipe_name.replace("_", " "), Color(1.0, 0.85, 0.60))
@@ -4263,6 +4484,18 @@ func finish_actions(movement_tick: bool) -> bool:
 		var duration := minute - int(action.started_at)
 		var event := {"type": "action_completed", "action": action, "minute": minute, "elapsed_seconds": elapsed_seconds}
 		match action.kind:
+			"attack":
+				event["result"] = field_actions.finish_attack(agent, action)
+			"force_lock":
+				var door: Dictionary = doors[action.door_id]
+				if not door.open and door.lock != "broken":
+					door.lock = "broken"
+					var trace := leave_trace("broken_lock", door_front(door, agent.pos))
+					event["result"] = {"door_id": door.id, "lock": "broken", "trace_id": trace.id}
+			"repair_lock":
+				var door: Dictionary = doors[action.door_id]
+				door.lock = "unlocked"
+				event["result"] = {"door_id": door.id, "lock": "unlocked"}
 			"spell":
 				event["result"] = finish_spell(agent, action)
 			"craft":
@@ -4297,11 +4530,7 @@ func finish_actions(movement_tick: bool) -> bool:
 					leave_trace("ash", v3(station.spec.approaches[0]))
 				if not station.is_empty() and station.batches == 0:
 					if station.spec.kind == "timber":
-						leave_trace("stump", v3(station.spec.approaches[0]))
-						hide_mesh(station.body)
-						station.body.collision_layer = 0
-						station.solid.nav = false
-						navigation_dirty = true
+						fell_timber(station)
 					elif station.spec.kind == "deposit":
 						for child in station.body.get_children():
 							if child is MeshInstance3D:
@@ -4349,7 +4578,7 @@ func finish_actions(movement_tick: bool) -> bool:
 		ferry_trip = {}
 	return completed
 
-func finish_rest(agent, minutes: int) -> void:
+func finish_rest(agent, _minutes: int) -> void:
 	if agent.hunger > 30.0:
 		if take_stack(agent, "ration", 1) or take_stack(agent, "bread", 1):
 			agent.hunger = maxf(0.0, agent.hunger - 25.0)
@@ -4377,7 +4606,7 @@ func tool_snapshot() -> Dictionary:
 		})
 	var beasts: Array = []
 	for beast in wildlife:
-		beasts.append({"id": beast.id, "kind": beast.kind, "x": round2(beast.pos.x), "y": round2(beast.pos.y), "z": round2(beast.pos.z)})
+		beasts.append({"id": beast.id, "kind": beast.kind, "x": round2(beast.pos.x), "y": round2(beast.pos.y), "z": round2(beast.pos.z), "condition": body_condition(beast), "items": inventory_out(beast.items)})
 	var door_rows: Array = []
 	for door_id in doors.keys():
 		var door = doors[door_id]
@@ -4385,7 +4614,7 @@ func tool_snapshot() -> Dictionary:
 	var wagons: Array = []
 	for wagon in carts.values():
 		wagons.append(cart_status(wagon))
-	return ok({"minute": minute, "elapsed_seconds": elapsed_seconds, "clock": clock_label(), "weather": regional_weather.stonebridge, "regional_weather": regional_weather, "season": season(), "agents": rows, "wildlife": beasts, "doors": door_rows, "contracts": contracts, "ferry": ferry_status(), "carts": wagons})
+	return ok({"minute": minute, "elapsed_seconds": elapsed_seconds, "clock": clock_label(), "weather": regional_weather.stonebridge, "regional_weather": regional_weather, "season": season(), "agents": rows, "wildlife": beasts, "doors": door_rows, "contracts": contracts, "ferry": ferry_status(), "carts": wagons, "treasury_sp": civic_rules.treasury_sp})
 
 func tool_inject(args) -> Dictionary:
 	var kind := str(args.get("kind", ""))
@@ -4474,7 +4703,7 @@ func advance(minutes: float, stop_on_action := false) -> void:
 		for solid in solids:
 			if int(solid.until) > minute:
 				next = mini(next, int(solid.until) * 60)
-		for agent in agents:
+		for agent in actors():
 			next = mini(next, (minute + BodyState.minutes_to_blood_change(agent)) * 60)
 			if not agent.dead and (agent.unconscious or agent.warmth < 30.0):
 				next = mini(next, (minute + 1) * 60)
@@ -4655,7 +4884,7 @@ func advance_interval(minutes: int) -> bool:
 				gate.lock = "unlocked"
 				apply_door_visual(gate)
 			navigation_dirty = true
-	step_wildlife(minutes)
+	wildlife_rules.step(minutes)
 	var expired: Array = []
 	for solid in barriers:
 		if int(solid.until) >= 0 and int(solid.until) <= minute and solid.body.visible:
@@ -4689,51 +4918,10 @@ func step_sheep(sheep, minutes: float) -> void:
 		target = Vector3(-272.0, 3.0, 183.8 if pos.z < 185.8 else 185.2)
 	var next := pos.move_toward(target, minutes * 4.0)
 	next.y = ground_y(next.x, next.z)
-	if pos.distance_to(next) > 0.02:
+	if pos.distance_to(next) > 0.02 and travel_fraction(sheep, pos, next) >= 0.96:
 		sheep.visual.rotation.y = atan2(pos.x - next.x, pos.z - next.z)
 		set_pos(sheep, next)
 
-func step_wildlife(minutes: float) -> void:
-	var hour := clock_hour()
-	var night := hour >= 20 or hour < 5
-	for beast in wildlife:
-		if beast.kind == "sheep":
-			step_sheep(beast, minutes)
-			continue
-		if beast.kind == "goblin":
-			var offset: Vector3 = beast.home - Vector3(-760, 42, -410)
-			var target := Vector3(-752, 42, -405) + offset * 0.28 if night else beast.home as Vector3
-			var prior: Vector3 = beast.pos
-			if night and prior.z < -409.9:
-				target = Vector3(-760 + clampf(offset.x, -2.2, 2.2), 42, -408.8)
-			elif not night and prior.z > -409.5:
-				target = Vector3(-760 + clampf(offset.x, -2.2, 2.2), 42, -410.3)
-			var next := prior.move_toward(target, 0.3 * minutes)
-			next.y = ground_y(next.x, next.z)
-			if prior.distance_to(next) > 0.02 and travel_fraction(beast, prior, next) >= 0.96:
-				beast.visual.rotation.y = atan2(prior.x - next.x, prior.z - next.z)
-				set_pos(beast, next)
-			continue
-		if beast.kind != "wolf":
-			continue
-		var target: Vector3 = beast.home
-		if night:
-			target = Vector3(-280, 3, 160)
-		var delta := Vector3(target.x - beast.pos.x, 0, target.z - beast.pos.z)
-		var dist := Vector2(delta.x, delta.z).length()
-		if dist < 30.0:
-			continue
-		var step := minf(dist - 30.0, 30.0 * minutes / 60.0)
-		beast.pos += delta / dist * step
-		if beast.pos.x > -80.0:
-			beast.pos.x = -80.0
-		beast.pos.y = ground_y(beast.pos.x, beast.pos.z)
-		sync_body(beast)
-		if night:
-			for target_agent in agents:
-				if not target_agent.dead and target_agent.pos.distance_to(beast.pos) <= 1.4 and not stone_between(beast.pos, target_agent.pos):
-					BodyState.injure(target_agent, "lacerated")
-					BodyState.injure(target_agent, "bleeding")
 
 func actors() -> Array:
 	var all: Array = []
@@ -4996,11 +5184,17 @@ func watch_follow(delta: float) -> void:
 		focus = Vector3(-42, 1.4, 480)
 		wanted = Vector3(-42, 7.5, 508)
 	elif spec_fixed == "inn_upper":
-		focus = Vector3(40.5, 5.2, -41.5)
-		wanted = Vector3(28, 5.4, -41.5)
+		focus = Vector3(28.6, 4.65, -46.1)
+		wanted = Vector3(30.2, 5.55, -43.2)
 	elif spec_fixed == "archive":
 		focus = Vector3(91, 5.2, -40.5)
 		wanted = Vector3(83, 5.7, -39)
+	elif spec_fixed == "granary":
+		focus = Vector3(23.5, 4.4, 35)
+		wanted = Vector3(18, 5.6, 38.2)
+	elif spec_fixed == "forge":
+		focus = Vector3(116, 1.6, 34)
+		wanted = Vector3(109.5, 3.5, 39)
 	elif spec_fixed == "walls":
 		focus = Vector3(-26, 5, -15)
 		wanted = Vector3(-12, 13, -3)

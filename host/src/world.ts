@@ -10,8 +10,8 @@ export type WorldResult = {
 
 const agentTools = new Set([
   "look", "inspect", "sense_mana", "status", "move_to", "toggle_lock",
-  "transfer_item", "cart", "work_craft", "rest", "speak", "trade", "guild_contract",
-  "suppress_mana", "cast_spell",
+  "transfer_item", "cart", "work_craft", "rest", "speak", "trade", "guild_contract", "civic",
+  "suppress_mana", "cast_spell", "attack",
 ]);
 
 export class WorldClient {

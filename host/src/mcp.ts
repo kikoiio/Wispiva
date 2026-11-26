@@ -98,10 +98,10 @@ const characterToolDrafts: McpToolDraft[] = [
   },
   {
     name: "toggle_lock",
-    description: "Open, close, lock, or unlock a reachable door or window shutter, if your key fits.",
+    description: "Operate a reachable door or shutter. Force a lock with an axe or hammer, or repair a broken lock with a hammer and replacement mechanism. Work takes time and forcing an entrance can be witnessed.",
     inputSchema: schemaOf([
       field("door_id", "string", "Door or shutter id.", true),
-      field("action", "string", "open, close, lock, or unlock.", true),
+      field("action", "string", "open, close, lock, unlock, force, or repair.", true),
     ]),
   },
   {
@@ -162,6 +162,15 @@ const characterToolDrafts: McpToolDraft[] = [
     ]),
   },
   {
+    name: "civic",
+    description: "Read public fees and your permits, lease a nearby market stall, or exercise a warden or watch officer's local duties. Arrest requires a personally witnessed offense, physical reach, jurisdiction, and manacles.",
+    inputSchema: schemaOf([
+      field("action", "string", "status, lease_stall, grant_logging, arrest, or release.", true),
+      field("target_id", "string", "Stall ID for a lease, or nearby person ID for a permit or custody action.", false),
+      field("quantity", "integer", "One to five trees when granting a seven-day logging permit.", false),
+    ]),
+  },
+  {
     name: "guild_contract",
     description: "Use the nearby guild board. Delivery contracts require the goods before payout. Service contracts require the poster to confirm the work before the holder collects the reward. Posters collect delivered goods at the board.",
     inputSchema: schemaOf([
@@ -182,8 +191,16 @@ const characterToolDrafts: McpToolDraft[] = [
     ]),
   },
   {
+    name: "attack",
+    description: "Start a physical weapon attack against a visible creature or barrier. Reach and cover are checked again at impact. A bow shot consumes an arrow. Attacking people can be witnessed by officers.",
+    inputSchema: schemaOf([
+      field("target_id", "string", "Visible creature or barrier ID.", true),
+      field("weapon", "string", "Owned steel_sword, shortsword, hand_axe, or shortbow.", true),
+    ]),
+  },
+  {
     name: "cast_spell",
-    description: "Cast light, flame, barrier, bandage, mend, or an unseal ritual you have learned. You need mana and a clear line.",
+    description: "Cast light, flame, barrier, bandage, mend, derust on iron doors, stone_mend on cracked masonry, or an unseal ritual. Stone mending consumes a salvaged stone fragment. You need mana and a clear line.",
     inputSchema: schemaOf([
       field("spell_name", "string", "Spell name.", true),
       field("target", "string", "Target id or direction.", true),
