@@ -389,6 +389,8 @@ def build_banks(collections):
                        EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3105)
     build_terrace_edge(quay, "z", LOW_QUAY_Z1, RIVER_EAST, LOW_QUAY_X1,
                        EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3106)
+    build_terrace_edge(quay, "z", LOW_QUAY_Z0 - 0.22, STAIR_X1 + 0.04, LOW_QUAY_X1,
+                       EAST_FLOOR, LOW_QUAY_FLOOR - 0.16, 0.42, 3107)
     # Back the stair cheek with the masonry foundation of the upper street.
     build_terrace_edge(paving, "x", STAIR_X1 + 0.22, 7.0, 13.08,
                        EAST_FLOOR, LOW_QUAY_FLOOR - 0.16, 0.42, 3108)
@@ -1085,8 +1087,7 @@ def build_stairs(collections):
         detail.box((center_x, top + 0.015, z - run * 0.36),
                    (stair_x1 - stair_x0 + 0.025, 0.035, 0.075), MAT["limestone_light"])
 
-    # The lower tread opens directly onto the paved quay at x=6.5, z=13.
-    # Stepped low cheeks follow the flight without narrowing its 1.7 m clear width.
+    # The lower tread opens onto the paved quay. Low cheeks follow the flight.
     for side_x in (stair_x0 - 0.09, stair_x1 + 0.09):
         for index in range(count):
             top = EAST_FLOOR - index * rise + 0.18
