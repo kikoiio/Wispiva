@@ -162,7 +162,7 @@ async function proveInteriors(world: WorldClient): Promise<void> {
 }
 
 async function proveWindows(world: WorldClient): Promise<void> {
-  const actor = "human_tomas";
+  const actor = "human_garrick";
   const shutter = "guild_hall_shutter_2";
   const position = resultOf(await walk(world, actor, "89.43,0,-44"));
   assert.equal(position.arrived, true, JSON.stringify(position));
@@ -178,6 +178,31 @@ async function proveWindows(world: WorldClient): Promise<void> {
   assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: shutter, action: "open" })).ok);
   const throughWindow = resultOf(await walk(world, actor, "90,0,-40.5"));
   assert.equal(throughWindow.arrived, false, "an open window still has a solid sill");
+}
+
+async function proveWalls(world: WorldClient): Promise<void> {
+  const guard = "human_garrick";
+  for (const destination of ["wall_walk", "wall_walk_north", "wall_walk_east", "north_watch", "wall_walk_south", "wall_walk_southwest", "wall_walk", "west_watch"]) {
+    const result = resultOf(await walk(world, guard, destination));
+    assert.equal(result.arrived, true, `${destination}: ${JSON.stringify(result)}`);
+    const expectedHeight = destination === "west_watch" ? 8.5 : destination === "north_watch" ? 8 : 3.2;
+    assert.ok(Math.abs(num(result, "y") - expectedHeight) < 0.3, JSON.stringify(result));
+  }
+  const listener = "human_fenn";
+  const atWatch = resultOf(await walk(world, listener, "-15,0,-12"));
+  assert.equal(atWatch.arrived, true, JSON.stringify(atWatch));
+  await world.call("host", "host_pending", { agentId: listener });
+  await world.call("host", "host_pending", { agentId: "human_miller" });
+  const ring = await agentCall(world, guard, "work_craft", { station_id: "watch_bell", recipe_or_task: "ring_alarm", minutes: 1 });
+  assert.equal(ring.result?.pending, true, JSON.stringify(ring));
+  assert.ok((await world.call("host", "world_step", { minutes: 1 })).ok);
+  const nearby = list(resultOf(await world.call("host", "host_pending", { agentId: listener })), "events");
+  const distant = list(resultOf(await world.call("host", "host_pending", { agentId: "human_miller" })), "events");
+  assert.ok(nearby.some(event => isRecord(event) && event.type === "noise" && typeof event.text === "string" && event.text.includes("alarm bell")));
+  assert.equal(distant.some(event => isRecord(event) && event.type === "noise"), false);
+  const down = resultOf(await walk(world, guard, "-22,0,-26.5"));
+  assert.equal(down.arrived, true, JSON.stringify(down));
+  assert.ok(Math.abs(num(down, "y")) < 0.3);
 }
 
 async function proveSurvival(world: WorldClient): Promise<void> {
@@ -1140,6 +1165,13 @@ async function main(): Promise<void> {
     check("window shutters control real sight openings", false, String(error));
   }
 
+  try {
+    await proveWalls(world);
+    check("wall patrols reach watch platforms and ring the alarm", true, "four wall walks, stairs, both watches, local sound");
+  } catch (error) {
+    check("wall patrols reach watch platforms and ring the alarm", false, String(error));
+  }
+
   const failed = checks.filter((item) => !item.ok);
   console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
   world.close();
@@ -1153,6 +1185,7 @@ if (scenario === undefined) {
   const scenarios = new Map([
     ["interiors", proveInteriors],
     ["windows", proveWindows],
+    ["walls", proveWalls],
     ["perception", provePerception],
     ["survival", proveSurvival],
     ["farms", proveFarms],

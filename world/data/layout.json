@@ -1109,6 +1109,90 @@
         5.0
       ],
       "walkable": true
+    },
+    {
+      "id": "wall_walk_west",
+      "center": [
+        -26.3,
+        3.1,
+        0
+      ],
+      "size": [
+        1.8,
+        0.2,
+        177
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_east",
+      "center": [
+        167.8,
+        3.1,
+        0
+      ],
+      "size": [
+        1.8,
+        0.2,
+        177
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_north",
+      "center": [
+        70.75,
+        3.1,
+        -87.8
+      ],
+      "size": [
+        195.9,
+        0.2,
+        1.8
+      ],
+      "walkable": true
+    },
+    {
+      "id": "wall_walk_south",
+      "center": [
+        70.75,
+        3.1,
+        87.8
+      ],
+      "size": [
+        195.9,
+        0.2,
+        1.8
+      ],
+      "walkable": true
+    },
+    {
+      "id": "west_watch_deck",
+      "center": [
+        -25,
+        8.4,
+        -6.5
+      ],
+      "size": [
+        4.5,
+        0.2,
+        4
+      ],
+      "walkable": true
+    },
+    {
+      "id": "north_watch_deck",
+      "center": [
+        64,
+        7.9,
+        -87
+      ],
+      "size": [
+        4.6,
+        0.2,
+        4.2
+      ],
+      "walkable": true
     }
   ],
   "carts": [
@@ -1923,6 +2007,29 @@
         ]
       ],
       "text": "Bound ledgers of completed contracts and regional trade records. The shelves are kept in the locked upper archive."
+    },
+    {
+      "id": "watch_bell",
+      "name": "West gate alarm bell",
+      "kind": "bell",
+      "center": [
+        -24,
+        9.7,
+        -6.5
+      ],
+      "size": [
+        0.6,
+        0.8,
+        0.6
+      ],
+      "approaches": [
+        [
+          -25,
+          8.5,
+          -6.5
+        ]
+      ],
+      "recipe": "ring_alarm"
     }
   ],
   "links": [
@@ -2016,6 +2123,54 @@
         35,
         3.8,
         -39.5
+      ]
+    },
+    {
+      "from": [
+        -26.3,
+        3.2,
+        -85
+      ],
+      "to": [
+        -24,
+        3.2,
+        -87.8
+      ]
+    },
+    {
+      "from": [
+        165,
+        3.2,
+        -87.8
+      ],
+      "to": [
+        167.8,
+        3.2,
+        -85
+      ]
+    },
+    {
+      "from": [
+        167.8,
+        3.2,
+        85
+      ],
+      "to": [
+        165,
+        3.2,
+        87.8
+      ]
+    },
+    {
+      "from": [
+        -24,
+        3.2,
+        87.8
+      ],
+      "to": [
+        -26.3,
+        3.2,
+        85
       ]
     }
   ],
@@ -2555,6 +2710,41 @@
       85,
       4.1,
       -36.1
+    ],
+    "wall_walk": [
+      -26.3,
+      3.2,
+      -20.1
+    ],
+    "wall_walk_north": [
+      -24,
+      3.2,
+      -87.8
+    ],
+    "wall_walk_east": [
+      167.8,
+      3.2,
+      -85
+    ],
+    "wall_walk_south": [
+      165,
+      3.2,
+      87.8
+    ],
+    "wall_walk_southwest": [
+      -26.3,
+      3.2,
+      85
+    ],
+    "west_watch": [
+      -25,
+      8.5,
+      -6.5
+    ],
+    "north_watch": [
+      64,
+      8,
+      -87
     ]
   },
   "mine": {
@@ -2674,6 +2864,51 @@
         77,
         4.1,
         -37.2
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "wall_walk_stairs",
+      "name": "Wall patrol stair",
+      "from": [
+        -26.3,
+        0,
+        -26.5
+      ],
+      "to": [
+        -26.3,
+        3.2,
+        -20.1
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "west_watch_stairs",
+      "name": "West watch stair",
+      "from": [
+        -26.3,
+        3.2,
+        -19
+      ],
+      "to": [
+        -26.3,
+        8.5,
+        -7.5
+      ],
+      "width": 1.2
+    },
+    {
+      "id": "north_watch_stairs",
+      "name": "North watch stair",
+      "from": [
+        72,
+        3.2,
+        -87
+      ],
+      "to": [
+        64,
+        8,
+        -87
       ],
       "width": 1.2
     }

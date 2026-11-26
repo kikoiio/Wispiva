@@ -21,7 +21,7 @@ jobs:
         run: |
           mkdir -p .tmp .verify/artifacts
           sudo apt-get update -qq
-          sudo apt-get install -y xvfb libgl1-mesa-dri libxkbcommon0 blender
+          sudo apt-get install -y xvfb libgl1-mesa-dri libxkbcommon0
           curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o .tmp/godot.zip
           unzip -q .tmp/godot.zip -d .tmp
           chmod +x .tmp/Godot_v4.7.2-stable_linux.x86_64
@@ -29,16 +29,20 @@ jobs:
           echo "$PWD/.tmp" >> "$GITHUB_PATH"
       - name: Build shared building shells
         run: |
-          blender -b --factory-startup --python world/blender/build_town.py > .verify/artifacts/buildings.log 2>&1
+          curl -fL --retry 3 https://ftp.halifax.rwth-aachen.de/blender/release/Blender4.5/blender-4.5.3-linux-x64.tar.xz -o .tmp/blender.tar.xz
+          tar -xJf .tmp/blender.tar.xz -C .tmp
+          .tmp/blender-4.5.3-linux-x64/blender -b --factory-startup --python world/blender/build_town.py > .verify/artifacts/buildings.log 2>&1
           cp -r world/assets/buildings .verify/artifacts/buildings
       - name: Import assets
         run: godot --headless --editor --path world --import > .verify/artifacts/import.log 2>&1
       - name: Verify world behavior
-        run: python3 .verify/check.py | tee .verify/artifacts/proof.log
+        run: |
+          set -o pipefail
+          python3 .verify/check.py | tee .verify/artifacts/proof.log
       - name: Capture five regions and ferry
         run: |
           unset WAYLAND_DISPLAY
-          for view in square wood mine ruins farm ferry inn_upper archive; do
+          for view in square wood mine ruins farm ferry inn_upper archive walls; do
             mkdir -p ".verify/artifacts/$view"
             xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 120 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
             if grep -Eq 'SCRIPT ERROR|ERROR:' ".verify/artifacts/$view.log"; then

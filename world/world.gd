@@ -34,6 +34,7 @@ const SEASONS := ["spring", "summer", "autumn", "winter"]
 const WEATHER_STATES := ["clear", "overcast", "rain", "storm", "snow", "blizzard"]
 const GRAIN_GROWTH_MINUTES := 15 * MINUTES_PER_DAY
 const RECIPES := {
+	"ring_alarm": {"need": {}, "out": {}, "minutes": 1},
 	"light_campfire": {"need": {"timber": 1}, "out": {}, "minutes": 4},
 	"lift_spire_crystal": {"need": {}, "out": {"spire_crystal": 1}, "minutes": 6},
 	"herd_sheep": {"need": {}, "out": {}, "minutes": 5, "tool": "sheep_crook"},
@@ -596,6 +597,14 @@ func build_building(building) -> void:
 		var shutter_size := Vector3(float(spec.width), float(spec.height), 0.08) if side.ends_with("z") else Vector3(0.08, float(spec.height), float(spec.width))
 		add_solid(door.id, center, shutter_size, "wood", false, door, L_DOOR, COL.wood)
 		door.body = solids.back().body
+		var lamp := OmniLight3D.new()
+		var inward := Vector3.FORWARD if side == "+z" else Vector3.BACK if side == "-z" else Vector3.LEFT if side == "+x" else Vector3.RIGHT
+		lamp.position = center + inward * 0.8
+		lamp.light_color = Color(0.78, 0.88, 1.0)
+		lamp.omni_range = 7.0
+		lamp.shadow_enabled = true
+		add_child(lamp)
+		door["lamp"] = lamp
 		apply_door_visual(door)
 	add_solid(str(building.id) + "_roof", Vector3(floor.x, y1 - 0.12, floor.z), Vector3(size.x, 0.24, size.z), "roof", true, null, L_WORLD, COL.roof)
 	landmarks[str(building.id)] = {"name": str(building.name), "center": floor, "surfaces": solids.slice(first_solid)}
@@ -761,8 +770,15 @@ func apply_door_visual(door) -> void:
 	if door.get("kind", "door") == "shutter":
 		door.body.position = door.closed_position + (door.open_offset if door.open else Vector3.ZERO)
 		door.body.force_update_transform()
+		update_window_light(door)
 		return
 	door.body.rotation.y = 1.15 if door.open else 0.0
+
+func update_window_light(door: Dictionary) -> void:
+	var hour := clock_hour()
+	var daylight := hour >= 6 and hour < 20
+	door.lamp.visible = door.open and daylight
+	door.lamp.light_energy = 0.65 if hour >= 7 and hour < 19 else 0.4
 
 func build_span_x(id: String, x0: float, x1: float, z: float, y0: float, y1: float, thick: float, material: String, gaps: Array) -> void:
 	for span in subtract_intervals(x0, x1, gaps, "x"):
@@ -898,7 +914,7 @@ func build_props() -> void:
 	add_solid("notice_post", Vector3(50, 1.3, -2), Vector3(0.3, 2.6, 0.3), "wood", true, null, L_PROP, COL.wood)
 	for spec in layout.fixtures:
 		var id := str(spec.id)
-		var material := "wood" if spec.kind in ["storage", "ladder", "timber", "table", "board"] else "grass" if spec.kind == "herbs" else "stone"
+		var material := "wood" if spec.kind in ["storage", "ladder", "timber", "table", "board"] else "grass" if spec.kind == "herbs" else "iron" if spec.kind == "bell" else "stone"
 		var body := add_solid(id, v3(spec.center), v3(spec.size), material, spec.kind != "field", null, 0 if spec.kind == "field" else L_PROP, col(material))
 		fixtures[id] = {"spec": spec, "body": body, "solid": solids.back(), "batches": int(spec.get("batches", -1))}
 		if spec.kind == "fire":
@@ -1112,6 +1128,10 @@ func gatehouse(stone: Material, wood: Material) -> void:
 		visual_box(self, stone, Vector3(-30, 8.55, zoff), Vector3(1.7, 0.55, 1.0))
 	add_pyramid("west_tower_n_roof", Vector3(-30, 10.0, -6.5), 2.85, 2.35, 2.45, wood)
 	add_pyramid("west_tower_s_roof", Vector3(-30, 10.0, 6.5), 2.85, 2.35, 2.45, wood)
+	for x in [62.1, 65.9]:
+		for z in [-88.7, -85.3]:
+			add_solid("north_watch_support", Vector3(x, 4, z), Vector3(0.35, 8, 0.35), "stone", true, null, L_WORLD, COL.stone)
+	add_pyramid("north_watch_roof", Vector3(64, 10.3, -87), 2.8, 2.6, 1.8, wood)
 
 func add_pyramid(node_name: String, base: Vector3, hx: float, hz: float, height: float, mat: Material) -> void:
 	var apex := base + Vector3(0, height, 0)
@@ -1743,7 +1763,7 @@ func spawn_actor(spec, wild: bool) -> void:
 	label.pixel_size = 0.0075
 	label.position = Vector3(0, height * 0.55 + 0.22, 0)
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	label.no_depth_test = true
+	label.no_depth_test = false
 	label.outline_size = 7
 	visual.add_child(label)
 	label.visible = race != "sheep"
@@ -3797,26 +3817,34 @@ func tool_speak(agent, args) -> Dictionary:
 		if other.id == agent.id:
 			continue
 		var dist := (agent.pos as Vector3).distance_to(other.pos)
-		var allowed := reach
-		if local_weather(other.pos) in ["rain", "storm", "snow", "blizzard"]:
-			allowed *= 0.9
-		var cursor := (agent.pos as Vector3) + Vector3(0, eye(agent), 0)
+		var source := (agent.pos as Vector3) + Vector3(0, eye(agent), 0)
 		var target := (other.pos as Vector3) + Vector3(0, eye(other), 0)
-		for _step in range(4):
-			var query := PhysicsRayQueryParameters3D.create(cursor, target, L_WORLD | L_DOOR | L_FLOOR)
-			var hit := space().intersect_ray(query)
-			if hit.is_empty() or hit.position.distance_to(target) < 0.4:
-				break
-			var material := str(hit.collider.get_meta("material", "stone"))
-			allowed -= 12.0 if material == "wood" else 40.0
-			cursor = hit.position + (target - cursor).normalized() * 0.35
-		if dist <= maxf(allowed, 0.0):
+		if dist <= audible_range(source, target, reach, local_weather(other.pos)):
 			push_event(other, {"type": "heard", "from": agent.id, "name": agent.name, "volume": volume, "utterance": utterance, "minute": minute})
 			reached.append(other)
 			if can_see(agent, other.pos + Vector3(0, eye(other), 0), other.body, view_range(agent), dist > 2.0):
 				heard.append(other.id)
 	watch_speech(agent, utterance, volume, reached)
 	return ok({"volume": volume, "range_m": reach, "visible_listeners": heard})
+
+func audible_range(source: Vector3, target: Vector3, reach: float, weather: String) -> float:
+	var allowed := reach * (0.9 if wet_weather(weather) else 1.0)
+	var cursor := source
+	for _step in range(4):
+		var query := PhysicsRayQueryParameters3D.create(cursor, target, L_WORLD | L_DOOR | L_FLOOR)
+		var hit := space().intersect_ray(query)
+		if hit.is_empty() or hit.position.distance_to(target) < 0.4:
+			break
+		var material := str(hit.collider.get_meta("material", "stone"))
+		allowed -= 12.0 if material == "wood" else 40.0
+		cursor = hit.position + (target - cursor).normalized() * 0.35
+	return maxf(allowed, 0.0)
+
+func emit_noise(source: Vector3, reach: float, description: String) -> void:
+	for listener in agents:
+		var target := (listener.pos as Vector3) + Vector3.UP * eye(listener)
+		if source.distance_to(target) <= audible_range(source, target, reach, local_weather(listener.pos)):
+			push_event(listener, {"type": "noise", "text": description, "direction": bearing(listener.pos, source), "distance": band(source.distance_to(target)), "minute": minute})
 
 func tool_trade(agent, args) -> Dictionary:
 	var partner_id := str(args.get("partner_id", ""))
@@ -4208,6 +4236,8 @@ func finish_actions() -> bool:
 					update_crop_visual(plot)
 				if action.recipe == "herd_sheep":
 					sheep_return_until = minute + 30
+				if action.recipe == "ring_alarm":
+					emit_noise(agent.pos + Vector3.UP * eye(agent), 120.0, "An alarm bell rings from the west watch platform.")
 				var station: Dictionary = fixtures.get(action.station_id, {})
 				if not station.is_empty() and station.spec.kind == "fire":
 					if not wet_weather(local_weather(station.body.position)) or under_cover(station.body.position):
@@ -4385,7 +4415,7 @@ func tool_nav(args) -> Dictionary:
 	var length := 0.0
 	for i in range(1, path.size()):
 		length += path[i - 1].distance_to(path[i])
-	return ok({"points": path.size(), "length_m": round2(length), "snap_from": round2(a.distance_to(frm)), "snap_to": round2(b.distance_to(to))})
+	return ok({"points": path.size(), "length_m": round2(length), "snap_from": round2(a.distance_to(frm)), "snap_to": round2(b.distance_to(to)), "reached": not path.is_empty() and path[path.size() - 1].distance_to(b) < 0.5, "end": [] if path.is_empty() else [path[path.size() - 1].x, path[path.size() - 1].y, path[path.size() - 1].z]})
 
 func push_event(agent, event) -> void:
 	agent.events.append(event)
@@ -4555,6 +4585,9 @@ func advance_interval(minutes: int) -> bool:
 	var after := clock_hour()
 	refresh_fire_states()
 	if after != before:
+		for door in doors.values():
+			if door.get("kind", "door") == "shutter":
+				update_window_light(door)
 		update_weather()
 		refresh_fire_states()
 		var orchard: Dictionary = fixtures.oakford_orchard
@@ -4920,11 +4953,14 @@ func watch_follow(delta: float) -> void:
 		focus = Vector3(-42, 1.4, 480)
 		wanted = Vector3(-42, 7.5, 508)
 	elif spec_fixed == "inn_upper":
-		focus = Vector3(35, 4.9, -43)
-		wanted = Vector3(35, 5.5, -33.7)
+		focus = Vector3(40.5, 5.2, -41.5)
+		wanted = Vector3(28, 5.4, -41.5)
 	elif spec_fixed == "archive":
-		focus = Vector3(85, 5.4, -37.8)
-		wanted = Vector3(85, 5.7, -30)
+		focus = Vector3(91, 5.2, -40.5)
+		wanted = Vector3(83, 5.7, -39)
+	elif spec_fixed == "walls":
+		focus = Vector3(-26, 5, -15)
+		wanted = Vector3(-12, 13, -3)
 	elif spec_fixed == "people":
 		# Just east of the west-gate leaf, in front of Garrick.
 		focus = Vector3(-28.0, 1.35, 0.05)
@@ -5039,7 +5075,7 @@ func watch_bubble(agent, text: String, tint: Color, seconds: float) -> void:
 		made.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		made.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 		made.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		made.no_depth_test = true
+		made.no_depth_test = false
 		made.outline_size = 10
 		made.render_priority = 5
 		agent.visual.add_child(made)
