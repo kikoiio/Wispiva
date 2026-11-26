@@ -795,6 +795,7 @@ func make_door(spec) -> Dictionary:
 		"material": str(spec.get("material", "wood")),
 		"rust": float(spec.get("rust", 0.4 if spec.get("material", "wood") == "iron" else 0.0)),
 		"mana_sealed": bool(spec.get("mana_sealed", false)),
+		"passage": bool(spec.get("passage", false)),
 		"body": null,
 		"solid": null,
 	}
@@ -2111,9 +2112,15 @@ func blocked_point(cx: float, cz: float) -> bool:
 		return false
 	if in_water(cx, cz) and not on_bridge(cx, cz):
 		return true
-	var foot := ground_y(cx, cz)
 	var half := 1.0 + body_margin
-	var box := AABB(Vector3(cx - half, foot + 0.35, cz - half), Vector3(half * 2.0, 1.3, half * 2.0))
+	var low := ground_y(cx, cz)
+	var high := low
+	for dx in [-1.0, 1.0]:
+		for dz in [-1.0, 1.0]:
+			var height := corner_y(cx + dx, cz + dz)
+			low = minf(low, height)
+			high = maxf(high, height)
+	var box := AABB(Vector3(cx - half, low + 0.15, cz - half), Vector3(half * 2.0, high - low + 1.6, half * 2.0))
 	for solid in solids:
 		if blocks_now(solid) and solid.aabb.intersects(box):
 			return true
@@ -2187,10 +2194,7 @@ func fill_navmesh() -> void:
 	cover_raster(-690, -590, -610, -510, 2)
 	cover_raster(-772, -748, -442, -404, 2)
 	cover_raster(-732, -708, -373, -335, 2)
-	cover_raster(284, 326, 8, 32, 2)
-	cover_raster(328, 406, 0, 40, 2)
-	cover_raster(480, 570, 0, 80, 2)
-	cover_raster(754, 804, -204, -156, 2)
+	cover_raster(260, 820, -220, 200, 2)
 	cover_raster(20, 70, -910, -762, 2)
 	var portal := v3(layout.mine.portal)
 	var mine_start := portal + Vector3(0, 0, 0.5)
@@ -2441,7 +2445,7 @@ func link_door(door) -> void:
 		return
 	var box: AABB = door.solid.aabb
 	var center := box.get_center()
-	if box.size.y < DOORWAY:
+	if box.size.y < DOORWAY and not door.passage:
 		return
 	var along := Vector3.RIGHT if box.size.x < box.size.z else Vector3.BACK
 	var reach := minf(box.size.x, box.size.z) * 0.5 + 1.5
@@ -3163,7 +3167,7 @@ func tool_move(agent, args) -> Dictionary:
 		var plain := nav_path(start, goal, false)
 		if plain.size() >= 2 and walk_path(agent, plain).blocked == null:
 			path = plain
-	path = avoid_actor_on_path(agent, start, goal, path)
+	path = avoid_blocker_on_path(agent, start, goal, path)
 	var used_pace := pace
 	if pace == "run" and (mass_of(agent) >= 45.0 or agent.stamina < 15.0 or agent.cart_id != "" or "fractured" in agent.injuries):
 		used_pace = "walk"
@@ -3180,26 +3184,35 @@ func tool_move(agent, args) -> Dictionary:
 	}
 	return start_action(agent, maxi(1, int(ceil(distance / speed))), {"kind": "walk", "destination": destination}, travel)
 
-func avoid_actor_on_path(agent, start: Vector3, goal: Vector3, path: PackedVector3Array) -> PackedVector3Array:
+func avoid_blocker_on_path(agent, start: Vector3, goal: Vector3, path: PackedVector3Array) -> PackedVector3Array:
 	if path.size() < 2:
 		return path
 	var preview := walk_path(agent, path)
-	if preview.blocked == null or preview.blocked.kind != "agent":
+	if preview.blocked == null or preview.blocked.kind not in ["agent", "obstacle", "cart"]:
 		return path
 	var id := str(preview.blocked.id)
 	var other = agents_by_id[id] if agents_by_id.has(id) else find_wild(id)
-	if other == null:
-		return path
-	var direction := goal - (other.pos as Vector3)
+	var center: Vector3 = preview.pos
+	var radius := 3.0 if agent.cart_id != "" else 1.6
+	if other != null:
+		center = other.pos
+	else:
+		for solid in solids:
+			if str(solid.body.name) == id:
+				center = solid.aabb.get_center()
+				radius += maxf(solid.aabb.size.x, solid.aabb.size.z) * 0.5
+				break
+		center.y = ground_y(center.x, center.z)
+	var direction := goal - center
 	direction.y = 0
 	if direction.length() < 0.1:
 		return path
 	direction = direction.normalized()
-	var radius := 3.0 if agent.cart_id != "" else 1.6
 	var best := path
 	var best_distance := INF
 	for angle in [PI * 0.5, -PI * 0.5, PI * 0.25, -PI * 0.25, PI * 0.75, -PI * 0.75]:
-		var candidate: Vector3 = other.pos + direction.rotated(Vector3.UP, angle) * radius
+		var candidate: Vector3 = center + direction.rotated(Vector3.UP, angle) * radius
+		candidate.y = ground_y(candidate.x, candidate.z) if other == null else center.y
 		var via := NavigationServer3D.map_get_closest_point(map_rid, candidate)
 		if via.distance_to(candidate) > 0.5:
 			continue
@@ -3228,8 +3241,9 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 		var waypoint: Vector3 = path[index]
 		var nxt := pos.move_toward(waypoint, budget - walked)
 		var fraction := travel_fraction(agent, pos, nxt)
-		if fraction < 0.96:
-			var stop := pos.lerp(nxt, maxf(fraction - 0.05, 0.0))
+		if fraction < 0.99999:
+			var clearance_fraction := 0.025 / maxf(pos.distance_to(nxt), 0.025)
+			var stop := pos.lerp(nxt, maxf(fraction - clearance_fraction, 0.0))
 			blocked = identify_block(agent, stop, nxt)
 			nxt = stop
 		if not wagon.is_empty():
@@ -3260,10 +3274,10 @@ func tick_walk(agent, travel: Dictionary) -> bool:
 		var freight := cart_cargo_mass(carts[agent.cart_id])
 		speed = minf(speed, lerpf(62.0, 39.0, freight / CART_CAPACITY_KG))
 	var step := walk_path(agent, travel.path, travel.index, speed)
-	if step.blocked != null and step.blocked.kind == "agent":
+	if step.blocked != null and step.blocked.kind in ["agent", "obstacle", "cart"]:
 		var start := NavigationServer3D.map_get_closest_point(map_rid, agent.pos)
 		var goal := NavigationServer3D.map_get_closest_point(map_rid, travel.approach)
-		var path := avoid_actor_on_path(agent, start, goal, nav_path(start, goal, true))
+		var path := avoid_blocker_on_path(agent, start, goal, nav_path(start, goal, true))
 		if path.size() >= 2 and path[path.size() - 1].distance_to(goal) <= 0.5 and walk_path(agent, path).blocked == null:
 			travel.path = path
 			travel.index = 1
@@ -3357,7 +3371,7 @@ func shut_door_between(agent, goal: Vector3) -> Dictionary:
 	var best_dist := INF
 	for door_id in doors:
 		var door = doors[door_id]
-		if door.solid == null or door.open or door.solid.aabb.size.y < DOORWAY:
+		if door.solid == null or door.open or (door.solid.aabb.size.y < DOORWAY and not door.passage):
 			continue
 		var box: AABB = door.solid.aabb
 		var along := Vector3.RIGHT if box.size.x < box.size.z else Vector3.BACK
@@ -3496,10 +3510,10 @@ func travel_fraction(agent, frm: Vector3, to: Vector3) -> float:
 	return float(hit[0])
 
 func identify_block(agent, frm: Vector3, to: Vector3):
-	# The cast stops up to 5% of a segment early, so look that far ahead for a person.
+	# Include a person's capsule at the movement contact point.
 	var seg := Vector2(to.x - frm.x, to.z - frm.z)
 	if seg.length() > 0.01:
-		var ahead := 0.75 + seg.length() * 0.06
+		var ahead := 0.8
 		for other in actors():
 			if other.id == agent.id or absf(other.pos.y - frm.y) > 2.0:
 				continue
@@ -3707,7 +3721,7 @@ func cart_step_is_clear(agent, wagon: Dictionary, from: Transform3D, to: Transfo
 	probe.transform = Transform3D(to.basis, from.origin)
 	probe.motion = to.origin - from.origin
 	var sweep := space().cast_motion(probe)
-	if sweep.size() > 0 and sweep[0] < 0.98:
+	if sweep.size() > 0 and sweep[0] < 0.99999:
 		return false
 	probe.motion = Vector3.ZERO
 	probe.transform = to
@@ -4911,16 +4925,7 @@ func step_sheep(sheep, minutes: float) -> void:
 	var hour := clock_hour()
 	var return_home := hour < 6 or hour >= 19 or minute <= sheep_return_until
 	var target := home if return_home else Vector3(-285.0 + 2.0 * (index % 7), 3.0, 178.5 + float(index / 7) * 1.3)
-	var pos: Vector3 = sheep.pos
-	if return_home and pos.z < 185.6:
-		target = Vector3(-272.0, 3.0, 186.2 if pos.z > 184.2 else 184.8)
-	elif not return_home and pos.z > 184.4:
-		target = Vector3(-272.0, 3.0, 183.8 if pos.z < 185.8 else 185.2)
-	var next := pos.move_toward(target, minutes * 4.0)
-	next.y = ground_y(next.x, next.z)
-	if pos.distance_to(next) > 0.02 and travel_fraction(sheep, pos, next) >= 0.96:
-		sheep.visual.rotation.y = atan2(pos.x - next.x, pos.z - next.z)
-		set_pos(sheep, next)
+	wildlife_rules.advance_beast(sheep, target, minutes * 4.0)
 
 
 func actors() -> Array:
@@ -5190,6 +5195,9 @@ func watch_follow(delta: float) -> void:
 		focus = Vector3(91, 5.2, -40.5)
 		wanted = Vector3(83, 5.7, -39)
 	elif spec_fixed == "granary":
+		focus = Vector3(16, 2.3, 39)
+		wanted = Vector3(23.5, 3.0, 45.5)
+	elif spec_fixed == "granary_loft":
 		focus = Vector3(23.5, 4.4, 35)
 		wanted = Vector3(18, 5.6, 38.2)
 	elif spec_fixed == "forge":

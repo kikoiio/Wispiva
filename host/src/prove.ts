@@ -4,6 +4,7 @@ import { triggerHooks } from "./hooks/core.ts";
 import { worldToolNames } from "./mcp.ts";
 import { WorldClient, type WorldResult } from "./world.ts";
 import { proveCivic } from "./proofs/civic.ts";
+import { proveEcology, proveGoblinRaids, proveWolfPredation } from "./proofs/ecology.ts";
 
 installCharacterHooks();
 
@@ -1390,6 +1391,9 @@ if (scenario === undefined) {
     ["magic", proveMagic],
     ["field", proveFieldActions],
     ["civic", proveCivic],
+    ["ecology", proveEcology],
+    ["wolves", proveWolfPredation],
+    ["goblins", proveGoblinRaids],
     ["buildings", proveBuildings],
   ]);
   const proof = scenarios.get(scenario);

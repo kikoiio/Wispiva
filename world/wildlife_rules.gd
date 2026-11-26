@@ -11,14 +11,17 @@ func advance_beast(beast, target: Vector3, distance: float) -> void:
 		return
 	var changed: bool = not beast.has("route_target") or beast.route_target.distance_to(target) > 5.0
 	if changed or not beast.has("route"):
+		world.refresh_nav()
 		var start := NavigationServer3D.map_get_closest_point(world.map_rid, beast.pos)
 		var goal := NavigationServer3D.map_get_closest_point(world.map_rid, target)
 		beast["route"] = world.nav_path(start, goal, true)
+		beast.route = world.avoid_blocker_on_path(beast, start, goal, beast.route)
 		beast["route_index"] = 1
 		beast["route_target"] = target
 	if beast.route.size() < 2:
 		return
-	var step: Dictionary = world.walk_path(beast, beast.route, beast.route_index, distance)
+	var speed_factor: float = world.speed_mpm(beast, "walk") / 84.0
+	var step: Dictionary = world.walk_path(beast, beast.route, beast.route_index, distance * speed_factor)
 	var prior: Vector3 = beast.pos
 	world.set_pos(beast, step.pos)
 	beast.route_index = step.index
@@ -44,6 +47,9 @@ func step(minutes: int) -> void:
 		if beast.kind == "sheep":
 			world.step_sheep(beast, minutes)
 			continue
+		if beast.kind == "goblin" and int(beast.get("raid_until", 0)) > world.minute:
+			advance_beast(beast, beast.home, 6.0 * minutes)
+			continue
 		var hungry: bool = beast.hunger >= 30.0
 		if not night or not hungry:
 			advance_beast(beast, beast.home, 5.0 * minutes)
@@ -63,7 +69,7 @@ func step_wolf(beast, minutes: int, winter: bool) -> void:
 		if distance < nearest and seen(beast, sheep, nearest):
 			prey = sheep
 			nearest = distance
-	var target := Vector3(-285, 3, 178) if prey == null else prey.pos as Vector3
+	var target := Vector3(-272, 3, 181.8) if prey == null else prey.pos as Vector3
 	advance_beast(beast, target, 8.0 * minutes)
 	if prey != null and world.patient_in_reach(beast, prey, 1.8):
 		BodyState.bleed(prey, 12.0)
@@ -100,7 +106,11 @@ func step_goblin(beast, minutes: int, winter: bool) -> void:
 	if wagon.is_empty() or beast.pos.distance_to(target) > 3.0 or not world.can_see(beast, target, wagon.body, 4.0, false):
 		return
 	var item_id := "grain_sack" if world.qty_of(wagon.items, "grain_sack") > 0 else "iron_ore"
+	var item: Dictionary = world.item_stack(wagon.items, item_id)
+	if world.mass_of(beast) + float(item.kg) > 45.0:
+		advance_beast(beast, beast.home, 6.0 * minutes)
+		return
 	world.move_inventory_stack(wagon.items, beast.items, item_id, 1)
-	beast.hunger = 0.0
+	beast["raid_until"] = world.minute + 1440
 	world.emit_noise(target, 20.0, "Cargo is dragged from a cart.")
 	world.leave_trace("footprints", beast.pos)

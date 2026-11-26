@@ -4,22 +4,97 @@ on:
     branches: [validation/classic-frontier]
 permissions:
   contents: read
+defaults:
+  run:
+    shell: bash
 jobs:
-  world:
+  assets:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 10
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build shared building shells
+        run: |
+          mkdir -p .tmp .verify/artifacts
+          curl -fL --retry 3 https://ftp.halifax.rwth-aachen.de/blender/release/Blender4.5/blender-4.5.3-linux-x64.tar.xz -o .tmp/blender.tar.xz
+          tar -xJf .tmp/blender.tar.xz -C .tmp
+          .tmp/blender-4.5.3-linux-x64/blender -b --factory-startup --python world/blender/build_town.py > .verify/artifacts/buildings.log 2>&1
+          cp -r world/assets/buildings .verify/artifacts/buildings
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: building-exports
+          path: .verify/artifacts
+          retention-days: 7
+  behavior:
+    needs: assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        scenario: [all, civic, wolves, goblins, field, buildings]
+    env:
+      TMPDIR: ${{ github.workspace }}/.tmp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          name: building-exports
+          path: .verify/exports
+      - name: Prepare engine
+        run: |
+          mkdir -p .tmp .verify/artifacts
+          cp .verify/exports/buildings/*.glb world/assets/buildings/
+          curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o .tmp/godot.zip
+          unzip -q .tmp/godot.zip -d .tmp
+          chmod +x .tmp/Godot_v4.7.2-stable_linux.x86_64
+          ln -s "$PWD/.tmp/Godot_v4.7.2-stable_linux.x86_64" .tmp/godot
+          echo "$PWD/.tmp" >> "$GITHUB_PATH"
+      - name: Import assets
+        run: godot --headless --editor --path world --import > .verify/artifacts/import.log 2>&1
+      - name: Verify world behavior
+        run: |
+          set -o pipefail
+          godot --headless --path world --script res://tests/collision.gd 2>&1 | tee .verify/artifacts/collision.log
+          ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/collision.log
+          scenario='${{ matrix.scenario }}'
+          if [ "$scenario" = all ]; then
+            python3 .verify/check.py | tee .verify/artifacts/proof.log
+          else
+            python3 .verify/check.py "$scenario" | tee .verify/artifacts/proof.log
+          fi
+          ! grep -Eq 'SCRIPT ERROR|ERROR:' .verify/artifacts/godot-*.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: proof-${{ matrix.scenario }}
+          path: .verify/artifacts
+          retention-days: 7
+  views:
+    needs: assets
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     env:
       TMPDIR: ${{ github.workspace }}/.tmp
       LIBGL_ALWAYS_SOFTWARE: '1'
       GALLIUM_DRIVER: llvmpipe
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/download-artifact@v4
         with:
-          node-version: '24'
+          name: building-exports
+          path: .verify/exports
       - name: Prepare engine and software display
         run: |
           mkdir -p .tmp .verify/artifacts
+          cp .verify/exports/buildings/*.glb world/assets/buildings/
           sudo apt-get update -qq
           sudo apt-get install -y xvfb libgl1-mesa-dri libxkbcommon0
           curl -fL --retry 3 https://github.com/godotengine/godot-builds/releases/download/4.7.2-stable/Godot_v4.7.2-stable_linux.x86_64.zip -o .tmp/godot.zip
@@ -27,26 +102,12 @@ jobs:
           chmod +x .tmp/Godot_v4.7.2-stable_linux.x86_64
           ln -s "$PWD/.tmp/Godot_v4.7.2-stable_linux.x86_64" .tmp/godot
           echo "$PWD/.tmp" >> "$GITHUB_PATH"
-      - name: Build shared building shells
-        run: |
-          curl -fL --retry 3 https://ftp.halifax.rwth-aachen.de/blender/release/Blender4.5/blender-4.5.3-linux-x64.tar.xz -o .tmp/blender.tar.xz
-          tar -xJf .tmp/blender.tar.xz -C .tmp
-          .tmp/blender-4.5.3-linux-x64/blender -b --factory-startup --python world/blender/build_town.py > .verify/artifacts/buildings.log 2>&1
-          cp -r world/assets/buildings .verify/artifacts/buildings
       - name: Import assets
         run: godot --headless --editor --path world --import > .verify/artifacts/import.log 2>&1
-      - name: Verify world behavior
-        run: |
-          set -o pipefail
-          python3 .verify/check.py | tee .verify/artifacts/proof.log
-          python3 .verify/check.py civic | tee .verify/artifacts/civic.log
-          python3 .verify/check.py field | tee .verify/artifacts/field.log
-          python3 .verify/check.py buildings | tee .verify/artifacts/building-proof.log
       - name: Capture regions and interiors
-        if: always()
         run: |
           unset WAYLAND_DISPLAY
-          for view in square wood mine ruins farm ferry inn_upper archive walls granary forge; do
+          for view in square wood mine ruins farm ferry inn_upper archive walls granary granary_loft forge; do
             mkdir -p ".verify/artifacts/$view"
             xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 120 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
             if grep -Eq 'SCRIPT ERROR|ERROR:' ".verify/artifacts/$view.log"; then
@@ -58,6 +119,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: classic-frontier-acceptance
+          name: regional-views
           path: .verify/artifacts
           retention-days: 7

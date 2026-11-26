@@ -327,9 +327,10 @@ async function proveLockAndCustody(world: WorldClient): Promise<void> {
   const witnessEvents = rows(await host(world, "host_pending", { agentId: guard }), "events");
   assert.ok(witnessEvents.some(event => event.type === "witnessed" && event.from === suspect && event.text === "forcing a locked entrance"));
   const traceId = string(forced, "trace_id");
-  const view = await use(world, suspect, "look", { focus: door });
+  await reach(world, suspect, "30.4,3.8,-41.2");
+  const view = await use(world, guard, "look", { focus: traceId });
   assert.ok(rows(view, "visible_traces").some(trace => trace.id === traceId && trace.kind === "broken_lock"));
-  assert.equal((await use(world, suspect, "inspect", { target_id: traceId })).kind, "broken_lock");
+  assert.equal((await use(world, guard, "inspect", { target_id: traceId })).kind, "broken_lock");
 
   assert.equal((await use(world, guard, "civic", { action: "arrest", target_id: suspect })).restrained, true);
   const restrained = await use(world, suspect, "status");

@@ -784,6 +784,7 @@
   "interior_doors": [
     {
       "id": "sheep_pen_gate",
+      "passage": true,
       "center": [
         -272,
         3.52,
