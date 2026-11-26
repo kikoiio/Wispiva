@@ -389,6 +389,10 @@ def build_banks(collections):
                        EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3105)
     build_terrace_edge(quay, "z", LOW_QUAY_Z1, RIVER_EAST, LOW_QUAY_X1,
                        EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3106)
+    # Back the stair cheek with the masonry foundation of the upper street.
+    build_terrace_edge(paving, "x", STAIR_X1 + 0.22, 7.0, 13.08,
+                       EAST_FLOOR, LOW_QUAY_FLOOR - 0.16, 0.42, 3108)
+    paving.box((STAIR_X1 + 0.49, 1.40, 10.0), (0.46, 2.11, 6.14), MAT["mortar"])
 
     # Slightly raised curb stones remain visual set dressing and do not block traffic.
     for x, width, y in ((-7.95, 0.12, WEST_FLOOR), (-5.95, 0.12, WEST_FLOOR),

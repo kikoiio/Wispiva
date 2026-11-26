@@ -80,6 +80,10 @@ def height(x, y, distance, grade):
     if grade > 20.0:
         pad_blend *= ease((distance - 2.6) / 5.0)
     floor += (17.94 - floor) * pad_blend
+    basin_cut = (1 - ease((abs(x - 83.65) - 0.60) / 1.55)) * ease((y - 69.1) / 1.4)
+    basin_cut *= 1 - ease((y - 78.0) / 1.2)
+    channel_floor = 17.98 - (77.8 - y) * 0.067
+    floor -= max(floor - channel_floor, 0) * basin_cut
     if x > 88 and y > 108:
         floor = min(floor, 36.05)
     return floor
@@ -195,6 +199,13 @@ def ruined_baths(group, stones):
         y = RNG.uniform(73.5, 80.6)
         radius = RNG.uniform(0.12, 0.34)
         rock(group, "Rubble at the bath walls", (x, y, 18.035), (radius, radius*0.74, radius*0.58), stones)
+    for i, (x, y, r) in enumerate((
+        (71.0, 80.2, 1.02), (73.5, 83.5, 1.7), (77.2, 83.4, 1.55),
+        (82.2, 82.8, 1.33), (86.55, 81.1, 0.98), (87.8, 78.1, 1.12),
+    )):
+        distance, grade = nearest_grade(x, y)
+        rock(group, "Old schist behind the bath", (x, y, height(x, y, distance, grade) - 0.19),
+             (r, r*0.67, r*0.95), stones, i * 0.87)
 
 
 def forest(group):
@@ -371,7 +382,7 @@ def main():
     ribbon(path, "NAV_MountainTrail", TRAIL, 3.6, nav)
     ribbon(path, "NAV_OldBathSpur", RUIN_WALK, 3.4, nav)
     channel = rounded_route([(77,18,-72), (79,18,-71), (83,18,-72)])
-    ribbon(path, "WALK_ChannelApproach", channel, 2.5, nav)
+    ribbon(path, "NAV_ChannelApproach", channel, 2.5, nav)
     ruined_baths(collection("Abandoned baths and dry race"), stones)
     forest(collection("Fir stands"))
     outcrops(collection("Exposed strata"), stones)
