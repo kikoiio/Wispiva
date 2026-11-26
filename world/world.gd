@@ -176,6 +176,9 @@ var next_contract := 1
 var map_rid: RID
 var region_rid: RID
 var link_rids: Array[RID] = []
+var cart_map_rid: RID
+var cart_region_rid: RID
+var cart_link_rids: Array[RID] = []
 var nav_verts := PackedVector3Array()
 var nav_polys: Array = []
 var vert_index := {}
@@ -202,6 +205,8 @@ func _ready() -> void:
 	update_sky(regional_weather.stonebridge)
 	watch_setup()
 	print("WISPIVA_MODELS buildings=%d actors=%d" % [dressed, modeled])
+	if watching and OS.get_cmdline_user_args().has("--capture-only"):
+		return
 	build_navigation()
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -216,10 +221,17 @@ func _exit_tree() -> void:
 	for link_rid in link_rids:
 		NavigationServer3D.free_rid(link_rid)
 	link_rids.clear()
+	for link_rid in cart_link_rids:
+		NavigationServer3D.free_rid(link_rid)
+	cart_link_rids.clear()
 	if region_rid.is_valid():
 		NavigationServer3D.free_rid(region_rid)
 	if map_rid.is_valid():
 		NavigationServer3D.free_rid(map_rid)
+	if cart_region_rid.is_valid():
+		NavigationServer3D.free_rid(cart_region_rid)
+	if cart_map_rid.is_valid():
+		NavigationServer3D.free_rid(cart_map_rid)
 	for door in doors.values():
 		door.solid = null
 	solids.clear()
@@ -2197,29 +2209,42 @@ func platform_covers_ground(x: float, z: float) -> bool:
 	return false
 
 func sync_nav() -> void:
-	NavigationServer3D.map_set_use_async_iterations(map_rid, false)
-	NavigationServer3D.map_force_update(map_rid)
+	for nav_map in [map_rid, cart_map_rid]:
+		NavigationServer3D.map_set_use_async_iterations(nav_map, false)
+		NavigationServer3D.map_force_update(nav_map)
 
-func build_navigation() -> void:
-	var started := Time.get_ticks_msec()
-	map_rid = NavigationServer3D.map_create()
-	NavigationServer3D.map_set_active(map_rid, true)
-	NavigationServer3D.map_set_use_async_iterations(map_rid, false)
-	NavigationServer3D.map_set_up(map_rid, Vector3.UP)
-	NavigationServer3D.map_set_edge_connection_margin(map_rid, 0.45)
-	NavigationServer3D.map_set_link_connection_radius(map_rid, 2.0)
-	fill_navmesh()
+func create_nav_map() -> RID:
+	var nav_map := NavigationServer3D.map_create()
+	NavigationServer3D.map_set_active(nav_map, true)
+	NavigationServer3D.map_set_use_async_iterations(nav_map, false)
+	NavigationServer3D.map_set_up(nav_map, Vector3.UP)
+	NavigationServer3D.map_set_edge_connection_margin(nav_map, 0.45)
+	NavigationServer3D.map_set_link_connection_radius(nav_map, 2.0)
+	return nav_map
+
+func install_nav_region(nav_map: RID, cart_path: bool) -> RID:
 	var mesh := NavigationMesh.new()
 	mesh.vertices = nav_verts
 	for poly in nav_polys:
-		mesh.add_polygon(poly)
-	region_rid = NavigationServer3D.region_create()
-	NavigationServer3D.region_set_use_async_iterations(region_rid, false)
-	NavigationServer3D.region_set_navigation_mesh(region_rid, mesh)
-	NavigationServer3D.region_set_map(region_rid, map_rid)
-	build_links()
-	sync_nav()
-	print("NAV polys=%d verts=%d mesh=%d/%d first=%s iteration=%d ms=%d" % [nav_polys.size(), nav_verts.size(), mesh.vertices.size(), mesh.get_polygon_count(), nav_verts[0], NavigationServer3D.map_get_iteration_id(map_rid), Time.get_ticks_msec() - started])
+		if not cart_path:
+			mesh.add_polygon(poly)
+			continue
+		for index in range(1, poly.size() - 1):
+			var normal: Vector3 = (nav_verts[poly[index]] - nav_verts[poly[0]]).cross(nav_verts[poly[index + 1]] - nav_verts[poly[0]])
+			if absf(normal.y) > 0.00001 and Vector2(normal.x, normal.z).length() <= absf(normal.y) * 0.5:
+				mesh.add_polygon(PackedInt32Array([poly[0], poly[index], poly[index + 1]]))
+	var region := NavigationServer3D.region_create()
+	NavigationServer3D.region_set_use_async_iterations(region, false)
+	NavigationServer3D.region_set_navigation_mesh(region, mesh)
+	NavigationServer3D.region_set_map(region, nav_map)
+	return region
+
+func build_navigation() -> void:
+	var started := Time.get_ticks_msec()
+	map_rid = create_nav_map()
+	cart_map_rid = create_nav_map()
+	build_navigation_mesh_only()
+	print("NAV polys=%d verts=%d first=%s iteration=%d ms=%d" % [nav_polys.size(), nav_verts.size(), nav_verts[0], NavigationServer3D.map_get_iteration_id(map_rid), Time.get_ticks_msec() - started])
 
 func fill_navmesh() -> void:
 	nav_verts = PackedVector3Array()
@@ -2453,6 +2478,9 @@ func push_quad(a: Vector3, b: Vector3, c: Vector3, d: Vector3) -> void:
 	nav_polys.append(PackedInt32Array([base, base + 1, base + 2, base + 3]))
 
 func build_links() -> void:
+	for link_rid in cart_link_rids:
+		NavigationServer3D.free_rid(link_rid)
+	cart_link_rids.clear()
 	for link_rid in link_rids:
 		NavigationServer3D.free_rid(link_rid)
 	link_rids.clear()
@@ -2497,13 +2525,18 @@ func link_door(door) -> void:
 	add_link(a, b, door.open)
 
 func add_link(a: Vector3, b: Vector3, enabled: bool) -> void:
-	var link := NavigationServer3D.link_create()
-	NavigationServer3D.link_set_map(link, map_rid)
-	NavigationServer3D.link_set_start_position(link, a)
-	NavigationServer3D.link_set_end_position(link, b)
-	NavigationServer3D.link_set_bidirectional(link, true)
-	NavigationServer3D.link_set_enabled(link, enabled)
-	link_rids.append(link)
+	for nav_map in [map_rid, cart_map_rid]:
+		var link := NavigationServer3D.link_create()
+		NavigationServer3D.link_set_map(link, nav_map)
+		NavigationServer3D.link_set_start_position(link, a)
+		NavigationServer3D.link_set_end_position(link, b)
+		NavigationServer3D.link_set_bidirectional(link, true)
+		var traversable: bool = enabled and (nav_map == map_rid or absf(a.y - b.y) <= maxf(0.6, flat_dist(a, b) * 0.5))
+		NavigationServer3D.link_set_enabled(link, traversable)
+		if nav_map == map_rid:
+			link_rids.append(link)
+		else:
+			cart_link_rids.append(link)
 
 func refresh_nav() -> void:
 	if navigation_dirty:
@@ -2513,6 +2546,8 @@ func rebuild_nav() -> void:
 	navigation_dirty = false
 	if region_rid.is_valid():
 		NavigationServer3D.free_rid(region_rid)
+	if cart_region_rid.is_valid():
+		NavigationServer3D.free_rid(cart_region_rid)
 	for link_rid in link_rids:
 		NavigationServer3D.free_rid(link_rid)
 	link_rids.clear()
@@ -2521,14 +2556,8 @@ func rebuild_nav() -> void:
 
 func build_navigation_mesh_only() -> void:
 	fill_navmesh()
-	var mesh := NavigationMesh.new()
-	mesh.vertices = nav_verts
-	for poly in nav_polys:
-		mesh.add_polygon(poly)
-	region_rid = NavigationServer3D.region_create()
-	NavigationServer3D.region_set_use_async_iterations(region_rid, false)
-	NavigationServer3D.region_set_navigation_mesh(region_rid, mesh)
-	NavigationServer3D.region_set_map(region_rid, map_rid)
+	region_rid = install_nav_region(map_rid, false)
+	cart_region_rid = install_nav_region(cart_map_rid, true)
 	build_links()
 	sync_nav()
 
@@ -2542,9 +2571,12 @@ func self_test_paths() -> void:
 	sample_path("square_tree", Vector3(50, 0, 0), Vector3(520, 18, 40))
 	sample_path("guild_upper", Vector3(85, 0, -35), Vector3(85, 4.1, -36.1))
 
-func nav_path(a: Vector3, b: Vector3, optimize: bool) -> PackedVector3Array:
+func nav_map_for(agent) -> RID:
+	return cart_map_rid if agent.cart_id != "" else map_rid
+
+func nav_path(a: Vector3, b: Vector3, optimize: bool, cart_path := false) -> PackedVector3Array:
 	var params := NavigationPathQueryParameters3D.new()
-	params.map = map_rid
+	params.map = cart_map_rid if cart_path else map_rid
 	params.start_position = a
 	params.target_position = b
 	params.path_search_max_polygons = 100000
@@ -3187,6 +3219,7 @@ func status_of(agent) -> Dictionary:
 
 func tool_move(agent, args) -> Dictionary:
 	refresh_nav()
+	var nav_map := nav_map_for(agent)
 	var destination := str(args.get("destination", ""))
 	var pace := str(args.get("pace", "walk"))
 	if destination == "":
@@ -3216,11 +3249,11 @@ func tool_move(agent, args) -> Dictionary:
 		if delta.length() < 0.2:
 			delta = Vector3(1, 0, 0)
 		approach = approach + delta.normalized() * 1.4
-	var start := NavigationServer3D.map_get_closest_point(map_rid, agent.pos)
-	var goal := NavigationServer3D.map_get_closest_point(map_rid, approach)
+	var start := NavigationServer3D.map_get_closest_point(nav_map, agent.pos)
+	var goal := NavigationServer3D.map_get_closest_point(nav_map, approach)
 	if goal.distance_to(approach) > 5.0:
 		return ok({"arrived": false, "reason": "not_walkable", "x": round2(agent.pos.x), "y": round2(agent.pos.y), "z": round2(agent.pos.z), "distance_m": 0, "minutes": 0, "blocked": {"kind": "terrain", "id": "", "reason": "no walkable ground there"}})
-	var path := nav_path(start, goal, true)
+	var path := nav_path(start, goal, true, agent.cart_id != "")
 	# A shut door drops its crossing from the navigation mesh, so no path gets past it.
 	var shut := {}
 	if path.size() >= 2 and path[path.size() - 1].distance_to(approach) > 2.2:
@@ -3229,14 +3262,14 @@ func tool_move(agent, args) -> Dictionary:
 		approach = door_front(shut, agent.pos)
 		if agent.pos.distance_to(approach) < 1.2:
 			return ok({"arrived": false, "x": round2(agent.pos.x), "y": round2(agent.pos.y), "z": round2(agent.pos.z), "distance_m": 0, "minutes": 0, "blocked": {"kind": "door", "id": shut.id, "reason": "the door is " + ("locked" if shut.lock == "locked" else "closed")}})
-		goal = NavigationServer3D.map_get_closest_point(map_rid, approach)
-		path = nav_path(start, goal, true)
+		goal = NavigationServer3D.map_get_closest_point(nav_map, approach)
+		path = nav_path(start, goal, true, agent.cart_id != "")
 	if path.size() < 2:
 		return ok({"arrived": false, "reason": "unreachable", "x": round2(agent.pos.x), "y": round2(agent.pos.y), "z": round2(agent.pos.z), "distance_m": 0, "minutes": 0, "blocked": {"kind": "path", "id": "", "reason": "no navigation path"}})
 	var preview := walk_path(agent, path)
 	if preview.blocked != null and preview.blocked.kind in ["obstacle", "cart"]:
 		# Shared-edge centres clear corners the shortened path can shave.
-		var plain := nav_path(start, goal, false)
+		var plain := nav_path(start, goal, false, agent.cart_id != "")
 		if plain.size() >= 2 and walk_path(agent, plain).blocked == null:
 			path = plain
 	path = avoid_blocker_on_path(agent, start, goal, path)
@@ -3270,7 +3303,7 @@ func avoid_blocker_on_path(agent, start: Vector3, goal: Vector3, path: PackedVec
 		center = other.pos
 	else:
 		for solid in solids:
-			if str(solid.body.name) == id:
+			if str(solid.body.name) == id and id != agent.cart_id:
 				center = solid.aabb.get_center()
 				radius += maxf(solid.aabb.size.x, solid.aabb.size.z) * 0.5
 				break
@@ -3285,12 +3318,12 @@ func avoid_blocker_on_path(agent, start: Vector3, goal: Vector3, path: PackedVec
 	for angle in [PI * 0.5, -PI * 0.5, PI * 0.25, -PI * 0.25, PI * 0.75, -PI * 0.75]:
 		var candidate: Vector3 = center + direction.rotated(Vector3.UP, angle) * radius
 		candidate.y = ground_y(candidate.x, candidate.z) if other == null else center.y
-		var via := NavigationServer3D.map_get_closest_point(map_rid, candidate)
+		var via := NavigationServer3D.map_get_closest_point(nav_map_for(agent), candidate)
 		if via.distance_to(candidate) > 0.5:
 			continue
 		for optimized in [true, false]:
-			var before := nav_path(start, via, optimized)
-			var after := nav_path(via, goal, optimized)
+			var before := nav_path(start, via, optimized, agent.cart_id != "")
+			var after := nav_path(via, goal, optimized, agent.cart_id != "")
 			if before.size() < 2 or after.size() < 2 or before[before.size() - 1].distance_to(via) > 0.5 or after[after.size() - 1].distance_to(goal) > 0.5:
 				continue
 			before.append_array(after.slice(1))
@@ -3320,8 +3353,9 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 			nxt = stop
 		if not wagon.is_empty():
 			var proposed := cart_pose_after_step(pos, nxt, wagon_pose)
-			if not cart_step_is_clear(agent, wagon, wagon_pose, proposed, pos, nxt):
-				blocked = {"kind": "cart", "id": wagon.id, "reason": "the cart cannot clear this route"}
+			var obstruction := cart_step_error(agent, wagon, wagon_pose, proposed, pos, nxt)
+			if not obstruction.is_empty():
+				blocked = obstruction
 				break
 			wagon_pose = proposed
 		walked += pos.distance_to(nxt)
@@ -3347,9 +3381,9 @@ func tick_walk(agent, travel: Dictionary) -> bool:
 		speed = minf(speed, lerpf(62.0, 39.0, freight / CART_CAPACITY_KG))
 	var step := walk_path(agent, travel.path, travel.index, speed)
 	if step.blocked != null and step.blocked.kind in ["agent", "obstacle", "cart"]:
-		var start := NavigationServer3D.map_get_closest_point(map_rid, agent.pos)
-		var goal := NavigationServer3D.map_get_closest_point(map_rid, travel.approach)
-		var path := avoid_blocker_on_path(agent, start, goal, nav_path(start, goal, true))
+		var start := NavigationServer3D.map_get_closest_point(nav_map_for(agent), agent.pos)
+		var goal := NavigationServer3D.map_get_closest_point(nav_map_for(agent), travel.approach)
+		var path := avoid_blocker_on_path(agent, start, goal, nav_path(start, goal, true, agent.cart_id != ""))
 		if path.size() >= 2 and path[path.size() - 1].distance_to(goal) <= 0.5 and walk_path(agent, path).blocked == null:
 			travel.path = path
 			travel.index = 1
@@ -3438,7 +3472,7 @@ func agent_named(text: String):
 # The shut door that keeps `agent` from a goal no path reaches: the nearest one the agent can walk up to,
 # with the goal on its far side. Empty when no door is to blame.
 func shut_door_between(agent, goal: Vector3) -> Dictionary:
-	var start := NavigationServer3D.map_get_closest_point(map_rid, agent.pos)
+	var start := NavigationServer3D.map_get_closest_point(nav_map_for(agent), agent.pos)
 	var best := {}
 	var best_dist := INF
 	for door_id in doors:
@@ -3452,7 +3486,7 @@ func shut_door_between(agent, goal: Vector3) -> Dictionary:
 		var near := door_front(door, agent.pos)
 		if near.distance_to(agent.pos) >= best_dist:
 			continue
-		var walk := nav_path(start, NavigationServer3D.map_get_closest_point(map_rid, near), true)
+		var walk := nav_path(start, NavigationServer3D.map_get_closest_point(nav_map_for(agent), near), true, agent.cart_id != "")
 		if agent.pos.distance_to(near) < 1.2 or (walk.size() >= 2 and walk[walk.size() - 1].distance_to(near) < 2.5):
 			best = door
 			best_dist = near.distance_to(agent.pos)
@@ -3787,12 +3821,12 @@ func cart_pose_after_step(from: Vector3, to: Vector3, previous: Transform3D) -> 
 	direction = direction.normalized()
 	return Transform3D(Basis.looking_at(direction), to - direction * CART_TRAIL_M + Vector3.UP * CART_SIZE.y * 0.5)
 
-func cart_step_is_clear(agent, wagon: Dictionary, from: Transform3D, to: Transform3D, feet: Vector3, next: Vector3) -> bool:
+func cart_step_error(agent, wagon: Dictionary, from: Transform3D, to: Transform3D, feet: Vector3, next: Vector3) -> Dictionary:
 	var step := flat_dist(feet, next)
 	if absf(feet.y - next.y) > maxf(0.6, step * 0.5):
-		return false
+		return {"kind": "cart", "id": wagon.id, "reason": "the cart cannot climb this step", "rise_m": round2(absf(feet.y - next.y)), "run_m": round2(step)}
 	if from.is_equal_approx(to):
-		return true
+		return {}
 	var shape := BoxShape3D.new()
 	shape.size = CART_SIZE
 	var probe := PhysicsShapeQueryParameters3D.new()
@@ -3803,10 +3837,16 @@ func cart_step_is_clear(agent, wagon: Dictionary, from: Transform3D, to: Transfo
 	probe.motion = to.origin - from.origin
 	var sweep := space().cast_motion(probe)
 	if sweep.size() > 0 and sweep[0] < 0.99999:
-		return false
+		probe.transform.origin += probe.motion * minf(float(sweep[1]) + 0.002, 1.0)
+		probe.motion = Vector3.ZERO
+		var contacts := space().intersect_shape(probe, 1)
+		return {"kind": "cart", "id": wagon.id, "reason": "the cart strikes an obstruction", "obstacle_id": str(contacts[0].collider.name) if not contacts.is_empty() else ""}
 	probe.motion = Vector3.ZERO
 	probe.transform = to
-	return space().intersect_shape(probe, 1).is_empty()
+	var contacts := space().intersect_shape(probe, 1)
+	if not contacts.is_empty():
+		return {"kind": "cart", "id": wagon.id, "reason": "the cart cannot turn past an obstruction", "obstacle_id": str(contacts[0].collider.name)}
+	return {}
 
 func tool_cart(agent, args) -> Dictionary:
 	var cart_id := str(args.get("cart_id", ""))
@@ -5143,7 +5183,7 @@ func watch_setup() -> void:
 	if spec_shot_dir != "":
 		# Reading frames back stalls the vsync swap on this driver, so capture runs skip vblank waits.
 		DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
-	Engine.max_fps = 60
+	Engine.max_fps = 8 if spec_shot_dir != "" else 60
 
 func watch_panel() -> PanelContainer:
 	var panel := PanelContainer.new()

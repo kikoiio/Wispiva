@@ -88,9 +88,23 @@ func verify_navigation() -> void:
 		push_error("Forging must consume iron and master-hammer durability and produce nails")
 		quit(1)
 		return
+	var driver = world.agents_by_id.human_owen
+	world.set_pos(driver, Vector3(-180, 2, 15))
+	driver.cart_id = "oakford_cart"
+	var wagon: Dictionary = world.carts.oakford_cart
+	wagon.body.global_transform = Transform3D(Basis.looking_at(Vector3.LEFT), Vector3(-177.45, 2.65, 15))
+	var start := NavigationServer3D.map_get_closest_point(world.cart_map_rid, driver.pos)
+	var goal := NavigationServer3D.map_get_closest_point(world.cart_map_rid, Vector3(-292, 3, 152))
+	var cart_path: PackedVector3Array = world.nav_path(start, goal, true, true)
+	var journey: Dictionary = world.walk_path(driver, cart_path)
+	if cart_path.size() < 2 or journey.blocked != null or journey.pos.distance_to(goal) > 0.1:
+		push_error("The Miller cart road must avoid the steep shoulder: " + str(journey.blocked))
+		quit(1)
+		return
 	print("PASS all %d registered forest trees and the spring return have physical routes" % checked)
 	print("PASS disguised public targets resolve through the ordinary observation interface")
 	print("PASS starting specialist weapons and the master forging hammer are usable")
+	print("PASS cart navigation follows the graded road into Miller's Croft")
 	world.queue_free()
 	await process_frame
 	quit(0)

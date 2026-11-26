@@ -124,7 +124,7 @@ func observe_offense(actor, reason: String) -> void:
 	for witness in world.agents:
 		if witness.id == actor.id or witness.dead or witness.unconscious:
 			continue
-		if not world.can_see(witness, actor.pos + Vector3.UP * world.eye(actor), actor.body, world.view_range(witness), false):
+		if not world.can_see(witness, actor.pos + Vector3.UP * world.eye(actor), actor.body, world.view_range(witness), world.flat_dist(witness.pos, actor.pos) > 2.0):
 			continue
 		world.push_event(witness, {"type": "witnessed", "from": actor.id, "text": reason, "minute": world.minute})
 		if witness.id in WATCH or witness.id in WARDENS:
