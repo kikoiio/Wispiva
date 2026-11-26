@@ -299,6 +299,41 @@ def alpine_meadow(group):
     tint_vertices(meadow, colors)
 
 
+def river_reaches(group):
+    water = matte("Slate green river", "49706c", 0.23)
+    bank_material = painted_surface("Wet shingle and grass")
+    wet, bank = paint("4b5652"), paint("718058")
+    for name, start, end in (("Upstream", 30.2, 61.9), ("Downstream", -51.8, -27.1)):
+        surface, rim, pigment, river_faces, rim_faces = [], [], [], [], []
+        for i in range(49):
+            t = i / 48
+            y = start + t * (end - start)
+            reach = ease((y - 32) / 26) if start > 0 else ease((-y - 28) / 22)
+            center = sin(y * 0.19 + 0.22) * 0.95 * reach
+            width = 4.24 - 2.06 * reach
+            bed = 0.014 + 0.85 * reach if start > 0 else 0.011 - 0.15 * reach
+            for side in (-1, 1):
+                water_x = center + side * width
+                outer_x = side * (7.0 + 0.55 * sin(y * 0.33))
+                distance, grade = nearest_grade(outer_x, y)
+                upper = height(outer_x, y, distance, grade)
+                surface.append((water_x, y, bed + 0.013 * sin(y * 2.3 + side)))
+                rim += [(water_x - side * 0.16, y, bed - 0.10), (water_x + side * 0.31, y, bed + 0.17),
+                        (outer_x, y, upper - 0.009)]
+                pigment += [wet, wet.lerp(bank, 0.34 + 0.13 * sin(y * 3.05)), bank]
+            if i:
+                a = i * 2
+                river_faces.append((a - 2, a - 1, a + 1, a))
+                for side in range(2):
+                    for band in range(2):
+                        a = i * 6 + side * 3 + band
+                        face = (a - 6, a - 5, a + 1, a)
+                        rim_faces.append(face if side else face[::-1])
+        mesh(group, "WATER_" + name, surface, river_faces, [water], smooth=True)
+        shore = mesh(group, "Gravel bars | " + name, rim, rim_faces, [bank_material], smooth=True)
+        tint_vertices(shore, pigment)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.system = "METRIC"
@@ -315,6 +350,7 @@ def main():
     outcrops(collection("Exposed strata"), stones)
     distant_peaks(collection("Western watershed"))
     alpine_meadow(collection("Alpine grasses along the trail"))
+    river_reaches(collection("Upstream and downstream gravel bars"))
     for screen in bpy.data.screens:
         for area in screen.areas:
             if area.type == "VIEW_3D":

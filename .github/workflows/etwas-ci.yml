@@ -52,7 +52,6 @@ jobs:
           mkdir -p generated
           tar -cf generated/etwas-models.tar world/blender/etwas*.blend world/assets/etwas/*.glb
       - name: Import and check world tools and movement
-        if: false
         run: |
           set -euo pipefail
           .ci-tools/godot --headless --path world --import 2>&1 | tee godot-import.log
@@ -61,7 +60,7 @@ jobs:
             .ci-tools/godot --headless --path world --fixed-fps 30 --script res://tests/etwas.gd 2>&1 | tee godot-proofs.log
           fi
       - name: Capture town and spring in Godot
-        if: false
+        if: ${{ !cancelled() }}
         run: |
           set -euo pipefail
           xvfb-run -a .ci-tools/godot --path world --resolution 1280x720 --script res://tests/etwas-capture.gd 2>&1 | tee godot-capture.log

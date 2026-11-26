@@ -1,0 +1,96 @@
+{
+  "agents": [
+    {
+      "id": "human_sela",
+      "name": "Sela Wren",
+      "race": "human",
+      "role": "Innkeeper",
+      "pos": [-13.0, 1.5, -5.0],
+      "yaw": 1.57,
+      "mana": 18,
+      "manaMax": 18,
+      "sp": 12,
+      "items": [
+        {"id": "timber", "name": "split firewood", "kg": 5.0, "qty": 3},
+        {"id": "bread", "name": "loaf of bread", "kg": 0.4, "qty": 4}
+      ]
+    },
+    {
+      "id": "human_edric",
+      "name": "Edric Vale",
+      "race": "human",
+      "role": "Bridge Mason",
+      "pos": [13.0, 2.6, -10.0],
+      "yaw": -1.57,
+      "mana": 10,
+      "manaMax": 10,
+      "sp": 8,
+      "items": [
+        {"id": "stone_fragment", "name": "dressed limestone offcut", "kg": 0.5, "qty": 2},
+        {"id": "hand_axe", "name": "mason's hand axe", "kg": 1.6, "qty": 1}
+      ]
+    },
+    {
+      "id": "human_tamsin",
+      "name": "Tamsin Reed",
+      "race": "human",
+      "role": "Bathhouse Keeper",
+      "pos": [12.8, 2.6, 8.2],
+      "yaw": -1.57,
+      "mana": 32,
+      "manaMax": 32,
+      "sp": 14,
+      "items": [
+        {"id": "forest_herbs", "name": "dried mountain herbs", "kg": 0.2, "qty": 6},
+        {"id": "spring_water", "name": "spring water flask", "kg": 1.0, "qty": 2}
+      ]
+    },
+    {
+      "id": "elf_orla",
+      "name": "Orla Fern",
+      "race": "elf",
+      "role": "Spring Gatherer",
+      "pos": [6.5, 0.48, 13.0],
+      "yaw": 3.14,
+      "mana": 74,
+      "manaMax": 74,
+      "sp": 6,
+      "items": [
+        {"id": "forest_herbs", "name": "fresh alpine herbs", "kg": 0.2, "qty": 5},
+        {"id": "spring_water", "name": "spring water flask", "kg": 1.0, "qty": 1}
+      ]
+    },
+    {
+      "id": "dwarf_beran",
+      "name": "Beran Stonehand",
+      "race": "dwarf",
+      "role": "Bridge Mason",
+      "pos": [-11.0, 1.5, -6.6],
+      "yaw": 1.57,
+      "mana": 8,
+      "manaMax": 8,
+      "sp": 17,
+      "items": [
+        {"id": "stone_fragment", "name": "granite wedge", "kg": 0.5, "qty": 3},
+        {"id": "smith_hammer", "name": "masonry hammer", "kg": 1.8, "qty": 1}
+      ]
+    },
+    {
+      "id": "human_peren",
+      "name": "Peren Holt",
+      "race": "human",
+      "role": "Quay Keeper",
+      "pos": [8.0, 0.48, 14.4],
+      "yaw": -1.57,
+      "mana": 12,
+      "manaMax": 12,
+      "sp": 9,
+      "items": [
+        {"id": "bread", "name": "wrapped oat loaf", "kg": 0.4, "qty": 2},
+        {"id": "rope", "name": "hemp line", "kg": 1.5, "qty": 1}
+      ]
+    }
+  ],
+  "containers": [],
+  "wildlife": []
+}

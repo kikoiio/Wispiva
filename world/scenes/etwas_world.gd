@@ -1,11 +1,10 @@
 extends "res://world.gd"
 
 const ART_ROOTS := ["EtwasTown", "EtwasValley", "EtwasLandscape"]
-const NAV_SURFACE_SLOPE := 0.62
-const CART_SURFACE_SLOPE := 0.92
 
-var nav_surface_meshes: Array[MeshInstance3D] = []
+var bake_meshes: Array[MeshInstance3D] = []
 var registered_meshes: Dictionary = {}
+var baked_navigation_mesh: NavigationMesh
 
 
 func layout_resource_path() -> String:
@@ -128,20 +127,22 @@ func register_model_geometry(root: Node3D) -> void:
 		match prefix:
 			"WALK_":
 				collision_layer = L_FLOOR
-				nav_surface_meshes.append(mesh_node)
+				bake_meshes.append(mesh_node)
 			"OBSTACLE_":
 				collision_layer = L_WORLD
 				blocks_navigation = true
+				bake_meshes.append(mesh_node)
 			"HIT_":
 				collision_layer = L_WORLD
 			"NAV_":
 				mesh_node.hide()
-				nav_surface_meshes.append(mesh_node)
+				bake_meshes.append(mesh_node)
 			"FLOOR_":
 				collision_layer = L_FLOOR
 			"SOLID_":
 				collision_layer = L_PROP
 				blocks_navigation = true
+				bake_meshes.append(mesh_node)
 		if collision_layer == 0:
 			continue
 		var shape := mesh_node.mesh.create_trimesh_shape()
@@ -228,40 +229,48 @@ func fill_navmesh() -> void:
 	corner_height.clear()
 	nav_covers = []
 	road_links = []
-	cover_raster(-22, 25, -30, 20, 1)
-	for road in roads:
-		push_road_chain(road.points, float(road.width))
-	for mesh_node in nav_surface_meshes:
-		append_navigation_faces(mesh_node)
+	baked_navigation_mesh = NavigationMesh.new()
+	baked_navigation_mesh.agent_radius = 0.38
+	baked_navigation_mesh.cell_size = 0.15
+	baked_navigation_mesh.cell_height = 0.1
+	baked_navigation_mesh.agent_max_climb = 0.35
+	var source_geometry := NavigationMeshSourceGeometryData3D.new()
+	for mesh_node in bake_meshes:
+		if is_instance_valid(mesh_node) and mesh_node.mesh != null:
+			source_geometry.add_mesh(mesh_node.mesh, mesh_node.global_transform)
+	for fixture in fixtures.values():
+		var body: StaticBody3D = fixture.body
+		for child in body.get_children():
+			if child is not CollisionShape3D or child.shape is not BoxShape3D:
+				continue
+			var prop_mesh := BoxMesh.new()
+			prop_mesh.size = (child.shape as BoxShape3D).size
+			source_geometry.add_mesh(prop_mesh, body.global_transform * child.transform)
+	NavigationServer3D.bake_from_source_geometry_data(baked_navigation_mesh, source_geometry)
 
 
-func append_navigation_faces(mesh_node: MeshInstance3D) -> void:
-	if not is_instance_valid(mesh_node) or mesh_node.mesh == null:
-		return
-	var faces := mesh_node.mesh.get_faces()
-	for index in range(0, faces.size(), 3):
-		var a := mesh_node.global_transform * faces[index]
-		var b := mesh_node.global_transform * faces[index + 1]
-		var c := mesh_node.global_transform * faces[index + 2]
-		var normal := (b - a).cross(c - a)
-		if normal.length_squared() < 0.0001 or normal.y / normal.length() < NAV_SURFACE_SLOPE:
-			continue
-		var center := (a + b + c) / 3.0
-		if in_nav_cover(center.x, center.z, 0.0):
-			continue
-		var poly := PackedInt32Array([
-			nav_vertex(a.x, a.y, a.z),
-			nav_vertex(b.x, b.y, b.z),
-			nav_vertex(c.x, c.y, c.z),
-		])
-		nav_polys.append(poly)
-		if normal.y / normal.length() >= CART_SURFACE_SLOPE:
-			cart_polys.append(poly)
+func build_navigation() -> void:
+	map_rid = create_nav_map()
+	cart_map_rid = create_nav_map()
+	build_navigation_mesh_only()
+	print("WISPIVA_ETWAS_NAV_BAKED")
+
+
+func install_nav_region(nav_map: RID, _cart_path: bool) -> RID:
+	var region := NavigationServer3D.region_create()
+	NavigationServer3D.region_set_use_async_iterations(region, false)
+	NavigationServer3D.region_set_navigation_mesh(region, baked_navigation_mesh)
+	NavigationServer3D.region_set_map(region, nav_map)
+	return region
+
+
+func build_links() -> void:
+	pass
 
 
 func ground_y(x: float, z: float) -> float:
 	if on_bridge(x, z):
-		var bridge := layout.bridge
+		var bridge: Dictionary = layout.bridge
 		var progress := clampf((x - float(bridge.x0)) / (float(bridge.x1) - float(bridge.x0)), 0.0, 1.0)
 		return lerpf(float(bridge.west_y), float(bridge.east_y), progress)
 	var nearest_distance := INF
@@ -270,7 +279,7 @@ func ground_y(x: float, z: float) -> float:
 	for road in roads:
 		var points: Array = road.points
 		for index in range(points.size() - 1):
-			var hit := closest_xz(x, z, points[index], points[index + 1])
+			var hit: Dictionary = closest_xz(x, z, points[index], points[index + 1])
 			if float(hit.dist) < nearest_distance:
 				nearest_distance = float(hit.dist)
 				nearest_height = float(hit.y)
@@ -288,7 +297,7 @@ func in_water(x: float, z: float) -> bool:
 
 
 func on_bridge(x: float, z: float) -> bool:
-	var bridge := layout.bridge
+	var bridge: Dictionary = layout.bridge
 	return x >= float(bridge.x0) and x <= float(bridge.x1) and z >= float(bridge.z0) and z <= float(bridge.z1)
 
 

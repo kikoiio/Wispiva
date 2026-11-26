@@ -1,0 +1,365 @@
+{
+  "river": {
+    "half_width": 4.2,
+    "z_min": -55,
+    "z_max": 35,
+    "points": [
+      [0, 0, -55],
+      [0, 0, 35]
+    ]
+  },
+  "bridge": {
+    "x0": -4.2,
+    "x1": 4.2,
+    "z0": -2.1,
+    "z1": 2.1,
+    "west_y": 1.5,
+    "east_y": 2.6
+  },
+  "west_bank_y": 1.5,
+  "east_bank_y": 2.6,
+  "roads": [
+    {
+      "id": "west_street",
+      "width": 2.8,
+      "points": [
+        [-16, 1.5, 2],
+        [-10.8, 1.5, 1.7],
+        [-7.2, 1.5, -1.1],
+        [-4.2, 1.5, 0]
+      ]
+    },
+    {
+      "id": "bridge_deck",
+      "width": 3.2,
+      "points": [
+        [-4.2, 1.5, 0],
+        [-1.4, 1.87, 0],
+        [1.4, 2.23, 0],
+        [4.2, 2.6, 0]
+      ]
+    },
+    {
+      "id": "east_street",
+      "width": 2.8,
+      "points": [
+        [4.2, 2.6, 0],
+        [6.5, 2.6, 3.7],
+        [6.5, 2.6, 7.5],
+        [8.2, 2.6, 8]
+      ]
+    },
+    {
+      "id": "village_stairs",
+      "width": 1.7,
+      "points": [
+        [6.5, 2.6, 7],
+        [6.5, 2.05, 9.5],
+        [6.5, 1.2, 11.3],
+        [6.5, 0.48, 13]
+      ]
+    },
+    {
+      "id": "quay_walk",
+      "width": 2.4,
+      "points": [
+        [6.5, 0.48, 13],
+        [8.1, 0.48, 14.4],
+        [10.2, 0.48, 14.4]
+      ]
+    },
+    {
+      "id": "inn_approach",
+      "width": 2.2,
+      "points": [
+        [-4.2, 1.5, 0],
+        [-6.5, 1.5, -1.5],
+        [-6.5, 1.5, -5]
+      ]
+    },
+    {
+      "id": "home_approach",
+      "width": 2.0,
+      "points": [
+        [6.5, 2.6, 3.7],
+        [7.8, 2.6, -2.8],
+        [7.8, 2.6, -10]
+      ]
+    },
+    {
+      "id": "east_gate_road",
+      "width": 2.8,
+      "points": [
+        [6.5, 2.6, 3.7],
+        [7.1, 2.6, -5],
+        [8.2, 2.6, -14],
+        [9, 2.6, -25]
+      ]
+    },
+    {
+      "id": "mountain_trail",
+      "width": 2.2,
+      "points": [
+        [9, 2.6, -25],
+        [17, 3.8, -34],
+        [25, 5.5, -43],
+        [34, 8, -51],
+        [44, 10.8, -59],
+        [54, 13.2, -68],
+        [65, 16, -75],
+        [77, 18, -77],
+        [83, 18, -72],
+        [87, 20.5, -84],
+        [94, 25.5, -99],
+        [100, 31.5, -113],
+        [104.4, 35.05, -120]
+      ]
+    }
+  ],
+  "buildings": [
+    {
+      "id": "inn",
+      "name": "Riverside Inn",
+      "floor": [-12, 1.5, -5],
+      "size": [8, 4, 8],
+      "doors": [
+        {
+          "id": "inn_door",
+          "side": "+x",
+          "width": 1.8,
+          "height": 2.3
+        }
+      ]
+    },
+    {
+      "id": "bathhouse",
+      "name": "Riverside Bathhouse",
+      "floor": [12, 2.6, 8],
+      "size": [8, 4.2, 8],
+      "doors": [
+        {
+          "id": "bath_door",
+          "side": "-x",
+          "width": 1.8,
+          "height": 2.3
+        }
+      ]
+    },
+    {
+      "id": "home",
+      "name": "East Bank Home",
+      "floor": [13, 2.6, -10],
+      "size": [7, 3.8, 7],
+      "doors": [
+        {
+          "id": "home_door",
+          "side": "-x",
+          "width": 1.8,
+          "height": 2.3
+        }
+      ]
+    },
+    {
+      "id": "old_bath",
+      "name": "Old Bath",
+      "floor": [77, 18, -77],
+      "size": [8, 4.2, 7],
+      "doors": []
+    }
+  ],
+  "openings": [
+    {
+      "side": "+z",
+      "center": [77, 18, -73.5],
+      "width": 2.4,
+      "thick": 0.7
+    }
+  ],
+  "interior_doors": [
+    {
+      "id": "inn_door",
+      "center": [-8, 2.65, -5],
+      "size": [0.18, 2.3, 1.8],
+      "lock": "unlocked",
+      "open": false,
+      "key": "",
+      "material": "wood"
+    },
+    {
+      "id": "bath_door",
+      "center": [8, 3.75, 8],
+      "size": [0.18, 2.3, 1.8],
+      "lock": "unlocked",
+      "open": false,
+      "key": "",
+      "material": "wood"
+    },
+    {
+      "id": "home_door",
+      "center": [9.5, 3.75, -10],
+      "size": [0.18, 2.3, 1.8],
+      "lock": "unlocked",
+      "open": false,
+      "key": "",
+      "material": "wood"
+    }
+  ],
+  "fixtures": [
+    {
+      "id": "inn_bed_sela",
+      "name": "Sela's inn bed",
+      "kind": "bed",
+      "center": [-14.7, 1.86, -3.2],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[-13.2, 1.5, -3.2]]
+    },
+    {
+      "id": "inn_bed_beran",
+      "name": "Beran's inn bed",
+      "kind": "bed",
+      "center": [-14.7, 1.86, -6.8],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[-13.2, 1.5, -6.8]]
+    },
+    {
+      "id": "inn_hearth",
+      "name": "Inn hearth",
+      "kind": "fire",
+      "center": [-15.2, 1.85, -5.0],
+      "size": [0.9, 0.7, 0.9],
+      "approaches": [[-13.9, 1.5, -5.0]],
+      "recipe": "light_campfire"
+    },
+    {
+      "id": "inn_oven",
+      "name": "Bread oven",
+      "kind": "workstation",
+      "center": [-14.8, 1.95, -8.0],
+      "size": [1.1, 0.9, 1.1],
+      "approaches": [[-13.3, 1.5, -8.0]],
+      "recipes": ["bread", "bake_flour", "brew_ale"]
+    },
+    {
+      "id": "home_bed_edric",
+      "name": "Edric's bed",
+      "kind": "bed",
+      "center": [14.5, 2.96, -8.4],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[13.0, 2.6, -8.4]]
+    },
+    {
+      "id": "home_bed_orla",
+      "name": "Orla's bed",
+      "kind": "bed",
+      "center": [14.5, 2.96, -11.7],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[13.0, 2.6, -11.7]]
+    },
+    {
+      "id": "home_hearth",
+      "name": "Home hearth",
+      "kind": "fire",
+      "center": [15.9, 2.95, -12.6],
+      "size": [0.9, 0.7, 0.9],
+      "approaches": [[14.5, 2.6, -12.6]],
+      "recipe": "light_campfire"
+    },
+    {
+      "id": "home_seat",
+      "name": "Window bench",
+      "kind": "seat",
+      "center": [11.2, 2.98, -12.2],
+      "size": [1.5, 0.55, 0.65],
+      "approaches": [[11.2, 2.6, -11.1]]
+    },
+    {
+      "id": "bath_bed_tamsin",
+      "name": "Tamsin's room bed",
+      "kind": "bed",
+      "center": [14.6, 2.96, 5.4],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[13.1, 2.6, 5.4]]
+    },
+    {
+      "id": "bath_bed_peren",
+      "name": "Peren's room bed",
+      "kind": "bed",
+      "center": [14.6, 2.96, 10.7],
+      "size": [1.5, 0.7, 2.0],
+      "approaches": [[13.1, 2.6, 10.7]]
+    },
+    {
+      "id": "bath_hearth",
+      "name": "Bathhouse boiler hearth",
+      "kind": "fire",
+      "center": [15.5, 2.95, 8.0],
+      "size": [0.9, 0.7, 0.9],
+      "approaches": [[14.2, 2.6, 8.0]],
+      "recipe": "light_campfire"
+    },
+    {
+      "id": "bath_boiler",
+      "name": "Bathhouse herb counter",
+      "kind": "workstation",
+      "center": [13.8, 2.95, 11.1],
+      "size": [1.1, 0.8, 0.8],
+      "approaches": [[12.5, 2.6, 11.1]],
+      "recipe": "herbal_tonic"
+    },
+    {
+      "id": "river_spring",
+      "name": "Quay spring spout",
+      "kind": "spring",
+      "center": [6.5, 0.95, 14.2],
+      "size": [0.9, 0.9, 0.9],
+      "approaches": [[6.5, 0.48, 12.8]],
+      "recipe": "draw_water"
+    },
+    {
+      "id": "quay_seat",
+      "name": "Quay bench",
+      "kind": "seat",
+      "center": [9.2, 0.78, 14.4],
+      "size": [1.8, 0.55, 0.7],
+      "approaches": [[9.2, 0.48, 13.3]]
+    },
+    {
+      "id": "summit_pool",
+      "name": "Mountain footbath spring",
+      "kind": "spring",
+      "center": [104.0, 35.02, -122.0],
+      "size": [1.0, 0.25, 1.0],
+      "approaches": [[104.4, 35.05, -120.0]],
+      "recipe": "draw_water"
+    },
+    {
+      "id": "summit_seat",
+      "name": "Warm seat boulder",
+      "kind": "seat",
+      "center": [104.72, 35.24, -121.25],
+      "size": [1.35, 0.55, 1.1],
+      "approaches": [[104.4, 35.05, -120.0]]
+    }
+  ],
+  "carts": [],
+  "platforms": [],
+  "stairs": [],
+  "links": [],
+  "places": {
+    "bridge": [0, 2.05, 0],
+    "west_street": [-9, 1.5, 1],
+    "east_street": [6.5, 2.6, 3.7],
+    "east_gate": [9, 2.6, -25],
+    "lower_quay": [6.5, 0.48, 13],
+    "inn": [-6.5, 1.5, -5],
+    "bath": [6.6, 2.6, 8],
+    "home": [7.8, 2.6, -10],
+    "old_bath": [77, 18, -77],
+    "old_bath_entrance": [77, 18, -72],
+    "dry_channel": [83, 18, -72],
+    "summit_access": [104.4, 35.05, -120],
+    "summit_pool": [104, 35.02, -122],
+    "summit_seat": [104.72, 35.24, -121.25],
+    "sacred_spring": [104, 35.02, -122]
+  }
+}

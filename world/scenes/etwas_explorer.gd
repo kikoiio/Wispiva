@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 const SPEED := 2.0
+const STEP_HEIGHT := 0.32
 const WALK_EYE := Vector3(0, 1.63, 0)
 const SPRING_APPROACH := Vector3(104.40, 35.05, -120.00)
 const SPRING_SEATED_EYE := Vector3(104.72, 35.98, -121.16)
@@ -71,12 +72,31 @@ func walk(input: Vector2, delta: float) -> void:
 	velocity.x = direction.x * SPEED
 	velocity.z = direction.z * SPEED
 	velocity.y = -0.3 if is_on_floor() else maxf(velocity.y - 14.0 * delta, -16.0)
+	if is_on_floor() and direction.length_squared() > 0.01:
+		step_up(direction * maxf(SPEED * delta, 0.12))
 	move_and_slide()
 	if global_position.y < -5.0:
 		global_position = last_ground + Vector3.UP * 0.12
 		velocity = Vector3.ZERO
 	elif is_on_floor():
 		last_ground = global_position
+
+
+func step_up(motion: Vector3) -> void:
+	var obstacle := KinematicCollision3D.new()
+	if not test_move(global_transform, motion, obstacle) or obstacle.get_normal().y > 0.40:
+		return
+	var rise := Vector3.UP * STEP_HEIGHT
+	if test_move(global_transform, rise):
+		return
+	var raised := global_transform.translated(rise)
+	if test_move(raised, motion):
+		return
+	var floor_hit := KinematicCollision3D.new()
+	if not test_move(raised.translated(motion), Vector3.DOWN * STEP_HEIGHT, floor_hit):
+		return
+	if floor_hit.get_normal().y >= cos(floor_max_angle):
+		global_position.y += STEP_HEIGHT + floor_hit.get_travel().y
 
 
 func _process(delta: float) -> void:

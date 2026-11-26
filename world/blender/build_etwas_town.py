@@ -113,11 +113,11 @@ class MeshBuilder:
     def __init__(self, name, collection, materials):
         self.name = name
         self.collection = collection
-        self.materials = materials
+        self.materials = list(materials)
         self.vertices = []
         self.faces = []
         self.material_ids = []
-        self.material_lookup = {}
+        self.material_lookup = {material.name: index for index, material in enumerate(self.materials)}
 
     def material_id(self, material):
         if material.name not in self.material_lookup:
@@ -201,8 +201,8 @@ class MeshBuilder:
     def ellipsoid(self, center, size, material, segments=12, rings=7):
         cx, cy, cz = center
         sx, sy, sz = size
-        vertices = []
-        for ring in range(rings + 1):
+        vertices = [(cx, cy - sy * 0.5, cz)]
+        for ring in range(1, rings):
             latitude = -pi * 0.5 + pi * ring / rings
             for segment in range(segments):
                 longitude = tau * segment / segments
@@ -211,12 +211,23 @@ class MeshBuilder:
                     cy + sy * 0.5 * sin(latitude),
                     cz + sz * 0.5 * cos(latitude) * sin(longitude),
                 ))
+        top_index = len(vertices)
+        vertices.append((cx, cy + sy * 0.5, cz))
         faces = []
-        for ring in range(rings):
+        first_ring = 1
+        for segment in range(segments):
+            following = (segment + 1) % segments
+            faces.append((0, first_ring + following, first_ring + segment))
+        for ring in range(rings - 2):
+            start = first_ring + ring * segments
             for segment in range(segments):
-                a = ring * segments + segment
-                b = ring * segments + (segment + 1) % segments
+                a = start + segment
+                b = start + (segment + 1) % segments
                 faces.append((a, b, b + segments, a + segments))
+        last_ring = first_ring + (rings - 2) * segments
+        for segment in range(segments):
+            following = (segment + 1) % segments
+            faces.append((last_ring + segment, last_ring + following, top_index))
         self.add_mesh(vertices, faces, material)
 
     def create(self):
@@ -408,7 +419,42 @@ def build_river(collection):
 
 
 def bridge_deck_height(x):
-    return 1.5 + (x + 5.5) / 11.0 * 1.1
+    if x <= RIVER_WEST:
+        return WEST_FLOOR
+    if x >= RIVER_EAST:
+        return EAST_FLOOR
+    return WEST_FLOOR + (x - RIVER_WEST) / (RIVER_EAST - RIVER_WEST) * (EAST_FLOOR - WEST_FLOOR)
+
+
+def add_sloped_bridge_slab(builder, x0, x1, z0, z1, thickness):
+    count = 33
+    xs = [x0 + (x1 - x0) * index / (count - 1) for index in range(count)]
+    vertices = []
+    for z in (z0, z1):
+        vertices.extend((x, bridge_deck_height(x), z) for x in xs)
+    for z in (z0, z1):
+        vertices.extend((x, bridge_deck_height(x) - thickness, z) for x in xs)
+
+    front_top = 0
+    back_top = count
+    front_bottom = count * 2
+    back_bottom = count * 3
+    faces = []
+    for index in range(count - 1):
+        next_index = index + 1
+        faces.append((front_top + index, back_top + index,
+                      back_top + next_index, front_top + next_index))
+        faces.append((front_bottom + index, front_bottom + next_index,
+                      back_bottom + next_index, back_bottom + index))
+        faces.append((front_top + index, front_top + next_index,
+                      front_bottom + next_index, front_bottom + index))
+        faces.append((back_top + index, back_bottom + index,
+                      back_bottom + next_index, back_top + next_index))
+    faces.append((front_top, front_bottom, back_bottom, back_top))
+    last = count - 1
+    faces.append((front_top + last, back_top + last,
+                  back_bottom + last, front_bottom + last))
+    builder.add_mesh(vertices, faces, MAT["river_stone"])
 
 
 def arch_intrados(x):
@@ -417,7 +463,7 @@ def arch_intrados(x):
 
 
 def build_bridge(collections):
-    masonry = MeshBuilder("OBSTACLE_Segmental arch bridge and voussoirs", collections["bridge"], [])
+    masonry = MeshBuilder("OBSTACLE_Segmental arch bridge and voussoirs", collections["quay"], [])
     deck = MeshBuilder("WALK_Crowned bridge deck", collections["ground"], [])
     trim = MeshBuilder("VISUAL_Bridge coping, lamps, and stone joints", collections["details"], [])
 
@@ -456,12 +502,7 @@ def build_bridge(collections):
             masonry.box((x, 1.45, zside), (0.90, 0.16, 0.75), MAT["limestone_light"])
 
     # The shallow deck ramp meets the two bank levels without a vertical lip.
-    deck.box((0.0, 1.66, 0.0), (11.0, 0.26, 3.13), MAT["mortar"],
-             rx=0.0, ry=-atan2(0.0, 1.0))
-    # Add a true sloped deck top as a ramp prism, replacing the flat top visually.
-    ramp_profile = [(-5.5, 1.5, -1.55), (5.5, 2.6, -1.55),
-                    (5.5, 2.6, 1.55), (-5.5, 1.5, 1.55)]
-    deck.prism(ramp_profile, (0.0, -0.22, 0.0), MAT["river_stone"])
+    add_sloped_bridge_slab(deck, -5.5, 5.5, -1.55, 1.55, 0.22)
 
     deck_rng = Random(211028)
     x = -5.26
@@ -486,13 +527,13 @@ def build_bridge(collections):
         while x < 5.2:
             length = min(0.80, 5.2 - x)
             mid_x = x + length * 0.5
-            base_y = bridge_deck_height(mid_x) + 0.16
-            masonry.box((mid_x, base_y + 0.32, z), (length - 0.035, 0.66, 0.24),
+            base_y = bridge_deck_height(mid_x)
+            masonry.box((mid_x, base_y + 0.34, z), (length - 0.035, 0.68, 0.24),
                         RNG.choice((MAT["river_stone"], MAT["limestone"], MAT["river_stone_light"])))
-            trim.box((mid_x, base_y + 0.69, z), (length + 0.05, 0.12, 0.38),
+            trim.box((mid_x, base_y + 0.74, z), (length + 0.05, 0.12, 0.38),
                      RNG.choice((MAT["limestone_light"], MAT["limestone"])))
             if abs((mid_x + 5.12) % 2.4) < 0.5:
-                masonry.box((mid_x, base_y + 0.72, z), (0.33, 0.40, 0.44), MAT["limestone_light"])
+                masonry.box((mid_x, base_y + 0.94, z), (0.33, 0.40, 0.44), MAT["limestone_light"])
             x += 0.80
 
     # Chiselled joints, shallow drainage slots, and the two warm bridge lanterns.
@@ -502,7 +543,7 @@ def build_bridge(collections):
                      (0.035, 0.46, 0.014), MAT["mortar"])
     for x in (-5.0, 5.0):
         for z in (-1.92, 1.92):
-            add_lantern(trim, x, bridge_deck_height(x) + 0.52, z, 0.72)
+            add_lantern(trim, x, bridge_deck_height(x) + 0.39, z, 0.72)
 
     masonry.create()
     deck.create()
