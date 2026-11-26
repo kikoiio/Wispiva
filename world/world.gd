@@ -197,8 +197,8 @@ var wildlife_rules
 
 func _ready() -> void:
 	weather_rng.seed = 41026
-	layout = load_json("res://data/layout.json")
-	cast = load_json("res://data/cast.json")
+	layout = load_json(layout_resource_path())
+	cast = load_json(cast_resource_path())
 	civic_rules = CivicRules.new(self)
 	field_actions = FieldActions.new(self)
 	wildlife_rules = WildlifeRules.new(self)
@@ -214,6 +214,12 @@ func _ready() -> void:
 	NavigationServer3D.map_force_update(map_rid)
 	self_test_paths()
 	listen()
+
+func layout_resource_path() -> String:
+	return "res://data/layout.json"
+
+func cast_resource_path() -> String:
+	return "res://data/cast.json"
 
 func _exit_tree() -> void:
 	server.stop()

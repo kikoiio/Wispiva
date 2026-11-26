@@ -1,5 +1,5 @@
 """Sculpt the river valley, the climb and the abandoned baths in Blender."""
-from math import atan2, cos, exp, hypot, pi, sin, tau
+from math import cos, exp, pi, sin, tau
 from pathlib import Path
 from random import Random
 import sys
@@ -245,6 +245,60 @@ def outcrops(group, stones):
         rock(group, f"HIT_SlopeSchist{i:02}", (x, y, z-0.21), (r, r*0.77, r*0.72), stones, RNG.uniform(0, tau))
 
 
+def distant_peaks(group):
+    layers = [
+        (104, -97, 150, 33, ("485652", "6f7861")),
+        (141, -86, 178, 55, ("555f68", "899398")),
+        (197, -93, 232, 74, ("6a7183", "979eac")),
+    ]
+    for i, (depth, center, width, amplitude, shades) in enumerate(layers):
+        vertices, faces, pigment = [], [], []
+        dark, bright = (paint(c) for c in shades)
+        for row in range(17):
+            t = row / 16
+            for col in range(105):
+                s = col / 104
+                x = center + (s - 0.5) * width
+                crest = (0.28 + 0.45 * exp(-((s - 0.35 - i * 0.08) / 0.16)**2)
+                         + 0.29 * exp(-((s - 0.62 + i * 0.03) / 0.12)**2))
+                detail = noise_vector((x * 0.05, t * 3, i + 0.3))[0]
+                silhouette = (crest + 0.17 * detail + 0.08 * cos(s * 59 + i)) * sin(s * pi)**0.32
+                h = -2 + amplitude * silhouette * sin(t * pi)**1.32
+                vertices.append((x + t * (8 - i * 3), depth + t * (39 + i * 9), h))
+                pigment.append(dark.lerp(bright, ease(h / (amplitude * 0.53)) * (0.71 + 0.28 * detail)))
+                if row and col:
+                    a = row * 105 + col
+                    faces.append((a - 106, a - 105, a, a - 1))
+        ridge = mesh(group, f"Western watershed {i + 1}", vertices, faces, [painted_surface("Distant forest haze")], smooth=True)
+        tint_vertices(ridge, pigment)
+
+
+def alpine_meadow(group):
+    verts, faces, colors = [], [], []
+    shades = [paint(c) for c in ("5d6748", "78855b", "b8a57a", "b2a0ac", "d2b37a")]
+    for i in range(1350):
+        x, y = RNG.uniform(16, 99), RNG.uniform(32, 108)
+        distance, grade = nearest_grade(x, y)
+        if not 1.55 < distance < 4.05 or (abs(x - 77) < 6 and abs(y - 77) < 6):
+            continue
+        for _ in range(RNG.randrange(7, 15)):
+            px = x + RNG.uniform(-0.33, 0.33)
+            py = y + RNG.uniform(-0.33, 0.33)
+            pz = height(px, py, distance, grade)
+            angle = RNG.uniform(0, tau)
+            h = RNG.uniform(0.10, 0.32)
+            axis = Vector((cos(angle), sin(angle), 0))
+            foot = Vector((px, py, pz - 0.04))
+            mid = foot + Vector((0, 0, h * 0.72))
+            tip = mid + Vector((axis.y * h * 0.38, -axis.x * h * 0.38, h * 0.33))
+            a = len(verts)
+            verts.extend((foot - axis * 0.016, foot + axis * 0.016, mid + axis * 0.020, mid - axis * 0.020, tip))
+            colors.extend((shades[0], shades[0], shades[1], shades[1], RNG.choice(shades[1:])))
+            faces.extend(((a, a + 1, a + 2, a + 3), (a + 3, a + 2, a + 4)))
+    meadow = mesh(group, "Trail grasses", verts, faces, [painted_surface("Pale trail grass")])
+    tint_vertices(meadow, colors)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.system = "METRIC"
@@ -259,6 +313,8 @@ def main():
     ruined_baths(collection("Abandoned baths and dry race"), stones)
     forest(collection("Fir stands"))
     outcrops(collection("Exposed strata"), stones)
+    distant_peaks(collection("Western watershed"))
+    alpine_meadow(collection("Alpine grasses along the trail"))
     for screen in bpy.data.screens:
         for area in screen.areas:
             if area.type == "VIEW_3D":

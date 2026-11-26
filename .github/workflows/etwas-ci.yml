@@ -45,7 +45,7 @@ jobs:
       - name: Generate editable Blender sources and GLB assets
         run: |
           set -euo pipefail
-          for category in valley; do
+          for category in town valley; do
             .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python "world/blender/build_etwas_${category}.py" > "blender-${category}.log"
           done
           .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python world/blender/build_etwas.py > blender-spring.log
