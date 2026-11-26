@@ -630,7 +630,7 @@ async function proveTraces(world: WorldClient): Promise<void> {
   assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: "tavern_entrance", action: "open" })).ok);
   const moved = resultOf(await walk(world, actor, "-170,2,15"));
   assert.equal(moved.arrived, true, JSON.stringify(moved));
-  const look = resultOf(await agentCall(world, actor, "look", {}));
+  const look = resultOf(await agentCall(world, actor, "look", { focus: "east" }));
   const trace = list(look, "visible_traces").find((entry) => isRecord(entry) && entry.kind === "footprints");
   assert.ok(isRecord(trace), JSON.stringify(look));
   const target_id = str(trace, "id");
@@ -836,16 +836,16 @@ async function proveFarms(world: WorldClient): Promise<void> {
   async function sheepOn(side: "pasture" | "pen"): Promise<number> {
     const snapshot = resultOf(await world.call("host", "world_snapshot"));
     return list(snapshot, "wildlife").filter((animal) => isRecord(animal) && animal.kind === "sheep"
-      && (side === "pasture" ? num(animal, "z") < 185 : num(animal, "z") > 185)).length;
+      && (side === "pasture" ? num(animal, "z") < 184.4 : num(animal, "z") > 185.6)).length;
   }
   await reach(west, "sheep_pen_gate");
   assert.equal(await sheepOn("pen"), 14);
   await use(west, "toggle_lock", { door_id: "sheep_pen_gate", action: "open" });
   await reach(west, "-269.3,3,182");
-  for (let i = 0; i < 4; i++) await step(4);
+  for (let i = 0; i < 120 && await sheepOn("pasture") < 14; i++) await step(1);
   assert.equal(await sheepOn("pasture"), 14, "all sheep must pass the gate after their shepherd steps aside");
   await work(west, "shepherd_post", "herd_sheep", 5);
-  for (let i = 0; i < 4; i++) await step(4);
+  for (let i = 0; i < 120 && await sheepOn("pen") < 14; i++) await step(1);
   assert.equal(await sheepOn("pen"), 14, "the entire flock must return through the open gate");
   await reach(west, "sheep_pen_gate");
   await use(west, "toggle_lock", { door_id: "sheep_pen_gate", action: "close" });

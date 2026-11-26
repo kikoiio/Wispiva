@@ -69,6 +69,17 @@ func verify_collision() -> void:
 		quit(1)
 		return
 	print("PASS smoke blocks sight, preserves fire warmth, and clears on extinction")
+	world.set_pos(actor, Vector3(-500, 0, -500))
+	actor.cart_id = "test_cart"
+	var wagon_body := world.add_solid("test_cart", Vector3(-501.8, 0.65, -501.8), world.CART_SIZE, "wood", false, null, world.L_PROP, Color.WHITE)
+	world.carts.test_cart = {"id": "test_cart", "body": wagon_body}
+	var cart_path := PackedVector3Array([actor.pos, Vector3(-480, 0, -480)])
+	var fractional: Dictionary = world.walk_path(actor, cart_path, 1, 10.123456)
+	if fractional.blocked != null or absf(float(fractional.walked) - 10.123456) > 0.002:
+		push_error("A fractional cart movement budget must complete with a bounded remainder")
+		quit(1)
+		return
+	print("PASS fractional cart movement finishes without a floating-point progress loop")
 	world.queue_free()
 	await process_frame
 	quit(0)

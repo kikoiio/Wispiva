@@ -111,10 +111,25 @@ func verify_navigation() -> void:
 		push_error("The Oakford cart must clear the town gate and its turn: " + str(journey.blocked))
 		quit(1)
 		return
+	world.set_pos(actor, Vector3(-36, 0.15, 0))
+	var guard = world.agents_by_id.human_garrick
+	world.set_pos(guard, Vector3(-28, 0, 0))
+	guard.body.collision_layer = world.L_AGENT
+	await physics_frame
+	await physics_frame
+	start = NavigationServer3D.map_get_closest_point(world.map_rid, actor.pos)
+	goal = NavigationServer3D.map_get_closest_point(world.map_rid, Vector3(-24, 0, 0))
+	var detour: PackedVector3Array = world.avoid_blocker_on_path(actor, start, goal, world.nav_path(start, goal, true))
+	var passage: Dictionary = world.walk_path(actor, detour)
+	if passage.blocked != null or passage.pos.distance_to(goal) > 0.1:
+		push_error("A person must be able to pass a standing guard in the wide gate")
+		quit(1)
+		return
 	print("PASS all %d registered forest trees and the spring return have physical routes" % checked)
 	print("PASS disguised public targets resolve through the ordinary observation interface")
 	print("PASS starting specialist weapons and the master forging hammer are usable")
 	print("PASS carts follow graded roads and clear the town gate without striking its jamb")
+	print("PASS the wide gate leaves room to walk past an occupied approach")
 	world.queue_free()
 	await process_frame
 	quit(0)

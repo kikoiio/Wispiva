@@ -26,4 +26,8 @@ with logpath.open('w') as log:
     finally:
         if engine.poll() is None:
             os.killpg(engine.pid, signal.SIGTERM)
-        engine.wait(timeout=10)
+        try:
+            engine.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            os.killpg(engine.pid, signal.SIGKILL)
+            engine.wait(timeout=10)

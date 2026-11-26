@@ -331,10 +331,8 @@ func add_solid(node_name: String, center: Vector3, size: Vector3, material: Stri
 		door.solid = record
 	return body
 
-func blocks_now(solid) -> bool:
+func blocks_navigation(solid) -> bool:
 	if not solid.nav:
-		return false
-	if solid.door != null and solid.door.open:
 		return false
 	if int(solid.until) >= 0 and int(solid.until) <= minute:
 		return false
@@ -850,6 +848,10 @@ func make_door(spec) -> Dictionary:
 		"rust": float(spec.get("rust", 0.4 if spec.get("material", "wood") == "iron" else 0.0)),
 		"mana_sealed": bool(spec.get("mana_sealed", false)),
 		"passage": bool(spec.get("passage", false)),
+		"nav_link": RID(),
+		"cart_nav_link": RID(),
+		"side_links": [],
+		"cart_allowed": false,
 		"body": null,
 		"solid": null,
 	}
@@ -860,6 +862,12 @@ func apply_door_visual(door) -> void:
 	if door.body == null:
 		return
 	door.body.collision_layer = 0 if door.open else L_DOOR
+	if door.nav_link.is_valid():
+		NavigationServer3D.link_set_enabled(door.nav_link, door.open)
+		NavigationServer3D.link_set_enabled(door.cart_nav_link, door.open and door.cart_allowed)
+		for link in door.side_links:
+			NavigationServer3D.link_set_enabled(link, door.open)
+		sync_nav()
 	if door.get("kind", "door") == "shutter":
 		door.body.position = door.closed_position + (door.open_offset if door.open else Vector3.ZERO)
 		door.body.force_update_transform()
@@ -2142,7 +2150,7 @@ func blocker_name(cx: float, cz: float) -> String:
 	var foot := ground_y(cx, cz)
 	var probe := Vector3(cx, foot + 1.0, cz)
 	for solid in solids:
-		if blocks_now(solid) and solid.aabb.has_point(probe):
+		if blocks_navigation(solid) and solid.aabb.has_point(probe):
 			return str(solid.body.name)
 	return "free"
 
@@ -2177,7 +2185,7 @@ func blocked_point(cx: float, cz: float) -> bool:
 			high = maxf(high, height)
 	var box := AABB(Vector3(cx - half, low + 0.15, cz - half), Vector3(half * 2.0, high - low + 1.6, half * 2.0))
 	for solid in solids:
-		if blocks_now(solid) and solid.aabb.intersects(box):
+		if blocks_navigation(solid) and solid.aabb.intersects(box):
 			return true
 	return false
 
@@ -2191,7 +2199,7 @@ func blocked_coarse(cx: float, cz: float, step: float) -> bool:
 	var foot := ground_y(cx, cz)
 	var box := AABB(Vector3(cx - step * 0.5, foot + 0.35, cz - step * 0.5), Vector3(step, 1.3, step))
 	for solid in solids:
-		if blocks_now(solid) and solid.aabb.intersects(box):
+		if blocks_navigation(solid) and solid.aabb.intersects(box):
 			return true
 	return false
 
@@ -2313,7 +2321,7 @@ func push_platform_grid(platform: Dictionary) -> void:
 			var probe := AABB(Vector3(x - body_margin, center.y + 0.15, z - body_margin), Vector3(width + body_margin * 2, 1.6, depth + body_margin * 2))
 			var blocked := false
 			for solid in solids:
-				if blocks_now(solid) and solid.aabb.intersects(probe):
+				if blocks_navigation(solid) and solid.aabb.intersects(probe):
 					blocked = true
 					break
 			if not blocked:
@@ -2459,7 +2467,7 @@ func cart_cell_clear(x0: float, x1: float, z0: float, z1: float) -> bool:
 	var pad := CART_SIZE.x * 0.5 + 0.1
 	var probe := AABB(Vector3(x0 - pad, low + 0.15, z0 - pad), Vector3(x1 - x0 + pad * 2, high - low + CART_SIZE.y, z1 - z0 + pad * 2))
 	for solid in solids:
-		if blocks_now(solid) and solid.aabb.intersects(probe):
+		if blocks_navigation(solid) and solid.aabb.intersects(probe):
 			return false
 	return true
 
@@ -2514,7 +2522,9 @@ func build_links() -> void:
 	add_link(portal + Vector3(0, 0, 3.0), portal + Vector3(0, 0, -2.0), true)
 	var vault = doors.get("rune_vault")
 	if vault != null:
-		add_link(Vector3(-637, 30, -554.1), Vector3(-637, 30, -552.1), vault.open)
+		add_link(Vector3(-637, 30, -554.1), Vector3(-637, 30, -552.1), vault.open, false)
+		vault.nav_link = link_rids.back()
+		vault.cart_nav_link = cart_link_rids.back()
 	add_link(Vector3(-637, 38, -568.0), Vector3(-637, 38, -566.4), true)
 	add_link(Vector3(-643.2, 38, -553.4), Vector3(-643.2, 38, -554.2), true)
 	for id in doors:
@@ -2544,7 +2554,17 @@ func link_door(door) -> void:
 	var b := center + along * reach
 	a.y = box.position.y
 	b.y = box.position.y
-	add_link(a, b, door.open, maxf(box.size.x, box.size.z) >= CART_SIZE.x + 0.2, CART_TRAIL_M + CART_SIZE.z * 0.5 + 0.5)
+	door.cart_allowed = maxf(box.size.x, box.size.z) >= CART_SIZE.x + 0.2
+	add_link(a, b, door.open, door.cart_allowed, CART_TRAIL_M + CART_SIZE.z * 0.5 + 0.5)
+	door.nav_link = link_rids.back()
+	door.cart_nav_link = cart_link_rids.back()
+	door.side_links = []
+	var offset := maxf(0.0, maxf(box.size.x, box.size.z) * 0.5 - body_margin - 0.05)
+	if offset > 0.1:
+		for side in [-offset, offset]:
+			var displacement := along.cross(Vector3.UP) * side
+			add_link(a + displacement, b + displacement, door.open, false)
+			door.side_links.append(link_rids.back())
 
 func add_link(a: Vector3, b: Vector3, enabled: bool, cart_allowed := true, cart_reach := 0.0) -> void:
 	for nav_map in [map_rid, cart_map_rid]:
@@ -3372,6 +3392,8 @@ func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Di
 		wagon_pose = wagon.body.global_transform
 	var pts: PackedVector3Array = [pos]
 	while index < path.size() and walked < budget:
+		if budget - walked < 0.001:
+			break
 		var waypoint: Vector3 = path[index]
 		var distance_budget := minf(budget - walked, 0.5) if not wagon.is_empty() else budget - walked
 		var nxt := pos.move_toward(waypoint, distance_budget)
@@ -3798,7 +3820,6 @@ func tool_lock(agent, args) -> Dictionary:
 		return fail("locked", "the lock does not take your key")
 	if action == "open" and door.lock == "locked":
 		return fail("locked", "the door is locked")
-	var was_open := bool(door.open)
 	if action == "open":
 		door.open = true
 	elif action == "close":
@@ -3809,8 +3830,6 @@ func tool_lock(agent, args) -> Dictionary:
 	elif action == "unlock":
 		door.lock = "unlocked"
 	apply_door_visual(door)
-	if was_open != door.open:
-		rebuild_nav()
 	return ok({"door_id": door_id, "open": door.open, "lock": door.lock})
 
 func cart_cargo_mass(wagon: Dictionary) -> float:
@@ -4693,7 +4712,7 @@ func finish_actions(movement_tick: bool) -> bool:
 					plot.growth = 0.0
 					update_crop_visual(plot)
 				if action.recipe == "herd_sheep":
-					sheep_return_until = minute + 30
+					sheep_return_until = minute + 180
 				if action.recipe == "ring_alarm":
 					emit_noise(agent.pos + Vector3.UP * eye(agent), 120.0, "An alarm bell rings from the west watch platform.")
 				var station: Dictionary = fixtures.get(action.station_id, {})
@@ -4725,7 +4744,6 @@ func finish_actions(movement_tick: bool) -> bool:
 				door.lock = "unlocked"
 				door.open = true
 				apply_door_visual(door)
-				navigation_dirty = true
 				event["opened"] = door.id
 				for listener in agents:
 					if listener.id != agent_id and listener.pos.distance_to(door.body.position) <= 40.0:
@@ -5073,7 +5091,6 @@ func advance_interval(minutes: int) -> bool:
 			gate.open = false
 			gate.lock = "locked"
 			apply_door_visual(gate)
-		navigation_dirty = true
 	if before >= 20 or before < 6:
 		if after >= 6 and after < 20:
 			for gate_id in ["west_gate", "north_gate", "east_postern"]:
@@ -5081,7 +5098,6 @@ func advance_interval(minutes: int) -> bool:
 				gate.open = true
 				gate.lock = "unlocked"
 				apply_door_visual(gate)
-			navigation_dirty = true
 	wildlife_rules.step(minutes)
 	var expired: Array = []
 	for solid in barriers:
@@ -5095,7 +5111,7 @@ func advance_interval(minutes: int) -> bool:
 		solids.erase(solid)
 		solid.body.queue_free()
 	if not expired.is_empty():
-		navigation_dirty = true
+		rebuild_nav()
 	return condition_changed
 
 func sheep_home(index: int) -> Vector3:
@@ -5108,7 +5124,22 @@ func step_sheep(sheep, minutes: float) -> void:
 	var home := sheep_home(index)
 	var hour := clock_hour()
 	var return_home := hour < 6 or hour >= 19 or minute <= sheep_return_until
-	var target := home if return_home else Vector3(-285.0 + 2.0 * (index % 7), 3.0, 178.5 + float(index / 7) * 1.3)
+	var crossing: bool = sheep.pos.z < 185.6 if return_home else sheep.pos.z > 184.4
+	if crossing:
+		var first = sheep
+		var gate := Vector3(-272, 3, 185)
+		var nearest: float = flat_dist(sheep.pos, gate)
+		for other in wildlife:
+			if other.kind != "sheep" or other.dead or other.unconscious:
+				continue
+			var waiting: bool = other.pos.z < 185.6 if return_home else other.pos.z > 184.4
+			var distance: float = flat_dist(other.pos, gate)
+			if waiting and (distance < nearest - 0.01 or (absf(distance - nearest) < 0.01 and other.herd_index < first.herd_index)):
+				first = other
+				nearest = distance
+		if first.id != sheep.id:
+			return
+	var target := home if return_home else Vector3(-285.0 + 1.6 * (index % 7), 3.0, 178.5 + float(index / 7) * 1.3)
 	wildlife_rules.advance_beast(sheep, target, minutes * 4.0)
 
 
