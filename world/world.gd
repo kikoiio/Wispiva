@@ -105,6 +105,7 @@ var agents_by_id: Dictionary = {}
 var wildlife: Array = []
 var containers: Dictionary = {}
 var fixtures: Dictionary = {}
+var landmarks: Dictionary = {}
 var carts: Dictionary = {}
 var ferry_dock := FERRY_EAST
 var ferry_trip: Dictionary = {}
@@ -167,6 +168,25 @@ func _ready() -> void:
 	NavigationServer3D.map_force_update(map_rid)
 	self_test_paths()
 	listen()
+
+func _exit_tree() -> void:
+	server.stop()
+	for slot in peers:
+		slot.peer.disconnect_from_host()
+	for link_rid in link_rids:
+		NavigationServer3D.free_rid(link_rid)
+	link_rids.clear()
+	if region_rid.is_valid():
+		NavigationServer3D.free_rid(region_rid)
+	if map_rid.is_valid():
+		NavigationServer3D.free_rid(map_rid)
+	for door in doors.values():
+		door.solid = null
+	solids.clear()
+	landmarks.clear()
+	doors.clear()
+	fixtures.clear()
+	shaded.clear()
 
 func load_json(path: String) -> Dictionary:
 	var file := FileAccess.open(path, FileAccess.READ)
@@ -524,6 +544,7 @@ func build_town_wall() -> void:
 	add_solid("west_tower_s", Vector3(x0, 5, 6.5), Vector3(5, 10, 4), "stone", true, null, L_WORLD, COL.stone.darkened(0.05))
 
 func build_building(building) -> void:
+	var first_solid := solids.size()
 	var floor := v3(building.floor)
 	var size := v3(building.size)
 	var thick := maxf(float(building.thick), 0.4)
@@ -557,6 +578,7 @@ func build_building(building) -> void:
 	build_span_z(str(building.id) + "_w", minz, maxz, minx, y0, y1, thick, mat_name, gaps["-x"])
 	build_span_z(str(building.id) + "_e", minz, maxz, maxx, y0, y1, thick, mat_name, gaps["+x"])
 	add_solid(str(building.id) + "_roof", Vector3(floor.x, y1 - 0.12, floor.z), Vector3(size.x, 0.24, size.z), "roof", true, null, L_WORLD, COL.roof)
+	landmarks[str(building.id)] = {"name": str(building.name), "center": floor, "surfaces": solids.slice(first_solid)}
 	dress_building(str(building.id))
 
 # A modelled building replaces only the greybox meshes. The scripted bodies stay:
@@ -2438,6 +2460,8 @@ func place_pos(name: String):
 		return v3(fixtures[name].spec.approaches[0])
 	if layout.places.has(name):
 		return v3(layout.places[name])
+	if landmarks.has(name):
+		return landmarks[name].center
 	if agents_by_id.has(name):
 		return agents_by_id[name].pos
 	for beast in wildlife:
@@ -2449,12 +2473,15 @@ func place_pos(name: String):
 	var key := name.to_lower().replace(" ", "_").replace("-", "_")
 	if key != name and (layout.places.has(key) or doors.has(key)):
 		return place_pos(key)
+	for id in landmarks:
+		if str(landmarks[id].name).to_lower() == name.to_lower():
+			return landmarks[id].center
 	return null
 
 func tool_look(agent, args) -> Dictionary:
 	var focus := str(args.get("focus", ""))
-	if focus != "":
-		face_focus(agent, focus)
+	if focus != "" and not face_focus(agent, focus):
+		return fail("bad_args", "look toward north, east, south, west, or an observed target or known place name")
 	sync_body(agent)
 	var seen_agents: Array = []
 	var seen_doors: Array = []
@@ -2465,12 +2492,12 @@ func tool_look(agent, args) -> Dictionary:
 			continue
 		# Someone close enough to touch is noticed without turning to look.
 		if can_see(agent, other.pos + Vector3(0, eye(other) * 0.85, 0), other.body, reach, flat_dist(agent.pos, other.pos) > 2.0):
-			seen_agents.append({"id": other.id, "name": other.name, "distance_m": round2(flat_dist(agent.pos, other.pos))})
+			seen_agents.append({"id": other.id, "name": other.name, "distance_m": round2(flat_dist(agent.pos, other.pos)), "direction": bearing(agent.pos, other.pos)})
 	for door_id in doors.keys():
 		var door = doors[door_id]
 		var pos: Vector3 = door.body.global_position
 		if can_see(agent, pos, door.body, reach):
-			seen_doors.append({"id": door_id, "open": door.open, "lock": door.lock, "distance_m": round2(flat_dist(agent.pos, pos))})
+			seen_doors.append({"id": door_id, "open": door.open, "lock": door.lock, "distance_m": round2(flat_dist(agent.pos, pos)), "direction": bearing(agent.pos, pos)})
 	for wagon in carts.values():
 		var center: Vector3 = wagon.body.global_position
 		if can_see(agent, center, wagon.body, reach):
@@ -2482,6 +2509,7 @@ func tool_look(agent, args) -> Dictionary:
 		if can_see(agent, pos, fixture.body, reach):
 			var details := fixture_label(fixture)
 			details["distance_m"] = round2(flat_dist(agent.pos, pos))
+			details["direction"] = bearing(agent.pos, pos)
 			seen_fixtures.append(details)
 	for barrier in barriers:
 		if barrier.body.visible and can_see(agent, barrier.body.global_position, barrier.body, reach):
@@ -2495,25 +2523,46 @@ func tool_look(agent, args) -> Dictionary:
 		"visible_agents": seen_agents,
 		"visible_doors": seen_doors,
 		"visible_fixtures": seen_fixtures,
+		"visible_places": visible_landmarks(agent, reach),
 		"visible_traces": visible_traces(agent),
 	})
 
-func face_focus(agent, focus: String) -> void:
+func visible_landmarks(agent, reach: float) -> Array:
+	var seen: Array = []
+	for id in landmarks:
+		var landmark: Dictionary = landmarks[id]
+		for surface in landmark.surfaces:
+			var bounds: AABB = surface.aabb
+			var point := bounds.get_center()
+			point.y = clampf(agent.pos.y + eye(agent), bounds.position.y + 0.05, bounds.end.y - 0.05)
+			if can_see(agent, point, surface.body, reach):
+				seen.append({"id": id, "name": landmark.name, "direction": bearing(agent.pos, landmark.center), "distance_m": round2(flat_dist(agent.pos, landmark.center))})
+				break
+	return seen
+
+func face_focus(agent, focus: String) -> bool:
 	var dirs := {"east": 0.0, "south": PI * 0.5, "west": PI, "north": -PI * 0.5}
-	if dirs.has(focus):
-		agent.yaw = dirs[focus]
-		return
+	var direction := focus.strip_edges().to_lower().get_slice(" ", 0)
+	if dirs.has(direction):
+		agent.yaw = dirs[direction]
+		return true
 	if traces.has(focus):
 		var target: Vector3 = traces[focus].pos
 		agent.yaw = atan2(target.z - agent.pos.z, target.x - agent.pos.x)
-		return
+		return true
 	if fixtures.has(focus):
 		var target: Vector3 = fixtures[focus].body.global_position
 		agent.yaw = atan2(target.z - agent.pos.z, target.x - agent.pos.x)
-		return
+		return true
 	var pos = place_pos(focus)
+	if pos == null:
+		var other = agent_named(focus)
+		if other != null:
+			pos = other.pos
 	if pos != null:
 		agent.yaw = atan2(pos.z - agent.pos.z, pos.x - agent.pos.x)
+		return true
+	return false
 
 func facing_name(yaw: float) -> String:
 	var names := ["east", "south", "west", "north"]
@@ -2824,7 +2873,7 @@ func tool_move(agent, args) -> Dictionary:
 		return fail("bad_args", "pace must be walk, run, or sneak")
 	var dest = resolve_dest(destination)
 	if dest == null:
-		return fail("bad_args", "unknown destination; name a known place, a person, or x,y,z. Known places: " + ", ".join(layout.places.keys()))
+		return fail("bad_args", "unknown destination; name an observed target, a known place, a person, or x,y,z")
 	if fixtures.has(destination):
 		dest = fixture_approach(agent, fixtures[destination])
 	var landing = ferry_landing(agent.pos, dest)
@@ -4803,10 +4852,14 @@ func watch_set_free(on: bool) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 func watch_title() -> void:
-	var weather := local_weather(spec_cam.global_position if spec_free else agents[spec_follow].pos)
+	var weather := local_weather(spec_cam.global_position if spec_free or spec_fixed != "" else agents[spec_follow].pos)
 	update_sky(weather)
 	var lines: Array = ["%s  ·  %s  ·  %s" % [clock_label(), season().capitalize(), weather.capitalize()]]
-	if spec_free:
+	if spec_fixed != "":
+		var names := {"square": "Stonebridge Town Square", "wood": "Whisperwood Treewatch", "mine": "Anvil Valley Mine", "ruins": "Sunken Spire", "farm": "Miller's Croft", "oakford": "Oakford Farm", "ferry": "South Ferry"}
+		lines.append(str(names.get(spec_fixed, spec_fixed.capitalize())))
+		lines.append("Tab follow a character · A auto-follow · F free camera · O overview")
+	elif spec_free:
 		lines.append("Free camera · WASD move · Q/E down/up · Shift fast · click to look · Esc release · F follow · O overview")
 	elif spec_overview:
 		lines.append("Overview · Tab follow a character · A auto-follow · F free camera")

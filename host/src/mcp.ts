@@ -70,8 +70,8 @@ function field(name: string, type: JsonType, description: string, required: bool
 const characterToolDrafts: McpToolDraft[] = [
   {
     name: "look",
-    description: "Look for visible people, doors, fixtures, and traces. Walls, closed doors, darkness, and trees block sight. You do not learn anyone else's inventory, coins, keys, or true mana.",
-    inputSchema: schemaOf([field("focus", "string", "Optional direction or landmark.", false)]),
+    description: "Look for visible buildings, people, doors, fixtures, and traces, with their direction and distance. Walls, closed doors, darkness, and trees block sight. You do not learn anyone else's inventory, coins, keys, or true mana.",
+    inputSchema: schemaOf([field("focus", "string", "Optional north, east, south, west, observed target ID, or known place name.", false)]),
   },
   {
     name: "inspect",

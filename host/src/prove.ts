@@ -87,6 +87,24 @@ function itemQuantity(inventory: unknown[], id: string): number {
   return isRecord(item) ? num(item, "qty") : 0;
 }
 
+async function provePerception(world: WorldClient): Promise<void> {
+  const outside = await agentCall(world, "human_tomas", "look", { focus: "granary" });
+  assert.ok(outside.ok);
+  const granary = list(resultOf(outside), "visible_places").find((entry) => isRecord(entry) && entry.id === "granary");
+  assert.ok(isRecord(granary));
+  assert.equal(granary.name, "Granary and Provision Store");
+  assert.equal(typeof granary.direction, "string");
+  assert.ok(num(granary, "distance_m") < 20);
+  const inside = await agentCall(world, "human_greta", "look", { focus: "south" });
+  assert.ok(inside.ok);
+  assert.equal(list(resultOf(inside), "visible_places").some((entry) => isRecord(entry) && entry.id === "granary"), false);
+  const unknown = await agentCall(world, "human_greta", "move_to", { destination: "a place I have never heard of", pace: "walk" });
+  assert.equal(unknown.error?.code, "bad_args");
+  assert.equal(unknown.error?.message.includes("mine_level2"), false);
+  const unrecognized = await agentCall(world, "human_greta", "look", { focus: "a place I have never heard of" });
+  assert.equal(unrecognized.error?.code, "bad_args");
+}
+
 async function proveSurvival(world: WorldClient): Promise<void> {
   const patient = "human_garrick";
   const hearth = "town_fire_ring";
@@ -834,6 +852,13 @@ async function main(): Promise<void> {
   const agents = list(resultOf(snapshot), "agents");
   check("snapshot has the named cast", snapshot.ok && agents.length === 21, `agents=${agents.length}`);
 
+  try {
+    await provePerception(world);
+    check("local buildings are discoverable without exposing the map", true, "names, bearings, occlusion, and unknown destinations");
+  } catch (error) {
+    check("local buildings are discoverable without exposing the map", false, String(error));
+  }
+
   const kael = agents.find((row) => isRecord(row) && row.id === "demon_kael");
   const kaelRecord = isRecord(kael) ? kael : {};
   check("Kael starts on the west road", Math.abs(num(kaelRecord, "x") + 180) < 0.1 && Math.abs(num(kaelRecord, "z") - 15) < 0.1, `x=${num(kaelRecord, "x")} z=${num(kaelRecord, "z")}`);
@@ -1022,6 +1047,7 @@ if (scenario === undefined) {
   await main();
 } else {
   const scenarios = new Map([
+    ["perception", provePerception],
     ["survival", proveSurvival],
     ["farms", proveFarms],
     ["spire", proveSpire],
