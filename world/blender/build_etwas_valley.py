@@ -76,7 +76,10 @@ def height(x, y, distance, grade):
     # Western flanks of the hill stay above the town. Grade the trail and its shoulders together.
     floor = grade - 0.035 + (floor - grade) * ease((distance - 2.55) / 14)
     ruin_pad = max(abs(x - 77) - 5.5, abs(y - 77) - 5.2)
-    floor += (17.94 - floor) * (1 - ease(ruin_pad / 2.7))
+    pad_blend = 1 - ease(ruin_pad / 8.3)
+    if grade > 20.0:
+        pad_blend *= ease((distance - 2.6) / 5.0)
+    floor += (17.94 - floor) * pad_blend
     if x > 88 and y > 108:
         floor = min(floor, 36.05)
     return floor
@@ -228,7 +231,7 @@ def forest(group):
             tint.extend([base.lerp(RNG.choice(palette), RNG.uniform(0.04, 0.4)) for _ in range(7)])
             tint.append(base.lerp(palette[-1], 0.32))
     mesh(group, "Firs | trunks", bark, trunks, [dark_bark])
-    crowns = mesh(group, "Firs | interlaced boughs", needles, foliage, [painted_surface("Fir needles")])
+    crowns = mesh(group, "FOLIAGE_FirCanopy", needles, foliage, [painted_surface("Fir needles")])
     tint_vertices(crowns, tint)
 
 
@@ -269,7 +272,7 @@ def distant_peaks(group):
                 if row and col:
                     a = row * 105 + col
                     faces.append((a - 106, a - 105, a, a - 1))
-        ridge = mesh(group, f"Western watershed {i + 1}", vertices, faces, [painted_surface("Distant forest haze")], smooth=True)
+        ridge = mesh(group, f"PIGMENT_WesternWatershed{i + 1}", vertices, faces, [painted_surface("Distant forest haze")], smooth=True)
         tint_vertices(ridge, pigment)
 
 
@@ -295,7 +298,7 @@ def alpine_meadow(group):
             verts.extend((foot - axis * 0.016, foot + axis * 0.016, mid + axis * 0.020, mid - axis * 0.020, tip))
             colors.extend((shades[0], shades[0], shades[1], shades[1], RNG.choice(shades[1:])))
             faces.extend(((a, a + 1, a + 2, a + 3), (a + 3, a + 2, a + 4)))
-    meadow = mesh(group, "Trail grasses", verts, faces, [painted_surface("Pale trail grass")])
+    meadow = mesh(group, "FOLIAGE_TrailMeadow", verts, faces, [painted_surface("Pale trail grass")])
     tint_vertices(meadow, colors)
 
 
@@ -330,7 +333,7 @@ def river_reaches(group):
                         face = (a - 6, a - 5, a + 1, a)
                         rim_faces.append(face if side else face[::-1])
         mesh(group, "WATER_" + name, surface, river_faces, [water], smooth=True)
-        shore = mesh(group, "Gravel bars | " + name, rim, rim_faces, [bank_material], smooth=True)
+        shore = mesh(group, "PIGMENT_GravelBars" + name, rim, rim_faces, [bank_material], smooth=True)
         tint_vertices(shore, pigment)
 
 

@@ -4,6 +4,7 @@ const SPRING := preload("res://assets/etwas/spring.gdshader")
 const STEAM := preload("res://assets/etwas/steam.gdshader")
 const GRASS := preload("res://assets/etwas/grass.gdshader")
 const SHELF := preload("res://assets/etwas/shelf.gdshader")
+const FOLIAGE := preload("res://assets/etwas/foliage.gdshader")
 const RIVER := preload("res://assets/etwas/river.gdshader")
 
 @onready var explorer: CharacterBody3D = $Explorer
@@ -43,6 +44,10 @@ func dress_meshes(root: Node) -> void:
 			shader = GRASS
 		elif id in ["WALK_SpringShelf", "FLOOR_ValleyHillside"]:
 			shader = SHELF
+		elif id.begins_with("FOLIAGE_"):
+			shader = FOLIAGE
+		elif id.begins_with("PIGMENT_"):
+			shader = SHELF
 		elif id.begins_with("WATER_"):
 			shader = RIVER
 		if shader == null:
@@ -50,7 +55,7 @@ func dress_meshes(root: Node) -> void:
 		var material := ShaderMaterial.new()
 		material.shader = shader
 		surface.material_override = material
-		if shader != SHELF:
+		if shader in [SPRING, RIVER, GRASS]:
 			surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 
 

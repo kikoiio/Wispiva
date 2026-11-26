@@ -251,9 +251,9 @@
       "id": "home_hearth",
       "name": "Home hearth",
       "kind": "fire",
-      "center": [15.45, 2.98, -7.58],
+      "center": [15.45, 3.08, -7.58],
       "size": [1.18, 0.96, 0.82],
-      "approaches": [[16.1, 2.6, -7.58]],
+      "approaches": [[15.45, 2.6, -8.7]],
       "recipe": "light_campfire"
     },
     {
@@ -262,7 +262,7 @@
       "kind": "table",
       "center": [13.55, 2.82, -7.48],
       "size": [1.02, 0.56, 0.86],
-      "approaches": [[12.7, 2.6, -7.48]]
+      "approaches": [[12.3, 2.6, -7.48]]
     },
     {
       "id": "bath_bench_north",
@@ -270,7 +270,7 @@
       "kind": "seat",
       "center": [13.2, 2.97, 5.28],
       "size": [4.55, 0.72, 0.7],
-      "approaches": [[10.7, 2.6, 5.28]]
+      "approaches": [[10.4, 2.6, 5.28]]
     },
     {
       "id": "bath_bench_south",
@@ -278,7 +278,7 @@
       "kind": "seat",
       "center": [13.2, 2.97, 10.72],
       "size": [4.55, 0.72, 0.7],
-      "approaches": [[10.7, 2.6, 10.72]]
+      "approaches": [[10.4, 2.6, 10.72]]
     },
     {
       "id": "bath_boiler",

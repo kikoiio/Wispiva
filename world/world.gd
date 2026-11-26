@@ -4933,7 +4933,8 @@ func advance(minutes: float, stop_on_action := false) -> void:
 	var target := elapsed_seconds + maxi(1, int(round(minutes * 60.0)))
 	while elapsed_seconds < target:
 		var next := mini(target, (minute + 60 - posmod(minute, 60)) * 60)
-		if doors.sheep_pen_gate.open:
+		var sheep_gate: Dictionary = doors.get("sheep_pen_gate", {})
+		if not sheep_gate.is_empty() and sheep_gate.get("open", false):
 			next = mini(next, (minute + 1) * 60)
 		for fixture in fixtures.values():
 			if fixture.spec.kind in ["fire", "thatch"] and int(fixture.lit_until) > minute:
@@ -5157,7 +5158,8 @@ func sheep_home(index: int) -> Vector3:
 	return Vector3(-279.0 + 2.2 * (index % 7), 3.0, 190.0 + float(index / 7) * 4.0)
 
 func step_sheep(sheep, minutes: float) -> void:
-	if not doors.sheep_pen_gate.open:
+	var sheep_gate: Dictionary = doors.get("sheep_pen_gate", {})
+	if sheep_gate.is_empty() or not sheep_gate.get("open", false):
 		return
 	var index := int(sheep.herd_index)
 	var home := sheep_home(index)

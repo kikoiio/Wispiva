@@ -29,6 +29,11 @@ EAST_FLOOR = 2.6
 LOW_QUAY_FLOOR = 0.48
 BANK_Z_MIN = -30.0
 BANK_Z_MAX = 27.0
+STAIR_X0 = 5.65
+STAIR_X1 = 7.35
+LOW_QUAY_X1 = 11.5
+LOW_QUAY_Z0 = 12.0
+LOW_QUAY_Z1 = 16.0
 
 
 def g2b(point):
@@ -300,14 +305,16 @@ def build_banks(collections):
                   WEST_FLOOR, 0.62, MAT["limestone"])
     add_box_layer(ground, RIVER_EAST, 20.0, BANK_Z_MIN, 7.0,
                   EAST_FLOOR, 0.75, MAT["river_stone"])
-    add_box_layer(ground, RIVER_EAST, 20.0, 13.0, BANK_Z_MAX,
+    add_box_layer(ground, RIVER_EAST, 20.0, 16.0, BANK_Z_MAX,
                   EAST_FLOOR, 0.75, MAT["river_stone"])
-    add_box_layer(ground, 6.85, 20.0, 7.0, 13.0,
+    add_box_layer(ground, STAIR_X1, 20.0, 7.0, 13.0,
                   EAST_FLOOR, 0.75, MAT["river_stone"])
-    add_box_layer(ground, RIVER_EAST, 5.45, 7.0, 13.0,
+    add_box_layer(ground, RIVER_EAST, STAIR_X0, 7.0, 13.0,
                   LOW_QUAY_FLOOR, 0.42, MAT["river_stone_light"])
-    add_box_layer(ground, RIVER_EAST, 6.85, 11.72, 13.0,
+    add_box_layer(ground, RIVER_EAST, LOW_QUAY_X1, LOW_QUAY_Z0, LOW_QUAY_Z1,
                   LOW_QUAY_FLOOR, 0.40, MAT["limestone"])
+    add_box_layer(ground, LOW_QUAY_X1, 20.0, 13.0, 16.0,
+                  EAST_FLOOR, 0.75, MAT["river_stone"])
 
     lane_rng = Random(211027)
     add_cobbles(paving, -7.55, -6.15, BANK_Z_MIN, BANK_Z_MAX, WEST_FLOOR + 0.03,
@@ -318,34 +325,38 @@ def build_banks(collections):
                 lane_rng, 0.52, 0.50)
     add_cobbles(paving, 5.45, 10.6, -3.6, 3.6, EAST_FLOOR + 0.035,
                 lane_rng, 0.50, 0.49)
-    add_cobbles(paving, 4.3, 5.38, 7.1, 11.5, LOW_QUAY_FLOOR + 0.025,
-                lane_rng, 0.44, 0.46)
+    add_cobbles(paving, 4.25, LOW_QUAY_X1 - 0.08, LOW_QUAY_Z0, LOW_QUAY_Z1,
+                LOW_QUAY_FLOOR + 0.025, lane_rng, 0.48, 0.46)
+    add_cobbles(paving, 7.02, 7.77, 6.8, 9.2, EAST_FLOOR + 0.035,
+                lane_rng, 0.42, 0.45)
+    add_cobbles(paving, 7.30, 9.18, -11.1, -8.9, EAST_FLOOR + 0.035,
+                lane_rng, 0.46, 0.46)
 
     build_quay_wall(quay, wet_edge, "west", RIVER_WEST, BANK_Z_MIN, BANK_Z_MAX,
                     WEST_FLOOR, -0.25, 0.48)
     build_quay_wall(quay, wet_edge, "east", RIVER_EAST, BANK_Z_MIN, 7.0,
                     EAST_FLOOR, 0.25, 0.48)
-    build_quay_wall(quay, wet_edge, "east", RIVER_EAST, 7.0, 13.0,
+    build_quay_wall(quay, wet_edge, "east", RIVER_EAST, 7.0, LOW_QUAY_Z1,
                     LOW_QUAY_FLOOR, -0.16, 0.48)
-    build_quay_wall(quay, wet_edge, "east", RIVER_EAST, 13.0, BANK_Z_MAX,
+    build_quay_wall(quay, wet_edge, "east", RIVER_EAST, LOW_QUAY_Z1, BANK_Z_MAX,
                     EAST_FLOOR, 0.25, 0.48)
 
-    # Raised curb stones frame the public lanes and the small bridge forecourts.
+    # Slightly raised curb stones remain visual set dressing and do not block traffic.
     for x, width, y in ((-7.95, 0.12, WEST_FLOOR), (-5.95, 0.12, WEST_FLOOR),
                         (6.76, 0.10, EAST_FLOOR), (7.98, 0.10, EAST_FLOOR)):
         z = BANK_Z_MIN
         while z < BANK_Z_MAX:
             length = min(1.0, BANK_Z_MAX - z)
             if x < -5.0 or not (5.2 < z < 13.0):
-                quay.box((x, y + 0.08, z + length * 0.5), (width, 0.16, length - 0.035),
-                         MAT["limestone_light"])
+                paving.box((x, y + 0.08, z + length * 0.5), (width, 0.16, length - 0.035),
+                           MAT["limestone_light"])
             z += 1.0
 
     # Low, irregular water-edge stones remain below ankle height and off the lanes.
     for side, edge in ((-1, RIVER_WEST), (1, RIVER_EAST)):
         for index in range(168):
             z = BANK_Z_MIN + 0.35 + index * 0.34
-            if side > 0 and 7.0 <= z <= 13.0:
+            if side > 0 and 7.0 <= z <= LOW_QUAY_Z1:
                 top = LOW_QUAY_FLOOR
             else:
                 top = WEST_FLOOR if side < 0 else EAST_FLOOR
