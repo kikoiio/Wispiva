@@ -2562,7 +2562,7 @@ func link_door(door) -> void:
 	var offset := maxf(0.0, maxf(box.size.x, box.size.z) * 0.5 - body_margin - 0.05)
 	if offset > 0.1:
 		for side in [-offset, offset]:
-			var displacement := along.cross(Vector3.UP) * side
+			var displacement: Vector3 = along.cross(Vector3.UP) * side
 			add_link(a + displacement, b + displacement, door.open, false)
 			door.side_links.append(link_rids.back())
 
@@ -2953,7 +2953,7 @@ func can_see(agent, target: Vector3, body: Node, reach: float, cone := true) -> 
 	var from := (agent.pos as Vector3) + Vector3(0, eye(agent), 0)
 	if from.distance_to(target) > reach:
 		return false
-	if cone:
+	if cone and flat_dist(from, target) > 0.01:
 		var ang := atan2(target.z - from.z, target.x - from.x)
 		if absf(wrapf(ang - agent.yaw, -PI, PI)) > deg_to_rad(55.0):
 			return false

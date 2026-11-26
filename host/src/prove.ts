@@ -630,7 +630,7 @@ async function proveTraces(world: WorldClient): Promise<void> {
   assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: "tavern_entrance", action: "open" })).ok);
   const moved = resultOf(await walk(world, actor, "-170,2,15"));
   assert.equal(moved.arrived, true, JSON.stringify(moved));
-  const look = resultOf(await agentCall(world, actor, "look", { focus: "east" }));
+  const look = resultOf(await agentCall(world, actor, "look", {}));
   const trace = list(look, "visible_traces").find((entry) => isRecord(entry) && entry.kind === "footprints");
   assert.ok(isRecord(trace), JSON.stringify(look));
   const target_id = str(trace, "id");

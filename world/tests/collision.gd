@@ -69,6 +69,11 @@ func verify_collision() -> void:
 		quit(1)
 		return
 	print("PASS smoke blocks sight, preserves fire warmth, and clears on extinction")
+	actor["yaw"] = PI
+	if not world.can_see(actor, actor.pos + Vector3.UP * 0.08, null, 20.0):
+		push_error("A trace directly underfoot must not acquire an arbitrary eastward bearing")
+		quit(1)
+		return
 	world.set_pos(actor, Vector3(-500, 0, -500))
 	actor.cart_id = "test_cart"
 	var wagon_body := world.add_solid("test_cart", Vector3(-501.8, 0.65, -501.8), world.CART_SIZE, "wood", false, null, world.L_PROP, Color.WHITE)
