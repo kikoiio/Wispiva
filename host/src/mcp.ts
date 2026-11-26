@@ -155,9 +155,9 @@ const characterToolDrafts: McpToolDraft[] = [
     description: "Offer a nearby trade. Both sides must agree before anything changes hands.",
     inputSchema: schemaOf([
       field("partner_id", "string", "The other person's id.", true),
-      field("offer_item", "string", "Item or sp/cp you offer.", true),
+      field("offer_item", "string", "Inventory item ID or sp/cp you offer. You must own this quantity.", true),
       field("offer_qty", "integer", "Amount offered.", true),
-      field("request_item", "string", "Item or sp/cp you want.", true),
+      field("request_item", "string", "Item ID or sp/cp you want.", true),
       field("request_qty", "integer", "Amount requested.", true),
     ]),
   },

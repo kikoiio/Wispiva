@@ -105,6 +105,62 @@ async function provePerception(world: WorldClient): Promise<void> {
   assert.equal(unrecognized.error?.code, "bad_args");
 }
 
+async function proveInteriors(world: WorldClient): Promise<void> {
+  async function use(actor: string, tool: string, args: Record<string, unknown> = {}) {
+    const response = await agentCall(world, actor, tool, args);
+    assert.ok(response.ok && response.result, `${actor} ${tool}: ${JSON.stringify(response.error)}`);
+    return response.result;
+  }
+  async function reach(actor: string, destination: string) {
+    const result = resultOf(await walk(world, actor, destination));
+    assert.equal(result.arrived, true, `${actor} → ${destination}: ${JSON.stringify(result)}`);
+    return result;
+  }
+  const greta = "human_greta";
+  await reach(greta, "35,0,-41.5");
+  assert.equal((await agentCall(world, greta, "toggle_lock", { door_id: "tavern_room_3", action: "unlock" })).error?.code, "too_far");
+  assert.ok(num(await reach(greta, "tavern_landing"), "y") > 3.5);
+  await reach(greta, "tavern_room_3_doorstep");
+  const whisper = "A quiet word from upstairs";
+  await world.call("host", "host_pending", { agentId: "human_kestrel" });
+  await use(greta, "speak", { utterance: whisper, volume: "whisper" });
+  const below = resultOf(await world.call("host", "host_pending", { agentId: "human_kestrel" }));
+  assert.equal(heard(list(below, "events"), whisper), false);
+  for (let room = 1; room <= 4; room++) {
+    const door_id = `tavern_room_${room}`;
+    const bed = `tavern_bed_${room}`;
+    await reach(greta, `${door_id}_doorstep`);
+    await use(greta, "toggle_lock", { door_id, action: "unlock" });
+    await use(greta, "toggle_lock", { door_id, action: "open" });
+    await reach(greta, bed);
+    assert.equal((await use(greta, "inspect", { target_id: bed })).kind, "bed");
+    await reach(greta, `${door_id}_doorstep`);
+    await use(greta, "toggle_lock", { door_id, action: "close" });
+    await use(greta, "toggle_lock", { door_id, action: "lock" });
+    const view = await use(greta, "look", { focus: bed });
+    assert.equal(list(view, "visible_fixtures").some((entry) => isRecord(entry) && entry.id === bed), false);
+    const beforeDoor = await use(greta, "status");
+    const blocked = resultOf(await walk(world, greta, bed));
+    assert.equal(blocked.arrived, false);
+    assert.ok(isRecord(blocked.blocked) && blocked.blocked.id === door_id, `${door_id} from ${JSON.stringify(beforeDoor)}: ${JSON.stringify(blocked)}`);
+  }
+  await reach(greta, "tavern");
+  assert.ok(num(await use(greta, "status"), "y") < 1);
+
+  const mira = "human_mira";
+  await reach(mira, "guild_archive_doorstep");
+  assert.ok(num(await use(mira, "status"), "y") > 4);
+  await use(mira, "toggle_lock", { door_id: "guild_archive", action: "unlock" });
+  await use(mira, "toggle_lock", { door_id: "guild_archive", action: "open" });
+  await reach(mira, "guild_archive_shelves");
+  assert.equal((await use(mira, "inspect", { target_id: "guild_archive_shelves" })).kind, "records");
+  await reach(mira, "guild_archive_doorstep");
+  await use(mira, "toggle_lock", { door_id: "guild_archive", action: "close" });
+  await use(mira, "toggle_lock", { door_id: "guild_archive", action: "lock" });
+  await reach(mira, "guild_appraisal");
+  assert.ok(num(await use(mira, "status"), "y") < 1);
+}
+
 async function proveSurvival(world: WorldClient): Promise<void> {
   const patient = "human_garrick";
   const hearth = "town_fire_ring";
@@ -244,6 +300,20 @@ async function proveEconomy(world: WorldClient): Promise<void> {
   assert.equal(num(await use(holder, "status"), "sp"), beforeHolder + 10);
   assert.equal(num(await use(poster, "status"), "sp"), beforePoster - 10);
   assert.equal(num(await use(poster, "guild_contract", { action: "list" }), "escrow_sp"), beforeEscrow);
+
+  assert.equal((await agentCall(world, poster, "trade", {
+    partner_id: holder, offer_item: "bread", offer_qty: 3, request_item: "sp", request_qty: 1,
+  })).error?.code, "no_item");
+  assert.ok((await world.call("host", "world_inject_event", { kind: "item", place: poster, item_id: "iron_bar" })).ok);
+  await use(poster, "transfer_item", { action: "pick", item_id: "iron_bar", quantity: 1 });
+  const silverBefore = num(await use(poster, "status"), "sp");
+  await use(poster, "trade", { partner_id: holder, offer_item: "iron bar", offer_qty: 1, request_item: "sp", request_qty: 1 });
+  assert.equal((await use(holder, "trade", {
+    partner_id: poster, offer_item: "sp", offer_qty: 1, request_item: "iron_bar", request_qty: 1,
+  })).settled, true);
+  assert.equal(num(await use(poster, "status"), "sp"), silverBefore + 1);
+  assert.equal(itemQuantity(list(await use(poster, "status"), "inventory"), "iron_bar"), 0);
+  assert.equal(itemQuantity(list(await use(holder, "status"), "inventory"), "iron_bar"), 1);
 
   const smith = "human_bram";
   await reach(smith, "forge_anvil");
@@ -912,7 +982,7 @@ async function main(): Promise<void> {
   const seenIds = list(resultOf(seen), "visible_agents").map((row) => isRecord(row) ? row.id : "");
   check("opening the door clears the line of sight", opened.ok && seen.ok && seenIds.includes("human_elena"), seenIds.join(",") || "nobody");
 
-  const elenaAtDoor = await walk(world, "human_elena", "85,0,-39");
+  const elenaAtDoor = await walk(world, "human_elena", "guild_archive_doorstep");
   const noKey = await agentCall(world, "human_elena", "toggle_lock", { door_id: "guild_archive", action: "unlock" });
   check(
     "archive stays shut without the key",
@@ -920,10 +990,18 @@ async function main(): Promise<void> {
     `move=${JSON.stringify(resultOf(elenaAtDoor).blocked)} lock=${noKey.error?.message ?? "open"}`,
   );
 
-  await walk(world, "human_elena", "90,0,-36");
-  const toArchive = await walk(world, "human_mira", "85,0,-39");
+  await walk(world, "human_elena", "90,4.1,-35");
+  const toArchive = await walk(world, "human_mira", "guild_archive_doorstep");
   const unlocked = await agentCall(world, "human_mira", "toggle_lock", { door_id: "guild_archive", action: "unlock" });
   check("Mira unlocks the archive with her key", toArchive.ok && resultOf(toArchive).arrived === true && unlocked.ok === true, `move=${JSON.stringify(resultOf(toArchive).blocked)} lock=${unlocked.error?.message ?? "open"}`);
+
+  await walk(world, "human_mira", "guild_appraisal");
+  try {
+    await proveInteriors(world);
+    check("inn rooms and guild archive have usable upper floors", true, "stairs, four rooms, beds, archive, locks, and occlusion");
+  } catch (error) {
+    check("inn rooms and guild archive have usable upper floors", false, String(error));
+  }
 
   const wet = await walk(world, "human_owen", "-45,0,200");
   const wetBody = resultOf(wet);
@@ -1047,6 +1125,7 @@ if (scenario === undefined) {
   await main();
 } else {
   const scenarios = new Map([
+    ["interiors", proveInteriors],
     ["perception", provePerception],
     ["survival", proveSurvival],
     ["farms", proveFarms],

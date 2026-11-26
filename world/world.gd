@@ -345,13 +345,15 @@ func build_scene() -> void:
 	build_town_wall()
 	for building in layout.buildings:
 		build_building(building)
-	build_span_x("guild_partition", 76.0, 94.0, -41.0, 0.0, 3.2, 1.0, "stone", [{"x0": 84.3, "x1": 85.7}])
 	for door in layout.interior_doors:
 		build_free_door(door)
 	for platform in layout.platforms:
 		var center := v3(platform.center)
 		var size := v3(platform.size)
 		add_solid(str(platform.id), center, size, "wood", false, null, L_FLOOR, COL.wood.darkened(0.15))
+	build_upper_rooms()
+	for stair in layout.stairs:
+		paint_spire_stairs(shaded_material("wood", COL.wood), v3(stair["from"]), v3(stair.to), float(stair.width), 24)
 	build_mine()
 	build_ruins()
 	build_props()
@@ -660,6 +662,27 @@ func build_free_door(spec) -> void:
 		gap.x0 = center.x - 2.0
 		gap.x1 = center.x + 2.0
 	passages.append(gap)
+
+func build_upper_rooms() -> void:
+	var partitions := {}
+	for room in layout.upper_rooms:
+		var bounds: Array = room.bounds
+		var x0 := float(bounds[0])
+		var x1 := float(bounds[1])
+		var z0 := float(bounds[2])
+		var z1 := float(bounds[3])
+		var y0 := float(room.floor_y)
+		var y1 := float(room.ceiling_y)
+		var door: Dictionary = doors[room.door]
+		var box: AABB = door.solid.aabb
+		build_span_x(str(room.id) + "_partition", x0, x1, z1, y0, y1, 0.2, "wood", [{"x0": box.position.x, "x1": box.end.x}])
+		for x in [x0, x1]:
+			var key := "%s,%s,%s,%s" % [x, y0, z0, z1]
+			if partitions.has(key):
+				continue
+			partitions[key] = true
+			add_solid(str(room.id) + "_side", Vector3(x, (y0 + y1) * 0.5, (z0 + z1) * 0.5), Vector3(0.2, y1 - y0, z1 - z0), "wood", true, null, L_WORLD, COL.wood)
+		add_solid(str(room.id) + "_back", Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, z0), Vector3(x1 - x0, y1 - y0, 0.2), "wood", true, null, L_WORLD, COL.wood)
 
 func make_door(spec) -> Dictionary:
 	var door = {
@@ -2015,7 +2038,7 @@ func fill_navmesh() -> void:
 	push_ribbon(Vector3(-643.2, 38, -554.2), Vector3(-643.2, 47, -564.8), 1.45)
 	push_ribbon(Vector3(-643.2, 47, -564.8), Vector3(-643.2, 47, -565.7), 1.45)
 	for platform in layout.platforms:
-		if not str(platform.id).begins_with("treewatch_"):
+		if not str(platform.id).begins_with("treewatch_") and not bool(platform.get("walkable", false)):
 			continue
 		var size := v3(platform.size)
 		var c := v3(platform.center) + Vector3.UP * size.y * 0.5
@@ -2191,6 +2214,8 @@ func build_links() -> void:
 	link_rids.clear()
 	for spec in layout.links:
 		add_link(v3(spec["from"]), v3(spec.to), spec.get("control", "") != "treewatch_ladder" or ladder_lowered)
+	for stair in layout.stairs:
+		add_link(v3(stair["from"]), v3(stair.to), true)
 	var portal := v3(layout.mine.portal)
 	add_link(portal + Vector3(0, 0, 3.0), portal + Vector3(0, 0, -2.0), true)
 	var vault = doors.get("rune_vault")
@@ -2217,14 +2242,14 @@ func link_door(door) -> void:
 		return
 	var box: AABB = door.solid.aabb
 	var center := box.get_center()
-	if box.size.y < DOORWAY or box.position.y - ground_y(center.x, center.z) > 1.0:
+	if box.size.y < DOORWAY:
 		return
 	var along := Vector3.RIGHT if box.size.x < box.size.z else Vector3.BACK
 	var reach := minf(box.size.x, box.size.z) * 0.5 + 1.5
 	var a := center - along * reach
 	var b := center + along * reach
-	a.y = ground_y(a.x, a.z)
-	b.y = ground_y(b.x, b.z)
+	a.y = box.position.y
+	b.y = box.position.y
 	add_link(a, b, door.open)
 
 func add_link(a: Vector3, b: Vector3, enabled: bool) -> void:
@@ -2271,6 +2296,7 @@ func self_test_paths() -> void:
 	sample_path("gate_guild", Vector3(-28, 0, 0), Vector3(85, 0, -27))
 	sample_path("anvil_square", Vector3(40, 26, -640), Vector3(50, 0, 0))
 	sample_path("square_tree", Vector3(50, 0, 0), Vector3(520, 18, 40))
+	sample_path("guild_upper", Vector3(85, 0, -35), Vector3(85, 4.1, -36.1))
 
 func nav_path(a: Vector3, b: Vector3, optimize: bool) -> PackedVector3Array:
 	var params := NavigationPathQueryParameters3D.new()
@@ -2298,12 +2324,16 @@ func sample_path(label: String, a: Vector3, b: Vector3) -> void:
 	print("SELFTEST %s points=%d length=%.1f raw=%d/%.1f snap=%.1f/%.1f end=%s goal=%s" % [label, path.size(), length, raw.size(), raw_length, ca.distance_to(a), cb.distance_to(b), tail, cb])
 
 func listen() -> void:
-	var err := server.listen(PORT, "127.0.0.1")
+	var configured_port := OS.get_environment("WISPIVA_WORLD_PORT")
+	var port := int(configured_port) if configured_port.is_valid_int() else PORT
+	if port < 1 or port > 65535:
+		port = PORT
+	var err := server.listen(port, "127.0.0.1")
 	if err != OK:
 		print("WISPIVA_BIND_FAIL ", err)
 		return
 	ready_net = true
-	print("WISPIVA_READY port=%d" % PORT)
+	print("WISPIVA_READY port=%d" % port)
 
 func _process(delta: float) -> void:
 	if watching:
@@ -2905,6 +2935,8 @@ func tool_move(agent, args) -> Dictionary:
 		shut = shut_door_between(agent, approach)
 	if not shut.is_empty():
 		approach = door_front(shut, agent.pos)
+		if agent.pos.distance_to(approach) < 1.2:
+			return ok({"arrived": false, "x": round2(agent.pos.x), "y": round2(agent.pos.y), "z": round2(agent.pos.z), "distance_m": 0, "minutes": 0, "blocked": {"kind": "door", "id": shut.id, "reason": "the door is " + ("locked" if shut.lock == "locked" else "closed")}})
 		goal = NavigationServer3D.map_get_closest_point(map_rid, approach)
 		path = nav_path(start, goal, true)
 	if path.size() < 2:
@@ -3063,7 +3095,7 @@ func shut_door_between(agent, goal: Vector3) -> Dictionary:
 		if near.distance_to(agent.pos) >= best_dist:
 			continue
 		var walk := nav_path(start, NavigationServer3D.map_get_closest_point(map_rid, near), true)
-		if walk.size() >= 2 and walk[walk.size() - 1].distance_to(near) < 2.5:
+		if agent.pos.distance_to(near) < 1.2 or (walk.size() >= 2 and walk[walk.size() - 1].distance_to(near) < 2.5):
 			best = door
 			best_dist = near.distance_to(agent.pos)
 	return best
@@ -3074,7 +3106,7 @@ func door_front(door, from: Vector3) -> Vector3:
 	var along := Vector3.RIGHT if box.size.x < box.size.z else Vector3.BACK
 	var side := 1.0 if (from - box.get_center()).dot(along) > 0.0 else -1.0
 	var spot: Vector3 = box.get_center() + along * side * (minf(box.size.x, box.size.z) * 0.5 + 1.5)
-	spot.y = ground_y(spot.x, spot.z)
+	spot.y = box.position.y
 	return spot
 
 func ferry_landing(pos: Vector3, dest: Vector3):
@@ -3296,14 +3328,17 @@ func tool_lock(agent, args) -> Dictionary:
 	var pos: Vector3 = door.body.global_position
 	if door.solid != null:
 		pos = closest_on_aabb(door.solid.aabb, agent.pos + Vector3(0, 1.0, 0))
-	if agent.pos.distance_to(pos) > 2.5 and flat_dist(agent.pos, door.body.global_position) > 2.5:
+	if agent.pos.distance_to(pos) > 2.5:
 		return fail("too_far", "too far from the door")
+	if not can_see(agent, pos, door.body, 4.0, false):
+		return fail("blocked", "you cannot reach the door through an obstruction")
 	if door.mana_sealed and action == "unlock":
 		return fail("locked", "the slab is mana-sealed")
 	if (action == "lock" or action == "unlock") and door.key != "" and qty_of(agent.items, door.key) < 1:
 		return fail("locked", "the lock does not take your key")
 	if action == "open" and door.lock == "locked":
 		return fail("locked", "the door is locked")
+	var was_open := bool(door.open)
 	if action == "open":
 		door.open = true
 	elif action == "close":
@@ -3314,7 +3349,8 @@ func tool_lock(agent, args) -> Dictionary:
 	elif action == "unlock":
 		door.lock = "unlocked"
 	apply_door_visual(door)
-	rebuild_nav()
+	if was_open != door.open:
+		rebuild_nav()
 	return ok({"door_id": door_id, "open": door.open, "lock": door.lock})
 
 func cart_cargo_mass(wagon: Dictionary) -> float:
@@ -3656,14 +3692,14 @@ func tool_speak(agent, args) -> Dictionary:
 	for other in agents:
 		if other.id == agent.id:
 			continue
-		var dist := flat_dist(agent.pos, other.pos)
+		var dist := (agent.pos as Vector3).distance_to(other.pos)
 		var allowed := reach
 		if local_weather(other.pos) in ["rain", "storm", "snow", "blizzard"]:
 			allowed *= 0.9
 		var cursor := (agent.pos as Vector3) + Vector3(0, eye(agent), 0)
 		var target := (other.pos as Vector3) + Vector3(0, eye(other), 0)
 		for _step in range(4):
-			var query := PhysicsRayQueryParameters3D.create(cursor, target, L_WORLD | L_DOOR)
+			var query := PhysicsRayQueryParameters3D.create(cursor, target, L_WORLD | L_DOOR | L_FLOOR)
 			var hit := space().intersect_ray(query)
 			if hit.is_empty() or hit.position.distance_to(target) < 0.4:
 				break
@@ -3689,13 +3725,16 @@ func tool_trade(agent, args) -> Dictionary:
 		return fail("blocked", "you need a conscious partner in reach and a clear view")
 	var offer = {
 		"partner_id": partner_id,
-		"offer_item": str(args.get("offer_item", "")),
+		"offer_item": str(args.get("offer_item", "")).strip_edges().to_lower().replace(" ", "_").replace("-", "_"),
 		"offer_qty": int(args.get("offer_qty", 0)),
-		"request_item": str(args.get("request_item", "")),
+		"request_item": str(args.get("request_item", "")).strip_edges().to_lower().replace(" ", "_").replace("-", "_"),
 		"request_qty": int(args.get("request_qty", 0)),
 	}
 	if offer.offer_qty < 1 or offer.request_qty < 1:
 		return fail("bad_args", "quantities must be at least 1")
+	var available := int(agent[offer.offer_item]) if offer.offer_item in ["sp", "cp"] else qty_of(agent.items, offer.offer_item)
+	if available < offer.offer_qty:
+		return fail("no_item", "you cannot cover your side of the trade; use an item id and quantity from your inventory")
 	var theirs = offers.get(partner_id)
 	if theirs != null and str(theirs.partner_id) == agent.id and str(theirs.offer_item) == offer.request_item and int(theirs.offer_qty) == offer.request_qty and str(theirs.request_item) == offer.offer_item and int(theirs.request_qty) == offer.offer_qty:
 		if not move_stack(agent, partner, offer.offer_item, offer.offer_qty):
@@ -4437,14 +4476,18 @@ func advance_interval(minutes: int) -> bool:
 				apply_door_visual(gate)
 			navigation_dirty = true
 	step_wildlife(minutes)
-	var expired := false
-	for solid in solids:
+	var expired: Array = []
+	for solid in barriers:
 		if int(solid.until) >= 0 and int(solid.until) <= minute and solid.body.visible:
 			solid.body.visible = false
 			solid.body.collision_layer = 0
 			solid.nav = false
-			expired = true
-	if expired:
+			expired.append(solid)
+	for solid in expired:
+		barriers.erase(solid)
+		solids.erase(solid)
+		solid.body.queue_free()
+	if not expired.is_empty():
 		navigation_dirty = true
 	return condition_changed
 
@@ -4772,6 +4815,12 @@ func watch_follow(delta: float) -> void:
 	elif spec_fixed == "ferry":
 		focus = Vector3(-42, 1.4, 480)
 		wanted = Vector3(-42, 7.5, 508)
+	elif spec_fixed == "inn_upper":
+		focus = Vector3(35, 4.9, -43)
+		wanted = Vector3(35, 5.5, -33.7)
+	elif spec_fixed == "archive":
+		focus = Vector3(85, 5.4, -37.8)
+		wanted = Vector3(85, 5.7, -30)
 	elif spec_fixed == "people":
 		# Just east of the west-gate leaf, in front of Garrick.
 		focus = Vector3(-28.0, 1.35, 0.05)
@@ -4856,7 +4905,7 @@ func watch_title() -> void:
 	update_sky(weather)
 	var lines: Array = ["%s  ·  %s  ·  %s" % [clock_label(), season().capitalize(), weather.capitalize()]]
 	if spec_fixed != "":
-		var names := {"square": "Stonebridge Town Square", "wood": "Whisperwood Treewatch", "mine": "Anvil Valley Mine", "ruins": "Sunken Spire", "farm": "Miller's Croft", "oakford": "Oakford Farm", "ferry": "South Ferry"}
+		var names := {"square": "Stonebridge Town Square", "wood": "Whisperwood Treewatch", "mine": "Anvil Valley Mine", "ruins": "Sunken Spire", "farm": "Miller's Croft", "oakford": "Oakford Farm", "ferry": "South Ferry", "inn_upper": "Stonehearth Inn Guest Rooms", "archive": "Guild Upper Archive"}
 		lines.append(str(names.get(spec_fixed, spec_fixed.capitalize())))
 		lines.append("Tab follow a character · A auto-follow · F free camera · O overview")
 	elif spec_free:

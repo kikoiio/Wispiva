@@ -34,9 +34,9 @@ jobs:
       - name: Capture five regions and ferry
         run: |
           unset WAYLAND_DISPLAY
-          for view in square wood mine ruins farm ferry; do
+          for view in square wood mine ruins farm ferry inn_upper archive; do
             mkdir -p ".verify/artifacts/$view"
-            xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 480 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
+            xvfb-run -a godot --path world --display-driver x11 --rendering-method gl_compatibility --audio-driver Dummy --quit-after 120 -- --view="$view" --shots="$PWD/.verify/artifacts/$view" > ".verify/artifacts/$view.log" 2>&1
             if grep -Eq 'SCRIPT ERROR|ERROR:' ".verify/artifacts/$view.log"; then
               cat ".verify/artifacts/$view.log"
               exit 1
