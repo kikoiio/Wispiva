@@ -108,7 +108,7 @@ def ground(group):
                 continue
             if abs(x) < 4.55 and y < 62:
                 continue
-            if x > 89 and y > 113:
+            if x > 89 and y > 108.65:
                 continue
             a = j * len(xs) + i
             faces.append((a, a + 1, a + 1 + len(xs), a + len(xs)))

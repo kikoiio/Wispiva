@@ -73,11 +73,8 @@ func press_interact() -> void:
 	var press := InputEventKey.new()
 	press.physical_keycode = KEY_E
 	press.pressed = true
-	Input.parse_input_event(press)
+	player._unhandled_input(press)
 	await process_frame
-	press = InputEventKey.new()
-	press.physical_keycode = KEY_E
-	Input.parse_input_event(press)
 
 
 func verify() -> void:
@@ -135,8 +132,24 @@ func verify_explorer() -> void:
 	check(not player.seated and player.seat_blend <= 0.05, "E must return to standing")
 	if not await walk_to(Vector3(77, 18.02, -77)):
 		return
+	if not await walk_to(Vector3(82.6, 18.0, -72.0)):
+		return
 	if await walk_to(trailhead):
-		print("PASS explorer crossed the bridge, entered the bathhouse, walked the quay stairs, visited the summit and old bath, and returned to town")
+		print("PASS explorer crossed the bridge, entered the bathhouse, walked the quay stairs, visited the summit and dry channel, and returned to town")
+
+	await verify_entry("home_door", Vector3(8.65, 2.6, -10), Vector3(11.50, 2.6, -10))
+	await verify_entry("inn_door", Vector3(-6.95, 1.5, -5), Vector3(-9.35, 1.5, -5))
+
+
+func verify_entry(id: String, doorstep: Vector3, interior: Vector3) -> void:
+	if not await walk_to(doorstep):
+		return
+	player.look_toward(interior + Vector3.UP * 1.35)
+	await press_interact()
+	if not check(world.doors[id].open, "E did not open " + id):
+		return
+	if await walk_to(interior):
+		print("PASS explorer entered through " + id)
 
 
 func verify_residents(snapshot: Dictionary) -> void:

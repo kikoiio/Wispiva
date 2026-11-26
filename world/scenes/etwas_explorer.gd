@@ -35,6 +35,7 @@ func look_toward(target: Vector3) -> void:
 	var facing := (target - (position + WALK_EYE)).normalized()
 	yaw = atan2(-facing.x, -facing.z)
 	pitch = asin(facing.y)
+	camera.rotation = Vector3(pitch, yaw, 0)
 
 
 func aim(delta: Vector2) -> void:

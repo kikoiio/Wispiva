@@ -1,6 +1,8 @@
 extends "res://world.gd"
 
 const ART_ROOTS := ["EtwasTown", "EtwasValley", "EtwasLandscape"]
+const NAV_CELL_SIZE := 0.12
+const NAV_CELL_HEIGHT := 0.10
 
 var bake_meshes: Array[MeshInstance3D] = []
 var registered_meshes: Dictionary = {}
@@ -230,10 +232,10 @@ func fill_navmesh() -> void:
 	nav_covers = []
 	road_links = []
 	baked_navigation_mesh = NavigationMesh.new()
-	baked_navigation_mesh.agent_radius = 0.38
-	baked_navigation_mesh.cell_size = 0.15
-	baked_navigation_mesh.cell_height = 0.1
-	baked_navigation_mesh.agent_max_climb = 0.35
+	baked_navigation_mesh.agent_radius = 0.36
+	baked_navigation_mesh.cell_size = NAV_CELL_SIZE
+	baked_navigation_mesh.cell_height = NAV_CELL_HEIGHT
+	baked_navigation_mesh.agent_max_climb = 0.30
 	var source_geometry := NavigationMeshSourceGeometryData3D.new()
 	for mesh_node in bake_meshes:
 		if is_instance_valid(mesh_node) and mesh_node.mesh != null:
@@ -252,6 +254,9 @@ func fill_navmesh() -> void:
 func build_navigation() -> void:
 	map_rid = create_nav_map()
 	cart_map_rid = create_nav_map()
+	for nav_map in [map_rid, cart_map_rid]:
+		NavigationServer3D.map_set_cell_size(nav_map, NAV_CELL_SIZE)
+		NavigationServer3D.map_set_cell_height(nav_map, NAV_CELL_HEIGHT)
 	build_navigation_mesh_only()
 	print("WISPIVA_ETWAS_NAV_BAKED")
 

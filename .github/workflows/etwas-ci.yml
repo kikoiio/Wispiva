@@ -46,9 +46,9 @@ jobs:
         run: |
           set -euo pipefail
           for category in town valley; do
-            .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python "world/blender/build_etwas_${category}.py" > "blender-${category}.log"
+            .ci-tools/blender-4.5.3-linux-x64/blender -b --factory-startup -t 4 --python-exit-code 1 --python "world/blender/build_etwas_${category}.py" > "blender-${category}.log"
           done
-          .ci-tools/blender-4.5.3-linux-x64/blender -b -t 4 --python-exit-code 1 --python world/blender/build_etwas.py > blender-spring.log
+          .ci-tools/blender-4.5.3-linux-x64/blender -b --factory-startup -t 4 --python-exit-code 1 --python world/blender/build_etwas.py > blender-spring.log
           mkdir -p generated
           tar -cf generated/etwas-models.tar world/blender/etwas*.blend world/assets/etwas/*.glb
       - name: Import and check world tools and movement
@@ -59,6 +59,9 @@ jobs:
           if [[ -f world/tests/etwas.gd ]]; then
             .ci-tools/godot --headless --path world --fixed-fps 30 --script res://tests/etwas.gd 2>&1 | tee godot-proofs.log
           fi
+          if rg "^SCRIPT ERROR|^ERROR:" godot-proofs.log; then exit 1; fi
+          .ci-tools/godot --headless --path world --script res://tests/rules.gd
+          .ci-tools/godot --headless --path world --script res://tests/collision.gd
       - name: Capture town and spring in Godot
         if: ${{ !cancelled() }}
         run: |

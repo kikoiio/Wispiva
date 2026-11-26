@@ -29,8 +29,8 @@ EAST_FLOOR = 2.6
 LOW_QUAY_FLOOR = 0.48
 BANK_Z_MIN = -30.0
 BANK_Z_MAX = 27.0
-STAIR_X0 = 5.65
-STAIR_X1 = 7.35
+STAIR_X0 = 5.15
+STAIR_X1 = 6.55
 LOW_QUAY_X1 = 11.5
 LOW_QUAY_Z0 = 13.0
 LOW_QUAY_Z1 = 16.0
@@ -97,6 +97,7 @@ def create_materials():
         "cool_glass": ("536b6c", 0.25, 0.12, None),
         "linen": ("bca982", 0.96, 0.0, None),
         "basket": ("8c6743", 0.95, 0.0, None),
+        "soil": ("5b4f3a", 0.96, 0.0, None),
         "moss": ("657457", 0.97, 0.0, None),
         "grass": ("707b52", 0.97, 0.0, None),
         "water": ("526c6d", 0.22, 0.14, None),
@@ -773,7 +774,6 @@ def roof_and_frame(builder, building):
     while distance < slope_length + 0.08:
         x = x_start + (tile_row % 2) * tile_step_x * 0.5
         while x < x_end:
-            side = -1 if distance < 0 else 1
             for roof_side in (-1, 1):
                 y = ridge - distance * sin(slope_angle) + 0.025
                 z = cz + roof_side * distance * cos(slope_angle)
@@ -1137,6 +1137,70 @@ def add_town_fixtures(collections):
     visual.create()
 
 
+def dress_outlying_plots(collections):
+    houses = MeshBuilder("OBSTACLE_Terrace cottages and store", collections["architecture"], [])
+    details = MeshBuilder("VISUAL_Garden terraces and trim", collections["details"], [])
+    leaf_mats = [make_material("Garden " + c, c) for c in ("47573b", "526948", "65754a", "839359")]
+    blooms = [make_material("Petals " + c, c) for c in ("c7ae69", "ded0ab", "9f7877")]
+    plots = (
+        (-16.55, WEST_FLOOR, 9.1, 3.9, 4.75, 2.9, 1.97, "plaster_rose", "roof_slate"),
+        (-15.45, WEST_FLOOR, -18.3, 4.8, 4.1, 3.45, 2.08, "plaster_sage", "roof_terra_dark"),
+        (15.80, EAST_FLOOR, -22.1, 4.2, 4.65, 2.42, 1.68, "plaster_cream", "roof_slate_light"),
+    )
+    for x, y, z, sx, sz, h, rise, plaster, roof in plots:
+        houses.box((x, y + 0.33, z), (sx + 0.20, 0.66, sz + 0.20), MAT["river_stone"])
+        houses.box((x, y + h * 0.5, z), (sx, h, sz), MAT[plaster])
+        pitch = atan2(rise, sz * 0.5)
+        eave, ridge = y + h, y + h + rise
+        profile = [(x - sx * 0.5, eave, z - sz * 0.5), (x - sx * 0.5, eave, z + sz * 0.5),
+                   (x - sx * 0.5, ridge, z)]
+        houses.prism(profile, (sx, 0, 0), MAT[plaster])
+        angle_span = sqrt((sz * 0.5)**2 + rise**2)
+        for side in (-1, 1):
+            zz = z + side * sz * 0.25
+            houses.box((x, eave + rise * 0.5, zz), (sx + 0.78, 0.15, angle_span + 0.58), MAT[roof], rx=side*pitch)
+            for row in range(8):
+                along = row * angle_span / 7
+                for col in range(int((sx + 0.30) / 0.44)):
+                    xx = x - sx*0.5 - 0.06 + col*0.44 + (row % 2)*0.18
+                    details.box((xx, ridge - along*sin(pitch) + 0.095, z + side*along*cos(pitch)),
+                                (0.415, 0.062, angle_span/7 + 0.12),
+                                RNG.choice((MAT[roof], MAT[roof], MAT["roof_moss"])), rx=side*pitch)
+            face_z = z + side * (sz * 0.5 + 0.047)
+            for xx in (x - sx*0.5 + 0.08, x, x + sx*0.5 - 0.08):
+                details.box((xx, y + h*0.53, face_z), (0.18, h*0.94, 0.13), MAT["timber_dark"])
+            for bay in (-1, 1):
+                xx = x + bay*sx*0.25
+                details.box((xx, y + h*0.60, face_z), (0.62, 0.84, 0.15), MAT["timber_dark"])
+                details.box((xx, y + h*0.60, face_z + side*0.078), (0.40, 0.61, 0.022), MAT["warm_glow"])
+                details.box((xx, y + h*0.60, face_z + side*0.098), (0.04, 0.62, 0.025), MAT["timber_dark"])
+        front = x + (sx*0.5 + 0.055) * (-1 if x > 0 else 1)
+        details.box((front, y + 1.01, z), (0.13, 1.93, 1.03), MAT["timber_dark"])
+        for offset in (-0.37, -0.16, 0.055, 0.26):
+            details.box((front, y + 1.07, z + offset), (0.19, 1.81, 0.16), MAT["timber"])
+        details.box((x + 0.70, ridge + 0.33, z - sz*0.17), (0.52, 1.10, 0.65), MAT["river_stone"])
+        details.box((x + 0.70, ridge + 0.91, z - sz*0.17), (0.67, 0.13, 0.78), MAT["limestone"])
+
+    for x, h, z, width, depth in (
+        (-16.8, WEST_FLOOR, 17.4, 4.1, 2.8), (-16.9, WEST_FLOOR, -10.8, 3.8, 2.4),
+        (-12.7, WEST_FLOOR, 20.2, 3.2, 1.9), (16.8, EAST_FLOOR, 13.9, 4.4, 2.1),
+        (15.7, EAST_FLOOR, -17.4, 3.6, 1.3), (14.9, EAST_FLOOR, 20.0, 4.5, 2.2),
+    ):
+        details.box((x, h + 0.06, z), (width, 0.15, depth), MAT["soil"])
+        for side in (-1, 1):
+            details.box((x, h + 0.13, z + side*(depth*0.5 - 0.06)), (width, 0.24, 0.16), MAT["river_stone"])
+            details.box((x + side*(width*0.5 - 0.06), h + 0.13, z), (0.17, 0.24, depth), MAT["river_stone"])
+        for _ in range(int(width * depth * 9)):
+            xx = x + RNG.uniform(-0.44, 0.44) * width
+            zz = z + RNG.uniform(-0.42, 0.42) * depth
+            span = RNG.uniform(0.14, 0.37)
+            details.ellipsoid((xx, h + 0.16, zz), (span, span*0.87, span), RNG.choice(leaf_mats), 7, 4)
+            if RNG.random() < 0.27:
+                details.ellipsoid((xx + 0.034, h+0.19+span*0.33, zz), (0.065, 0.055, 0.074), RNG.choice(blooms), 6, 3)
+    houses.create()
+    details.create()
+
+
 def add_preview_rig(scene, collection):
     camera_data = bpy.data.cameras.new("Town overview camera")
     camera = bpy.data.objects.new("Town overview camera", camera_data)
@@ -1166,8 +1230,9 @@ def add_preview_rig(scene, collection):
 
     world = bpy.data.worlds.new("Etwas evening studio")
     world.use_nodes = True
-    world.node_tree.nodes["Background"].inputs["Color"].default_value = (0.20, 0.22, 0.28, 1.0)
-    world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.36
+    background = next(node for node in world.node_tree.nodes if node.type == "BACKGROUND")
+    background.inputs[0].default_value = (0.20, 0.22, 0.28, 1.0)
+    background.inputs[1].default_value = 0.36
     scene.world = world
     scene.render.resolution_x = 1600
     scene.render.resolution_y = 1080
@@ -1201,6 +1266,7 @@ def build_scene():
     build_stairs(collections)
     build_buildings(collections)
     add_town_fixtures(collections)
+    dress_outlying_plots(collections)
     add_preview_rig(scene, collections["studio"])
 
     scene.render.engine = "CYCLES"
@@ -1228,7 +1294,7 @@ def build_scene():
     print("bath entry axis: x=7.82..6.85, z=7.0..9.0, y=2.6")
     print("home entry axis: x=9.32..7.9, z=-11.1..-8.9, y=2.6")
     print("bridge deck: center=(0, approx 2.05, 0), span x=-5.5..5.5, width z=3.1 m")
-    print("east stair: center x=6.5, width=1.7, z=7..13, y=2.6 to 0.48")
+    print(f"east stair: x={STAIR_X0}..{STAIR_X1}, z=7..13, y=2.6 to 0.48")
     print("east lower quay walk: x=4.2..11.5, z=12..16, y=0.48")
     print("preview camera target: godot=(0.5, 1.7, -0.8)")
 
