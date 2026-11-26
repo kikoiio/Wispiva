@@ -109,11 +109,11 @@ func verify_explorer() -> void:
 	if not check(world.doors.values().any(func(door): return door.open and absf(door.body.position.z - 8.0) < 0.4),
 		"E did not open the bathhouse door"):
 		return
-	if not await walk_to(Vector3(10.7, 2.6, 8.0)):
+	if not await walk_to(Vector3(9.55, 2.6, 8.0)):
 		return
-	await walk_to(Vector3(6.14, 2.6, 6.4))
-	await walk_to(Vector3(6.14, 0.48, 12.28))
-	await walk_to(Vector3(6.14, 2.6, 6.4))
+	await walk_to(Vector3(5.9, 2.6, 6.4))
+	await walk_to(Vector3(5.9, 0.48, 12.28))
+	await walk_to(Vector3(5.9, 2.6, 6.4))
 
 	var trailhead := Vector3(9, 2.60, -25)
 	if not await walk_to(trailhead):
@@ -145,24 +145,8 @@ func verify_residents(snapshot: Dictionary) -> void:
 		var status := result("status", {}, actor)
 		check(status.get("agentId") == actor, "A resident must be able to read their own status")
 		result("look", {}, actor)
-	var walk_resident_to := func(actor_id: String, destination_id: String) -> void:
-		var moved: Dictionary = result("move_to", {"destination": destination_id, "pace": "walk"}, actor_id)
-		if moved.get("pending", false):
-			var finished := false
-			for _minute in range(30):
-				result("world_step", {"minutes": 1})
-				var events: Array = result("host_pending", {"agentId": actor_id}).get("events", [])
-				for event in events:
-					if event.get("action", {}).get("destination") == destination_id:
-						moved = event.get("result", {})
-						finished = true
-						break
-				if finished:
-					break
-		check(moved.get("arrived", false), "%s could not reach %s: %s" % [actor_id, destination_id, moved])
-
 	var keeper := "human_sela"
-	walk_resident_to.call(keeper, "inn_hearth")
+	walk_resident(keeper, "inn_hearth")
 	var look := result("look", {"focus": "inn_hearth"}, keeper)
 	check(look.get("visible_fixtures", []).any(func(fixture): return fixture.id == "inn_hearth"),
 		"The innkeeper must see the actual hearth")
@@ -171,23 +155,12 @@ func verify_residents(snapshot: Dictionary) -> void:
 	check(fire.get("pending", false), "Lighting the hearth must take world time")
 	result("world_step", {"minutes": 4})
 	check(result("status", {}, keeper).get("near_fire", false), "The lit hearth must provide warmth")
-	walk_resident_to.call(keeper, "inn_bed_sela")
+	walk_resident(keeper, "inn_bed_sela")
 	rest_at(keeper, "inn_bed_sela")
 
-	var spring := ""
-	var spring_distance := INF
-	var quay := Vector3(5.0, 0.48, 12.2)
-	for fixture_id in world.fixtures:
-		var fixture: Dictionary = world.fixtures[fixture_id]
-		if fixture.spec.kind != "spring":
-			continue
-		var distance: float = fixture.body.global_position.distance_to(quay)
-		if distance < spring_distance:
-			spring = str(fixture_id)
-			spring_distance = distance
-	check(not spring.is_empty(), "The town must register an interactable spring fixture")
+	var spring := "river_spring"
 	var resident := "elf_orla"
-	walk_resident_to.call(resident, spring)
+	walk_resident(resident, spring)
 	result("inspect", {"target_id": spring}, resident)
 	var water := result("work_craft", {"station_id": spring, "recipe_or_task": "draw_water", "minutes": 2}, resident)
 	check(water.get("pending", false), "Water must be drawn from the registered spring fixture")
@@ -195,9 +168,9 @@ func verify_residents(snapshot: Dictionary) -> void:
 	var events: Array = result("host_pending", {"agentId": resident}).get("events", [])
 	check(events.any(func(event): return event.get("produced", {}).get("spring_water") == 1),
 		"Drawing water must produce one unit of spring water")
-	walk_resident_to.call(resident, "summit_seat")
+	walk_resident(resident, "summit_seat")
 	rest_at(resident, "summit_seat")
-	walk_resident_to.call(resident, "east_gate")
+	walk_resident(resident, "east_gate")
 	var before_idle := int(result("world_snapshot").get("elapsed_seconds", 0))
 	var unattended := result("world_step", {"minutes": 60})
 	check(int(unattended.get("elapsed_seconds", 0)) >= before_idle + 3600,

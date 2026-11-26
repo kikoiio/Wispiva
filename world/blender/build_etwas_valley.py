@@ -337,6 +337,30 @@ def river_reaches(group):
         tint_vertices(shore, pigment)
 
 
+def quay_fountain(group, stones):
+    x, y = 7.65, -15.34
+    stone = stones[2]
+    dark = matte("Cistern mineral stain", "4f5c52")
+    metal = matte("Aged copper spout", "72563a", 0.54)
+    water = matte("Fountain water preview", "457370", 0.22)
+    block(group, "Foot of the spring trough", (x, y, 0.60), (1.20, 0.65, 0.24), stones[1], 0.09)
+    block(group, "Hewn limestone basin", (x, y, 0.78), (1.48, 0.88, 0.20), stone, 0.085)
+    for side in (-1, 1):
+        block(group, "Worn trough end", (x + side * 0.64, y, 0.90), (0.20, 0.83, 0.19), stone, 0.073)
+        block(group, "Worn trough lip", (x, y + side * 0.36, 0.90), (1.29, 0.16, 0.19), stones[3], 0.062)
+    block(group, "Trough waterline", (x, y, 0.88), (1.09, 0.56, 0.02), dark)
+    block(group, "WATER_Fountain", (x, y, 0.895), (1.05, 0.51, 0.015), water, 0)
+    block(group, "Spout lintel", (x, -15.82, 1.34), (1.02, 0.27, 0.94), stones[1], 0.060)
+    for course in range(3):
+        block(group, "Chisel-cut springhead", (x, -15.65, 1.02 + course * 0.23),
+              (0.81 + (0.12 if course != 1 else 0), 0.18, 0.215), stones[2 + course % 2], 0.044)
+    tube = [(x + 0.058 * cos(i*tau/12), py, 1.37 + 0.058 * sin(i*tau/12))
+            for py in (-15.59, -15.28) for i in range(12)]
+    sides = [(i, (i+1)%12, (i+1)%12+12, i+12) for i in range(12)]
+    mesh(group, "Blackened feed spout", tube, sides + [tuple(range(12, 24))], [metal])
+    block(group, "WATER_SpringTrickle", (x, -15.27, 1.12), (0.037, 0.033, 0.46), water, 0)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.system = "METRIC"
@@ -354,6 +378,7 @@ def main():
     distant_peaks(collection("Western watershed"))
     alpine_meadow(collection("Alpine grasses along the trail"))
     river_reaches(collection("Upstream and downstream gravel bars"))
+    quay_fountain(collection("Lower quay springhead"), stones)
     for screen in bpy.data.screens:
         for area in screen.areas:
             if area.type == "VIEW_3D":

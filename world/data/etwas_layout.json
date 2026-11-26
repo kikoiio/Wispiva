@@ -226,7 +226,7 @@
       "name": "Inn hearth",
       "kind": "fire",
       "center": [-9.45, 2.22, -7.62],
-      "size": [0.56, 1.44, 0.66],
+      "size": [0.74, 1.56, 0.83],
       "approaches": [[-10.65, 1.5, -7.62]],
       "recipe": "light_campfire"
     },
@@ -297,6 +297,29 @@
       "center": [9.2, 3.02, 18.0],
       "size": [0.58, 0.12, 1.65],
       "approaches": [[8.3, 2.6, 18.0]]
+    },
+    {
+      "id": "river_spring",
+      "name": "Lower quay spring spout",
+      "kind": "spring",
+      "center": [
+        7.65,
+        1.05,
+        15.44
+      ],
+      "size": [
+        1.52,
+        1.14,
+        0.94
+      ],
+      "approaches": [
+        [
+          7.65,
+          0.48,
+          14.2
+        ]
+      ],
+      "recipe": "draw_water"
     },
     {
       "id": "summit_pool",

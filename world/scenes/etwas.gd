@@ -5,6 +5,7 @@ const STEAM := preload("res://assets/etwas/steam.gdshader")
 const GRASS := preload("res://assets/etwas/grass.gdshader")
 const SHELF := preload("res://assets/etwas/shelf.gdshader")
 const FOLIAGE := preload("res://assets/etwas/foliage.gdshader")
+const WEATHERED_STONE := preload("res://assets/etwas/weathered_stone.gdshader")
 const RIVER := preload("res://assets/etwas/river.gdshader")
 
 @onready var explorer: CharacterBody3D = $Explorer
@@ -12,6 +13,7 @@ const RIVER := preload("res://assets/etwas/river.gdshader")
 
 var steam: Array[Dictionary] = []
 var steam_age := 0.0
+var stone_materials := {}
 
 
 func _ready() -> void:
@@ -50,6 +52,8 @@ func dress_meshes(root: Node) -> void:
 			shader = SHELF
 		elif id.begins_with("WATER_"):
 			shader = RIVER
+		elif id.begins_with("OBSTACLE_Schist") or id.begins_with("HIT_SlopeSchist") or id.begins_with("Mineral rim") or id == "HIT_SeatLedge" or id.begins_with("Portal") or id.begins_with("Quarried wall") or id.begins_with("Flagstone"):
+			weather_stone(surface)
 		if shader == null:
 			continue
 		var material := ShaderMaterial.new()
@@ -57,6 +61,20 @@ func dress_meshes(root: Node) -> void:
 		surface.material_override = material
 		if shader in [SPRING, RIVER, GRASS]:
 			surface.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+
+func weather_stone(mesh_node: MeshInstance3D) -> void:
+	for surface in mesh_node.mesh.get_surface_count():
+		var original := mesh_node.mesh.surface_get_material(surface) as StandardMaterial3D
+		if original == null:
+			continue
+		var id := original.get_instance_id()
+		if not stone_materials.has(id):
+			var material := ShaderMaterial.new()
+			material.shader = WEATHERED_STONE
+			material.set_shader_parameter("pigment", original.albedo_color)
+			stone_materials[id] = material
+		mesh_node.set_surface_override_material(surface, stone_materials[id])
 
 
 func light_room(center: Vector3, reach: float, energy: float) -> void:

@@ -3563,7 +3563,7 @@ func door_separates_goal(door: Dictionary, from: Vector3, goal: Vector3) -> bool
 		var box := AABB(v3(building.floor) - Vector3(size.x * 0.5, 0, size.z * 0.5), size)
 		if box.has_point(from + Vector3.UP * 0.1) != box.has_point(goal + Vector3.UP * 0.1):
 			return true
-	for room in layout.upper_rooms:
+	for room in layout.get("upper_rooms", []):
 		if room.door != door.id:
 			continue
 		var bounds: Array = room.bounds

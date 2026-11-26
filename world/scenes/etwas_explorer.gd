@@ -84,19 +84,24 @@ func walk(input: Vector2, delta: float) -> void:
 
 func step_up(motion: Vector3) -> void:
 	var obstacle := KinematicCollision3D.new()
-	if not test_move(global_transform, motion, obstacle) or obstacle.get_normal().y > 0.40:
+	if not test_move(global_transform, motion, obstacle) or obstacle.get_normal().y >= cos(floor_max_angle):
 		return
-	var rise := Vector3.UP * STEP_HEIGHT
+	var toe := global_position + motion.normalized() * 0.37
+	var probe := PhysicsRayQueryParameters3D.create(
+		toe + Vector3.UP * (STEP_HEIGHT + 0.02), toe, world.L_FLOOR
+	)
+	var floor_hit := get_world_3d().direct_space_state.intersect_ray(probe)
+	if floor_hit.is_empty() or (floor_hit.normal as Vector3).y < cos(floor_max_angle):
+		return
+	var height: float = floor_hit.position.y - global_position.y
+	if height < 0.015 or height > STEP_HEIGHT:
+		return
+	var rise := Vector3.UP * (height + 0.014)
 	if test_move(global_transform, rise):
 		return
-	var raised := global_transform.translated(rise)
-	if test_move(raised, motion):
+	if test_move(global_transform.translated(rise), motion):
 		return
-	var floor_hit := KinematicCollision3D.new()
-	if not test_move(raised.translated(motion), Vector3.DOWN * STEP_HEIGHT, floor_hit):
-		return
-	if floor_hit.get_normal().y >= cos(floor_max_angle):
-		global_position.y += STEP_HEIGHT + floor_hit.get_travel().y
+	global_position += rise
 
 
 func _process(delta: float) -> void:

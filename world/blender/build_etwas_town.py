@@ -32,7 +32,7 @@ BANK_Z_MAX = 27.0
 STAIR_X0 = 5.65
 STAIR_X1 = 7.35
 LOW_QUAY_X1 = 11.5
-LOW_QUAY_Z0 = 12.0
+LOW_QUAY_Z0 = 13.0
 LOW_QUAY_Z1 = 16.0
 
 
@@ -287,6 +287,39 @@ def add_cobbles(builder, x0, x1, z0, z1, y, rng, x_step=0.52, z_step=0.48):
         row += 1
 
 
+def build_terrace_edge(builder, axis, fixed, start, end, top, bottom, thickness, seed):
+    rng = Random(seed)
+    course_height = 0.42
+    level = bottom
+    course = 0
+    while level < top - 0.025:
+        height = min(course_height, top - level)
+        block_length = 0.92 if course % 2 == 0 else 0.76
+        offset = 0.0
+        while start + offset < end - 0.025:
+            length = min(block_length + rng.uniform(-0.06, 0.06), end - start - offset)
+            along = start + offset + length * 0.5
+            center_y = level + height * 0.5
+            center = (fixed, center_y, along) if axis == "x" else (along, center_y, fixed)
+            size = (thickness, height - 0.025, length - 0.035) if axis == "x" else \
+                (length - 0.035, height - 0.025, thickness)
+            builder.box(center, size, rng.choice((MAT["river_stone"], MAT["river_stone_light"],
+                                                  MAT["limestone_shade"])))
+            offset += block_length
+        level += course_height
+        course += 1
+
+    offset = 0.0
+    while start + offset < end - 0.02:
+        length = min(1.05, end - start - offset)
+        along = start + offset + length * 0.5
+        center = (fixed, top + 0.045, along) if axis == "x" else (along, top + 0.045, fixed)
+        size = (thickness + 0.16, 0.09, length - 0.03) if axis == "x" else \
+            (length - 0.03, 0.09, thickness + 0.16)
+        builder.box(center, size, rng.choice((MAT["limestone"], MAT["limestone_light"])))
+        offset += 1.05
+
+
 def make_collection(name, parent):
     collection = bpy.data.collections.new(name)
     parent.children.link(collection)
@@ -340,6 +373,21 @@ def build_banks(collections):
                     LOW_QUAY_FLOOR, -0.16, 0.48)
     build_quay_wall(quay, wet_edge, "east", RIVER_EAST, LOW_QUAY_Z1, BANK_Z_MAX,
                     EAST_FLOOR, 0.25, 0.48)
+
+    # Coursed dry-stone edges dress the valley-cut overlap and hold the raised pads.
+    build_terrace_edge(quay, "x", -19.8, BANK_Z_MIN + 0.2, BANK_Z_MAX - 0.2,
+                       WEST_FLOOR, 0.88, 0.42, 3101)
+    build_terrace_edge(quay, "x", 19.8, BANK_Z_MIN + 0.2, BANK_Z_MAX - 0.2,
+                       EAST_FLOOR, 1.88, 0.42, 3102)
+    for z, seed in ((BANK_Z_MIN + 0.2, 3103), (BANK_Z_MAX - 0.2, 3104)):
+        build_terrace_edge(quay, "z", z, -19.8, RIVER_WEST,
+                           WEST_FLOOR, 0.88, 0.42, seed)
+        build_terrace_edge(quay, "z", z, RIVER_EAST, 19.8,
+                           EAST_FLOOR, 1.88, 0.42, seed + 20)
+    build_terrace_edge(quay, "x", LOW_QUAY_X1, LOW_QUAY_Z0, LOW_QUAY_Z1,
+                       EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3105)
+    build_terrace_edge(quay, "z", LOW_QUAY_Z1, RIVER_EAST, LOW_QUAY_X1,
+                       EAST_FLOOR, LOW_QUAY_FLOOR, 0.46, 3106)
 
     # Slightly raised curb stones remain visual set dressing and do not block traffic.
     for x, width, y in ((-7.95, 0.12, WEST_FLOOR), (-5.95, 0.12, WEST_FLOOR),
@@ -745,17 +793,39 @@ def roof_and_frame(builder, building):
 
     # Gable timber makes the entrance face legible from the bridge.
     for side in (-1, 1):
-        face_x = cx + side * (sx * 0.5 + 0.205)
+        face_x = cx + side * (sx * 0.5 + 0.26)
         builder.beam((face_x, eave, cz - sz * 0.5 + 0.10),
-                     (face_x, ridge, cz), 0.15, 0.12, trim)
+                     (face_x, ridge, cz), 0.22, 0.16, trim)
         builder.beam((face_x, eave, cz + sz * 0.5 - 0.10),
-                     (face_x, ridge, cz), 0.15, 0.12, trim)
-        builder.beam((face_x, eave + 0.48, cz - sz * 0.35),
-                     (face_x, ridge - 0.42, cz), 0.105, 0.10, MAT["timber"])
-        builder.beam((face_x, eave + 0.48, cz + sz * 0.35),
-                     (face_x, ridge - 0.42, cz), 0.105, 0.10, MAT["timber"])
-        builder.beam((face_x, eave + 0.42, cz - sz * 0.33),
-                     (face_x, eave + 0.42, cz + sz * 0.33), 0.11, 0.09, trim)
+                     (face_x, ridge, cz), 0.22, 0.16, trim)
+        builder.beam((face_x, eave + 0.30, cz - sz * 0.34),
+                     (face_x, ridge - 0.28, cz + sz * 0.31), 0.19, 0.14, MAT["timber_dark"])
+        builder.beam((face_x, eave + 0.30, cz + sz * 0.34),
+                     (face_x, ridge - 0.28, cz - sz * 0.31), 0.19, 0.14, MAT["timber_dark"])
+        builder.beam((face_x, eave + 0.16, cz), (face_x, ridge - 0.18, cz),
+                     0.17, 0.13, trim)
+
+        # Strong diagonal braces fill the two solid bays beside the centered door.
+        y0, y1 = floor + 0.48, eave - 0.28
+        for bay in (-1, 1):
+            z0 = cz + bay * (sz * 0.5 - 0.34)
+            z1 = cz + bay * 1.22
+            builder.beam((face_x, y0, z0), (face_x, y1, z1), 0.20, 0.15, trim)
+            builder.beam((face_x, y0, z1), (face_x, y1, z0), 0.20, 0.15, trim)
+
+    # The long window walls get a readable post-and-cross-brace rhythm as well.
+    for side in (-1, 1):
+        face_z = cz + side * (sz * 0.5 + 0.26)
+        for xoff in (-sx * 0.5 + 0.24, -2.82, -1.0, 0.0, 1.0, 2.82, sx * 0.5 - 0.24):
+            builder.beam((cx + xoff, floor + 0.40, face_z),
+                         (cx + xoff, eave - 0.08, face_z), 0.18, 0.14, trim)
+        for y in (floor + 0.57, floor + 2.50):
+            builder.beam((cx - sx * 0.5 + 0.20, y, face_z),
+                         (cx + sx * 0.5 - 0.20, y, face_z), 0.16, 0.12, MAT["timber"])
+        builder.beam((cx - 1.14, floor + 0.55, face_z),
+                     (cx + 1.14, eave - 0.34, face_z), 0.18, 0.14, MAT["timber_dark"])
+        builder.beam((cx + 1.14, floor + 0.55, face_z),
+                     (cx - 1.14, eave - 0.34, face_z), 0.18, 0.14, MAT["timber_dark"])
 
     # Modest capped chimney off the ridge, with a soot-dark recessed flue.
     chimney_x = cx - sx * 0.23
@@ -991,15 +1061,14 @@ def build_stairs(collections):
     retaining = MeshBuilder("OBSTACLE_Stair cheek walls and landing returns", collections["quay"], [])
     detail = MeshBuilder("VISUAL_Stair nosings and handrail sockets", collections["details"], [])
 
-    stair_x0, stair_x1 = 5.45, 6.85
+    stair_x0, stair_x1 = STAIR_X0, STAIR_X1
     center_x = (stair_x0 + stair_x1) * 0.5
-    top_landing_z0, top_landing_z1 = 7.0, 8.0
-    bottom_landing_z0, bottom_landing_z1 = 11.72, 13.0
+    top_landing_z0, top_landing_z1 = 6.75, 7.35
     treads.box((center_x, EAST_FLOOR - 0.12, (top_landing_z0 + top_landing_z1) * 0.5),
                (stair_x1 - stair_x0, 0.24, top_landing_z1 - top_landing_z0), MAT["limestone"])
 
-    count = 11
-    start_z, end_z = top_landing_z1, 11.72
+    count = 12
+    start_z, end_z = top_landing_z1, 12.97
     rise = (EAST_FLOOR - LOW_QUAY_FLOOR) / count
     run = (end_z - start_z) / count
     for index in range(count):
@@ -1012,10 +1081,8 @@ def build_stairs(collections):
         detail.box((center_x, top + 0.015, z - run * 0.36),
                    (stair_x1 - stair_x0 + 0.025, 0.035, 0.075), MAT["limestone_light"])
 
-    treads.box((center_x, LOW_QUAY_FLOOR - 0.11, (bottom_landing_z0 + bottom_landing_z1) * 0.5),
-               (stair_x1 - stair_x0, 0.22, bottom_landing_z1 - bottom_landing_z0), MAT["limestone"])
-
-    # Stepped low cheeks follow the flight without narrowing its 1.4 m clear width.
+    # The lower tread opens directly onto the paved quay at x=6.5, z=13.
+    # Stepped low cheeks follow the flight without narrowing its 1.7 m clear width.
     for side_x in (stair_x0 - 0.09, stair_x1 + 0.09):
         for index in range(count):
             top = EAST_FLOOR - index * rise + 0.18
@@ -1161,8 +1228,8 @@ def build_scene():
     print("bath entry axis: x=7.82..6.85, z=7.0..9.0, y=2.6")
     print("home entry axis: x=9.32..7.9, z=-11.1..-8.9, y=2.6")
     print("bridge deck: center=(0, approx 2.05, 0), span x=-5.5..5.5, width z=3.1 m")
-    print("east stair: x=5.45..6.85, z=7..13, top y=2.6, lower y=0.48")
-    print("east lower quay connector: x=4.2..6.85, z=11.72..13, y=0.48")
+    print("east stair: center x=6.5, width=1.7, z=7..13, y=2.6 to 0.48")
+    print("east lower quay walk: x=4.2..11.5, z=12..16, y=0.48")
     print("preview camera target: godot=(0.5, 1.7, -0.8)")
 
 
