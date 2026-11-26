@@ -161,6 +161,25 @@ async function proveInteriors(world: WorldClient): Promise<void> {
   assert.ok(num(await use(mira, "status"), "y") < 1);
 }
 
+async function proveWindows(world: WorldClient): Promise<void> {
+  const actor = "human_tomas";
+  const shutter = "guild_hall_shutter_2";
+  const position = resultOf(await walk(world, actor, "89.43,0,-44"));
+  assert.equal(position.arrived, true, JSON.stringify(position));
+  async function visibleDesk() {
+    const view = await agentCall(world, actor, "look", { focus: "guild_appraisal" });
+    assert.ok(view.ok, JSON.stringify(view.error));
+    return list(resultOf(view), "visible_fixtures").some(entry => isRecord(entry) && entry.id === "guild_appraisal");
+  }
+  assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: shutter, action: "open" })).ok);
+  assert.equal(await visibleDesk(), true, "open shutters expose the room through a real window opening");
+  assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: shutter, action: "close" })).ok);
+  assert.equal(await visibleDesk(), false, "closed shutters obscure the same sightline");
+  assert.ok((await agentCall(world, actor, "toggle_lock", { door_id: shutter, action: "open" })).ok);
+  const throughWindow = resultOf(await walk(world, actor, "90,0,-40.5"));
+  assert.equal(throughWindow.arrived, false, "an open window still has a solid sill");
+}
+
 async function proveSurvival(world: WorldClient): Promise<void> {
   const patient = "human_garrick";
   const hearth = "town_fire_ring";
@@ -1114,6 +1133,13 @@ async function main(): Promise<void> {
     check("magic observes suppression, concentration, healing, fuel, and expiry", false, String(error));
   }
 
+  try {
+    await proveWindows(world);
+    check("window shutters control real sight openings", true, "open and closed sightlines, solid sills");
+  } catch (error) {
+    check("window shutters control real sight openings", false, String(error));
+  }
+
   const failed = checks.filter((item) => !item.ok);
   console.log(`${checks.length - failed.length}/${checks.length} checks passed`);
   world.close();
@@ -1126,6 +1152,7 @@ if (scenario === undefined) {
 } else {
   const scenarios = new Map([
     ["interiors", proveInteriors],
+    ["windows", proveWindows],
     ["perception", provePerception],
     ["survival", proveSurvival],
     ["farms", proveFarms],

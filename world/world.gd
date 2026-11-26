@@ -575,13 +575,68 @@ func build_building(building) -> void:
 		door.body = solids.back().body
 		apply_door_visual(door)
 		remember_passage(str(spec.side), center, float(spec.width), thick, door)
-	build_span_x(str(building.id) + "_s", minx, maxx, maxz, y0, y1, thick, mat_name, gaps["+z"])
-	build_span_x(str(building.id) + "_n", minx, maxx, minz, y0, y1, thick, mat_name, gaps["-z"])
-	build_span_z(str(building.id) + "_w", minz, maxz, minx, y0, y1, thick, mat_name, gaps["-x"])
-	build_span_z(str(building.id) + "_e", minz, maxz, maxx, y0, y1, thick, mat_name, gaps["+x"])
+	for side in ["+z", "-z", "+x", "-x"]:
+		var horizontal := str(side).ends_with("z")
+		var axis := "x" if horizontal else "z"
+		var start := minx if horizontal else minz
+		var end := maxx if horizontal else maxz
+		for span in subtract_intervals(start, end, gaps[side], axis):
+			build_windowed_wall(building, side, span[0], span[1])
+	for opening in building.openings + building.doors:
+		var middle := floor.x if str(opening.side).ends_with("z") else floor.z
+		build_windowed_wall(building, str(opening.side), middle - float(opening.width) * 0.5, middle + float(opening.width) * 0.5, float(opening.height))
+	for spec in building.get("windows", []):
+		var side := str(spec.side)
+		var center := wall_point(side, minx, maxx, minz, maxz, y0 + float(spec.sill) + float(spec.height) * 0.5)
+		center += (Vector3.RIGHT if side.ends_with("z") else Vector3.BACK) * float(spec.offset)
+		var door := make_door({"id": spec.id, "open": spec.open, "lock": "unlocked", "material": "wood"})
+		door["kind"] = "shutter"
+		door["closed_position"] = center
+		door["open_offset"] = (Vector3.RIGHT if side.ends_with("z") else Vector3.BACK) * (float(spec.width) + 0.1)
+		var shutter_size := Vector3(float(spec.width), float(spec.height), 0.08) if side.ends_with("z") else Vector3(0.08, float(spec.height), float(spec.width))
+		add_solid(door.id, center, shutter_size, "wood", false, door, L_DOOR, COL.wood)
+		door.body = solids.back().body
+		apply_door_visual(door)
 	add_solid(str(building.id) + "_roof", Vector3(floor.x, y1 - 0.12, floor.z), Vector3(size.x, 0.24, size.z), "roof", true, null, L_WORLD, COL.roof)
 	landmarks[str(building.id)] = {"name": str(building.name), "center": floor, "surfaces": solids.slice(first_solid)}
 	dress_building(str(building.id))
+
+func build_windowed_wall(building: Dictionary, side: String, start: float, end: float, bottom := 0.0) -> void:
+	var floor := v3(building.floor)
+	var size := v3(building.size)
+	var horizontal := side.ends_with("z")
+	var middle := floor.x if horizontal else floor.z
+	var cuts: Array = [start, end]
+	var windows: Array = []
+	for window in building.get("windows", []):
+		if window.side != side:
+			continue
+		var left := middle + float(window.offset) - float(window.width) * 0.5
+		var right := left + float(window.width)
+		if right <= start or left >= end:
+			continue
+		cuts.append(maxf(start, left))
+		cuts.append(minf(end, right))
+		windows.append({"left": left, "right": right, "bottom": floor.y + float(window.sill), "top": floor.y + float(window.sill) + float(window.height)})
+	cuts.sort()
+	for index in range(1, cuts.size()):
+		var left := float(cuts[index - 1])
+		var right := float(cuts[index])
+		if right - left < 0.01:
+			continue
+		var vertical_gaps: Array = []
+		for window in windows:
+			if (left + right) * 0.5 > window.left and (left + right) * 0.5 < window.right:
+				vertical_gaps.append({"x0": window.bottom, "x1": window.top})
+		for vertical in subtract_intervals(floor.y + bottom, floor.y + size.y, vertical_gaps, "x"):
+			var center := wall_point(side, floor.x - size.x * 0.5, floor.x + size.x * 0.5, floor.z - size.z * 0.5, floor.z + size.z * 0.5, (vertical[0] + vertical[1]) * 0.5)
+			var wall_size := Vector3(right - left, vertical[1] - vertical[0], maxf(float(building.thick), 0.4))
+			if horizontal:
+				center.x = (left + right) * 0.5
+			else:
+				center.z = (left + right) * 0.5
+				wall_size = Vector3(wall_size.z, wall_size.y, wall_size.x)
+			add_solid("%s_%s_%.2f_%.2f" % [building.id, side, left, vertical[0]], center, wall_size, str(building.material), true, null, L_WORLD, col(str(building.material)))
 
 # A modelled building replaces only the greybox meshes. The scripted bodies stay:
 # they carry the collision, sight blocking and navigation the rules rely on.
@@ -589,7 +644,7 @@ func dress_building(id: String) -> void:
 	var model := load_model("res://assets/buildings/%s.glb" % id)
 	if model == null:
 		return
-	var sides := ["_s_", "_n_", "_w_", "_e_"]
+	var sides := ["_s_", "_n_", "_w_", "_e_", "_+z_", "_-z_", "_+x_", "_-x_"]
 	for child in get_children():
 		if child is StaticBody3D and (child.name == id + "_roof" or sides.any(func(side): return child.name.begins_with(id + side))):
 			for part in child.get_children():
@@ -682,7 +737,8 @@ func build_upper_rooms() -> void:
 				continue
 			partitions[key] = true
 			add_solid(str(room.id) + "_side", Vector3(x, (y0 + y1) * 0.5, (z0 + z1) * 0.5), Vector3(0.2, y1 - y0, z1 - z0), "wood", true, null, L_WORLD, COL.wood)
-		add_solid(str(room.id) + "_back", Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, z0), Vector3(x1 - x0, y1 - y0, 0.2), "wood", true, null, L_WORLD, COL.wood)
+		if not room.get("exterior_back", false):
+			add_solid(str(room.id) + "_back", Vector3((x0 + x1) * 0.5, (y0 + y1) * 0.5, z0), Vector3(x1 - x0, y1 - y0, 0.2), "wood", true, null, L_WORLD, COL.wood)
 
 func make_door(spec) -> Dictionary:
 	var door = {
@@ -702,6 +758,10 @@ func apply_door_visual(door) -> void:
 	if door.body == null:
 		return
 	door.body.collision_layer = 0 if door.open else L_DOOR
+	if door.get("kind", "door") == "shutter":
+		door.body.position = door.closed_position + (door.open_offset if door.open else Vector3.ZERO)
+		door.body.force_update_transform()
+		return
 	door.body.rotation.y = 1.15 if door.open else 0.0
 
 func build_span_x(id: String, x0: float, x1: float, z: float, y0: float, y1: float, thick: float, material: String, gaps: Array) -> void:
@@ -2947,6 +3007,7 @@ func tool_move(agent, args) -> Dictionary:
 		var plain := nav_path(start, goal, false)
 		if plain.size() >= 2 and walk_path(agent, plain).blocked == null:
 			path = plain
+	path = avoid_actor_on_path(agent, start, goal, path)
 	var used_pace := pace
 	if pace == "run" and (mass_of(agent) >= 45.0 or agent.stamina < 15.0 or agent.cart_id != "" or "fractured" in agent.injuries):
 		used_pace = "walk"
@@ -2962,6 +3023,41 @@ func tool_move(agent, args) -> Dictionary:
 		"approach": approach, "door": shut.get("id", ""), "blocked": null,
 	}
 	return start_action(agent, maxi(1, int(ceil(distance / speed))), {"kind": "walk", "destination": destination}, travel)
+
+func avoid_actor_on_path(agent, start: Vector3, goal: Vector3, path: PackedVector3Array) -> PackedVector3Array:
+	if path.size() < 2:
+		return path
+	var preview := walk_path(agent, path)
+	if preview.blocked == null or preview.blocked.kind != "agent":
+		return path
+	var id := str(preview.blocked.id)
+	var other = agents_by_id[id] if agents_by_id.has(id) else find_wild(id)
+	if other == null:
+		return path
+	var direction := goal - (other.pos as Vector3)
+	direction.y = 0
+	if direction.length() < 0.1:
+		return path
+	direction = direction.normalized()
+	var radius := 3.0 if agent.cart_id != "" else 1.6
+	var best := path
+	var best_distance := INF
+	for angle in [PI * 0.5, -PI * 0.5, PI * 0.25, -PI * 0.25, PI * 0.75, -PI * 0.75]:
+		var candidate: Vector3 = other.pos + direction.rotated(Vector3.UP, angle) * radius
+		var via := NavigationServer3D.map_get_closest_point(map_rid, candidate)
+		if via.distance_to(candidate) > 0.5:
+			continue
+		for optimized in [true, false]:
+			var before := nav_path(start, via, optimized)
+			var after := nav_path(via, goal, optimized)
+			if before.size() < 2 or after.size() < 2 or before[before.size() - 1].distance_to(via) > 0.5 or after[after.size() - 1].distance_to(goal) > 0.5:
+				continue
+			before.append_array(after.slice(1))
+			var trial := walk_path(agent, before)
+			if trial.blocked == null and trial.walked < best_distance:
+				best = before
+				best_distance = trial.walked
+	return best
 
 func walk_path(agent, path: PackedVector3Array, index := 1, budget := INF) -> Dictionary:
 	var walked := 0.0
@@ -3008,6 +3104,14 @@ func tick_walk(agent, travel: Dictionary) -> bool:
 		var freight := cart_cargo_mass(carts[agent.cart_id])
 		speed = minf(speed, lerpf(62.0, 39.0, freight / CART_CAPACITY_KG))
 	var step := walk_path(agent, travel.path, travel.index, speed)
+	if step.blocked != null and step.blocked.kind == "agent":
+		var start := NavigationServer3D.map_get_closest_point(map_rid, agent.pos)
+		var goal := NavigationServer3D.map_get_closest_point(map_rid, travel.approach)
+		var path := avoid_actor_on_path(agent, start, goal, nav_path(start, goal, true))
+		if path.size() >= 2 and path[path.size() - 1].distance_to(goal) <= 0.5 and walk_path(agent, path).blocked == null:
+			travel.path = path
+			travel.index = 1
+			step = walk_path(agent, path, 1, speed)
 	var previous: Vector3 = agent.pos
 	var next: Vector3 = step.pos
 	set_pos(agent, next)

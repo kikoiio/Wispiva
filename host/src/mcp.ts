@@ -98,9 +98,9 @@ const characterToolDrafts: McpToolDraft[] = [
   },
   {
     name: "toggle_lock",
-    description: "Open, close, lock, or unlock a door you can reach, if your key fits.",
+    description: "Open, close, lock, or unlock a reachable door or window shutter, if your key fits.",
     inputSchema: schemaOf([
-      field("door_id", "string", "Door id.", true),
+      field("door_id", "string", "Door or shutter id.", true),
       field("action", "string", "open, close, lock, or unlock.", true),
     ]),
   },
